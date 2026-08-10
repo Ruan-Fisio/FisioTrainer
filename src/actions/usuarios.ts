@@ -7,12 +7,12 @@ import { usuarioSchema, usuarioUpdateSchema } from "@/lib/validations/usuario";
 
 const PAGE_SIZE = 10;
 
-export async function listUsuarios(page: number, search?: string) {
-  const where = search
+export async function listUsuarios(filters: { q?: string }, page: number) {
+  const where = filters.q
     ? {
         OR: [
-          { name: { contains: search, mode: "insensitive" as const } },
-          { email: { contains: search, mode: "insensitive" as const } },
+          { name: { contains: filters.q, mode: "insensitive" as const } },
+          { email: { contains: filters.q, mode: "insensitive" as const } },
         ],
       }
     : {};

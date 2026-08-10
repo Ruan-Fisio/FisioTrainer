@@ -1,13 +1,24 @@
 import type { LucideIcon } from "lucide-react";
-import { LayoutDashboard, Users } from "lucide-react";
+import { LayoutDashboard, Users, Dumbbell } from "lucide-react";
 
-export type NavItem = {
+export type NavLeaf = {
   title: string;
   href: string;
-  icon: LucideIcon;
 };
+
+export type NavItem =
+  | ({ title: string; icon: LucideIcon } & NavLeaf)
+  | { title: string; icon: LucideIcon; items: NavLeaf[] };
 
 export const navItems: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { title: "Usuários", href: "/usuarios", icon: Users },
+  {
+    title: "Biblioteca de Exercícios",
+    icon: Dumbbell,
+    items: [
+      { title: "Exercícios", href: "/biblioteca/exercicios" },
+      { title: "Categorias", href: "/biblioteca/categorias" },
+    ],
+  },
 ];

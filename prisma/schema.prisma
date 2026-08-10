@@ -20,3 +20,28 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model Categoria {
+  id         String      @id @default(cuid())
+  name       String      @unique
+  exercicios Exercicio[]
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+}
+
+model Exercicio {
+  id         String          @id @default(cuid())
+  name       String
+  categorias Categoria[]
+  links      ExercicioLink[]
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+}
+
+model ExercicioLink {
+  id          String    @id @default(cuid())
+  url         String
+  exercicioId String
+  exercicio   Exercicio @relation(fields: [exercicioId], references: [id], onDelete: Cascade)
+  createdAt   DateTime  @default(now())
+}

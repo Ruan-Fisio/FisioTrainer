@@ -10,7 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { UsuarioRowActions } from "@/components/usuarios/usuario-row-actions";
-import { UsuariosPagination } from "@/components/usuarios/usuarios-pagination";
+import { PaginationControls } from "@/components/filters/pagination-controls";
 
 function getInitials(name: string) {
   return name
@@ -28,7 +28,10 @@ export async function UsuariosTable({
   page: number;
   search: string;
 }) {
-  const { usuarios, total, totalPages } = await listUsuarios(page, search);
+  const { usuarios, total, totalPages } = await listUsuarios(
+    { q: search },
+    page,
+  );
 
   if (usuarios.length === 0) {
     return (
@@ -102,7 +105,7 @@ export async function UsuariosTable({
         </Table>
       </Card>
 
-      <UsuariosPagination page={page} totalPages={totalPages} />
+      <PaginationControls page={page} totalPages={totalPages} />
     </div>
   );
 }
