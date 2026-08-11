@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Link2 } from "lucide-react";
 import { listExercicios } from "@/actions/exercicios";
 import { Card, CardContent } from "@/components/ui/card";
@@ -50,7 +51,12 @@ export async function ExerciciosTable({
           <Card key={exercicio.id}>
             <CardContent className="flex flex-col gap-3 p-4">
               <div className="flex items-start justify-between gap-2">
-                <p className="font-medium">{exercicio.name}</p>
+                <Link
+                  href={`/biblioteca/exercicios/${exercicio.id}`}
+                  className="font-medium hover:underline"
+                >
+                  {exercicio.name}
+                </Link>
                 <ExercicioRowActions
                   id={exercicio.id}
                   name={exercicio.name}
@@ -88,7 +94,12 @@ export async function ExerciciosTable({
             {exercicios.map((exercicio) => (
               <TableRow key={exercicio.id}>
                 <TableCell className="font-medium">
-                  {exercicio.name}
+                  <Link
+                    href={`/biblioteca/exercicios/${exercicio.id}`}
+                    className="hover:underline"
+                  >
+                    {exercicio.name}
+                  </Link>
                 </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">

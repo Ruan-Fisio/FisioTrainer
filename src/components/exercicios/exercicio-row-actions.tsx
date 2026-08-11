@@ -41,7 +41,7 @@ export function ExercicioRowActions({
   return (
     <div className="flex items-center justify-end gap-1">
       <Button variant="ghost" size="icon" asChild>
-        <Link href={`/biblioteca/exercicios/${id}`}>
+        <Link href={`/biblioteca/exercicios/${id}/editar`}>
           <Pencil className="size-4" />
           <span className="sr-only">Editar</span>
         </Link>
