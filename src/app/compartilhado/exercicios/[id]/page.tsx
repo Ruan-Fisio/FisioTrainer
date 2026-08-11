@@ -1,13 +1,9 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { LinkPreviewGrid } from "@/components/exercicios/link-preview-grid";
-import { ShareButton } from "@/components/exercicios/share-button";
 
-export default async function ExercicioDetailPage({
+export default async function ExercicioCompartilhadoPage({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -25,8 +21,17 @@ export default async function ExercicioDetailPage({
   if (!exercicio) notFound();
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+    <div className="flex min-h-svh justify-center bg-muted/40 px-4 py-10">
+      <div className="flex w-full max-w-md flex-col gap-6">
+        <div className="flex items-center gap-2">
+          <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs">
+            FT
+          </div>
+          <span className="text-sm font-semibold text-muted-foreground">
+            FisioTrainer
+          </span>
+        </div>
+
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-semibold">{exercicio.name}</h1>
           <div className="flex flex-wrap gap-1">
@@ -37,24 +42,15 @@ export default async function ExercicioDetailPage({
             ))}
           </div>
         </div>
-        <div className="flex gap-2">
-          <ShareButton exercicioId={id} />
-          <Button asChild variant="outline">
-            <Link href={`/biblioteca/exercicios/${id}/editar`}>
-              <Pencil />
-              Editar
-            </Link>
-          </Button>
-        </div>
-      </div>
 
-      {exercicio.links.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          Nenhum link cadastrado para este exercício.
-        </p>
-      ) : (
-        <LinkPreviewGrid urls={exercicio.links.map((l) => l.url)} />
-      )}
+        {exercicio.links.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Nenhum link cadastrado para este exercício.
+          </p>
+        ) : (
+          <LinkPreviewGrid urls={exercicio.links.map((l) => l.url)} />
+        )}
+      </div>
     </div>
   );
 }

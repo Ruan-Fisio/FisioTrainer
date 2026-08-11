@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Pencil, Trash2 } from "lucide-react";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -39,7 +39,16 @@ export function ExercicioRowActions({
   }
 
   return (
-    <div className="flex items-center justify-end gap-1">
+    <div
+      className="flex items-center justify-end gap-1"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <Button variant="ghost" size="icon" asChild>
+        <Link href={`/biblioteca/exercicios/${id}`}>
+          <Eye className="size-4" />
+          <span className="sr-only">Visualizar</span>
+        </Link>
+      </Button>
       <Button variant="ghost" size="icon" asChild>
         <Link href={`/biblioteca/exercicios/${id}/editar`}>
           <Pencil className="size-4" />

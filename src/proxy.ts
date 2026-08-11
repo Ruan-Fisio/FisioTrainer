@@ -7,6 +7,11 @@ const { auth } = NextAuth(authConfig);
 export default auth((req) => {
   const isLoggedIn = !!req.auth;
   const isLoginPage = req.nextUrl.pathname.startsWith("/login");
+  const isPublicRoute = req.nextUrl.pathname.startsWith("/compartilhado");
+
+  if (isPublicRoute) {
+    return NextResponse.next();
+  }
 
   if (!isLoggedIn && !isLoginPage) {
     const loginUrl = new URL("/login", req.nextUrl.origin);
