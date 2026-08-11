@@ -9,9 +9,9 @@ export default function LoginPage() {
           <Image
             src="/logo.png"
             alt="FisioTrainer"
-            width={260}
-            height={260}
-            className="size-[260px] rounded-2xl object-contain"
+            width={340}
+            height={340}
+            className="size-[340px] object-contain"
             priority
           />
         </div>
