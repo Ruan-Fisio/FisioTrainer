@@ -24,18 +24,15 @@ export default async function ExercicioCompartilhadoPage({
   return (
     <div className="flex min-h-svh justify-center bg-muted/40 px-4 py-10">
       <div className="flex w-full max-w-md flex-col gap-6">
-        <div className="flex flex-col items-center gap-2">
+        <div className="flex flex-col items-center">
           <Image
             src="/logo.png"
             alt="FisioTrainer"
-            width={140}
-            height={140}
-            className="size-[140px] rounded-2xl object-contain"
+            width={523}
+            height={342}
+            className="h-auto w-[180px] object-contain"
             priority
           />
-          <span className="text-sm font-semibold text-muted-foreground">
-            FisioTrainer
-          </span>
         </div>
 
         <div className="flex flex-col gap-2">

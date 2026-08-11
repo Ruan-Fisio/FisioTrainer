@@ -14,7 +14,7 @@ function SubmitButton() {
   const { pending } = useFormStatus();
 
   return (
-    <Button type="submit" className="w-full" disabled={pending}>
+    <Button type="submit" className="h-11 w-full" disabled={pending}>
       {pending ? "Entrando..." : "Entrar"}
     </Button>
   );
@@ -24,9 +24,9 @@ export function LoginForm() {
   const [state, formAction] = useActionState(loginAction, initialState);
 
   return (
-    <Card>
+    <Card className="border-border/60 shadow-xl shadow-black/5 backdrop-blur-sm">
       <CardContent className="pt-6">
-        <form action={formAction} className="flex flex-col gap-4">
+        <form action={formAction} className="flex flex-col gap-5">
           <div className="flex flex-col gap-2">
             <Label htmlFor="email">E-mail</Label>
             <Input
@@ -36,6 +36,7 @@ export function LoginForm() {
               placeholder="admin@admin.com"
               autoComplete="email"
               required
+              className="h-11"
             />
           </div>
           <div className="flex flex-col gap-2">
@@ -46,6 +47,7 @@ export function LoginForm() {
               type="password"
               autoComplete="current-password"
               required
+              className="h-11"
             />
           </div>
           {state.error && (

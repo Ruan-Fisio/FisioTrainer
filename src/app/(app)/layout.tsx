@@ -12,10 +12,10 @@ export default async function AppLayout({
   const user = session?.user;
 
   return (
-    <div className="flex min-h-svh w-full">
+    <div className="flex min-h-svh w-full bg-muted/30">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 shrink-0 items-center justify-between border-b px-4 md:px-6">
+        <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b bg-background/80 px-4 shadow-sm backdrop-blur-md md:px-6">
           <div className="flex items-center gap-2">
             <MobileNav />
           </div>
@@ -24,7 +24,16 @@ export default async function AppLayout({
             email={user?.email ?? ""}
           />
         </header>
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
+        <main className="relative flex-1 overflow-y-auto p-4 md:p-6">
+          <div
+            className="pointer-events-none fixed inset-0 -z-10"
+            style={{
+              background:
+                "radial-gradient(circle at 100% 0%, color-mix(in oklch, var(--primary) 6%, transparent), transparent 45%)",
+            }}
+          />
+          {children}
+        </main>
       </div>
     </div>
   );
