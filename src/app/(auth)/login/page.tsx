@@ -9,15 +9,11 @@ export default function LoginPage() {
           <Image
             src="/logo.png"
             alt="FisioTrainer"
-            width={160}
-            height={160}
-            className="size-40 rounded-2xl object-contain"
+            width={260}
+            height={260}
+            className="size-[260px] rounded-2xl object-contain"
             priority
           />
-          <h1 className="text-2xl font-semibold">FisioTrainer</h1>
-          <p className="text-sm text-muted-foreground">
-            Entre com sua conta para continuar
-          </p>
         </div>
         <LoginForm />
       </div>
