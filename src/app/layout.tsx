@@ -17,6 +17,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "FisioTrainer",
   description: "Gestão de consultas para fisioterapeutas",
+  icons: {
+    icon: "/logo.png",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

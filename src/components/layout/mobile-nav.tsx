@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +29,14 @@ export function MobileNav() {
         className="w-64 border-sidebar-border bg-sidebar text-sidebar-foreground p-0"
       >
         <SheetHeader>
-          <SheetTitle className="text-sidebar-foreground">
+          <SheetTitle className="flex items-center gap-2 text-sidebar-foreground">
+            <Image
+              src="/logo.png"
+              alt="FisioTrainer"
+              width={40}
+              height={40}
+              className="size-10 rounded-lg object-contain"
+            />
             FisioTrainer
           </SheetTitle>
         </SheetHeader>

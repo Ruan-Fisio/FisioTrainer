@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import Image from "next/image";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import { LinkPreviewGrid } from "@/components/exercicios/link-preview-grid";
@@ -23,10 +24,15 @@ export default async function ExercicioCompartilhadoPage({
   return (
     <div className="flex min-h-svh justify-center bg-muted/40 px-4 py-10">
       <div className="flex w-full max-w-md flex-col gap-6">
-        <div className="flex items-center gap-2">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground font-bold text-xs">
-            FT
-          </div>
+        <div className="flex flex-col items-center gap-2">
+          <Image
+            src="/logo.png"
+            alt="FisioTrainer"
+            width={140}
+            height={140}
+            className="size-[140px] rounded-2xl object-contain"
+            priority
+          />
           <span className="text-sm font-semibold text-muted-foreground">
             FisioTrainer
           </span>
