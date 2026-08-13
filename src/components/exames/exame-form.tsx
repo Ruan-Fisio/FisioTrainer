@@ -29,13 +29,21 @@ import type { ExameActionState } from "@/actions/exames";
 
 const initialState: ExameActionState = {};
 
-type TipoColuna = "NUMERO" | "TEXTO" | "MULTIPLA_ESCOLHA" | "SIM_NAO";
+type TipoColuna =
+  | "NUMERO"
+  | "TEXTO"
+  | "MULTIPLA_ESCOLHA"
+  | "SIM_NAO"
+  | "GONIOMETRIA";
+type DirecaoIdeal = "MAIOR_MELHOR" | "MENOR_MELHOR" | "PROXIMO_IDEAL";
 type ColunaDraft = {
   titulo: string;
   tipo: TipoColuna;
   formatacao: string;
   opcoes: string[];
   multiplaSelecao: boolean;
+  valorIdeal: string;
+  direcaoIdeal: DirecaoIdeal;
 };
 type CampoDraft = {
   nome: string;
@@ -49,6 +57,13 @@ const TIPO_COLUNA_LABELS: Record<TipoColuna, string> = {
   NUMERO: "Número",
   MULTIPLA_ESCOLHA: "Múltipla escolha",
   SIM_NAO: "Sim/Não",
+  GONIOMETRIA: "Recovery em Goniometria",
+};
+
+const DIRECAO_IDEAL_LABELS: Record<DirecaoIdeal, string> = {
+  MAIOR_MELHOR: "Maior é melhor",
+  MENOR_MELHOR: "Menor é melhor",
+  PROXIMO_IDEAL: "Mais próximo do valor ideal",
 };
 
 function novaColuna(): ColunaDraft {
@@ -58,6 +73,8 @@ function novaColuna(): ColunaDraft {
     formatacao: "",
     opcoes: [],
     multiplaSelecao: false,
+    valorIdeal: "",
+    direcaoIdeal: "PROXIMO_IDEAL",
   };
 }
 
@@ -419,6 +436,47 @@ function SecaoCard({
                         <Plus className="size-3.5" />
                         Adicionar opção
                       </Button>
+                    </div>
+                  )}
+
+                  {coluna.tipo === "NUMERO" && (
+                    <div className="flex flex-col gap-2 pl-0 sm:flex-row sm:items-center sm:pl-6">
+                      <div className="flex-1">
+                        <Label className="text-xs text-muted-foreground">
+                          Valor ideal (opcional, usado no relatório comparativo)
+                        </Label>
+                        <Input
+                          value={coluna.valorIdeal}
+                          onChange={(e) =>
+                            updateColuna(secaoIndex, campoIndex, colunaIndex, {
+                              valorIdeal: e.target.value,
+                            })
+                          }
+                          placeholder="Ex: 120 ou 90-120"
+                        />
+                      </div>
+                      <div className="sm:w-56">
+                        <Label className="text-xs text-muted-foreground">
+                          Direção
+                        </Label>
+                        <select
+                          className={selectClassName()}
+                          value={coluna.direcaoIdeal}
+                          onChange={(e) =>
+                            updateColuna(secaoIndex, campoIndex, colunaIndex, {
+                              direcaoIdeal: e.target.value as DirecaoIdeal,
+                            })
+                          }
+                        >
+                          {Object.entries(DIRECAO_IDEAL_LABELS).map(
+                            ([value, label]) => (
+                              <option key={value} value={value}>
+                                {label}
+                              </option>
+                            ),
+                          )}
+                        </select>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1149,6 +1207,11 @@ function ExamePreview({ nome, secoes }: { nome: string; secoes: SecaoDraft[] }) 
                         >
                           <option>Selecione</option>
                         </select>
+                      ) : coluna.tipo === "GONIOMETRIA" ? (
+                        <div className="rounded-lg border border-input p-2 text-xs text-muted-foreground">
+                          Multisseleção de movimentos (Biblioteca de
+                          Movimento)
+                        </div>
                       ) : (
                         <Input
                           disabled

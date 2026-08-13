@@ -93,6 +93,12 @@ function secoesCreateData(secoes: ReturnType<typeof exameSchema.parse>["secoes"]
               coluna.tipo === "MULTIPLA_ESCOLHA"
                 ? coluna.multiplaSelecao
                 : false,
+            valorIdeal:
+              coluna.tipo === "NUMERO" && coluna.valorIdeal
+                ? coluna.valorIdeal
+                : null,
+            direcaoIdeal:
+              coluna.tipo === "NUMERO" ? coluna.direcaoIdeal || null : null,
             ordem: colunaIndex,
           })),
         },

@@ -5,6 +5,7 @@ import {
   Dumbbell,
   ClipboardList,
   UserRound,
+  Activity,
 } from "lucide-react";
 
 export type NavLeaf = {
@@ -27,6 +28,16 @@ export const navItems: NavItem[] = [
     items: [
       { title: "Exercícios", href: "/biblioteca/exercicios" },
       { title: "Categorias", href: "/biblioteca/categorias" },
+    ],
+  },
+  {
+    title: "Biblioteca de Movimento",
+    icon: Activity,
+    items: [
+      {
+        title: "Recovery Em Goniometria",
+        href: "/biblioteca-movimento/goniometria",
+      },
     ],
   },
 ];

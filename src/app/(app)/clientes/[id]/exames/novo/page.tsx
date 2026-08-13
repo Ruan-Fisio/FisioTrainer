@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { createAvaliacao, listAllExamesCompletos } from "@/actions/exame-execucoes";
+import { listAllMovimentos } from "@/actions/movimentos";
 import { ExameExecucaoForm } from "@/components/exame-execucoes/exame-execucao-form";
 
 export default async function NovaAvaliacaoPage({
@@ -10,9 +11,10 @@ export default async function NovaAvaliacaoPage({
 }) {
   const { id } = await params;
 
-  const [cliente, exames] = await Promise.all([
+  const [cliente, exames, movimentos] = await Promise.all([
     prisma.cliente.findUnique({ where: { id }, select: { id: true, nome: true } }),
     listAllExamesCompletos(),
+    listAllMovimentos(),
   ]);
 
   if (!cliente) notFound();
@@ -30,6 +32,7 @@ export default async function NovaAvaliacaoPage({
       <ExameExecucaoForm
         action={createAvaliacaoWithCliente}
         exames={exames}
+        movimentos={movimentos}
         cancelHref={`/clientes/${id}`}
         successLabel="Avaliação registrada com sucesso."
       />

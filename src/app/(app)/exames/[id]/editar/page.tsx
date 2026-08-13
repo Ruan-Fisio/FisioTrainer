@@ -39,6 +39,8 @@ export default async function EditarExamePage({
                 formatacao: coluna.formatacao ?? "",
                 opcoes: coluna.opcoes,
                 multiplaSelecao: coluna.multiplaSelecao,
+                valorIdeal: coluna.valorIdeal ?? "",
+                direcaoIdeal: coluna.direcaoIdeal ?? "PROXIMO_IDEAL",
               })),
             })),
           })),

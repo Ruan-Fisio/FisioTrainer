@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { exameExecucaoSchema } from "@/lib/validations/exame-execucao";
+import { montarComparativo } from "@/lib/relatorio-comparativo";
 
 export async function listAllExamesCompletos() {
   return prisma.exame.findMany({
@@ -61,6 +62,60 @@ export async function getExecucao(id: string) {
       valores: true,
     },
   });
+}
+
+export async function getComparativo(avaliacaoId: string, retornoId: string) {
+  const [avaliacao, retorno, movimentos] = await Promise.all([
+    prisma.exameExecucao.findUnique({
+      where: { id: avaliacaoId },
+      include: {
+        cliente: { select: { id: true, nome: true } },
+        exame: {
+          include: {
+            secoes: {
+              orderBy: { ordem: "asc" },
+              include: {
+                campos: {
+                  orderBy: { ordem: "asc" },
+                  include: { colunas: { orderBy: { ordem: "asc" } } },
+                },
+              },
+            },
+          },
+        },
+        valores: true,
+      },
+    }),
+    prisma.exameExecucao.findUnique({
+      where: { id: retornoId },
+      select: { id: true, data: true, avaliacaoId: true, valores: true },
+    }),
+    prisma.movimento.findMany({ select: { nome: true, grauIdeal: true } }),
+  ]);
+
+  if (
+    !avaliacao ||
+    avaliacao.tipo !== "AVALIACAO" ||
+    !retorno ||
+    retorno.avaliacaoId !== avaliacaoId
+  ) {
+    return null;
+  }
+
+  const secoes = montarComparativo(
+    avaliacao.exame,
+    avaliacao.valores,
+    retorno.valores,
+    movimentos,
+  );
+
+  return {
+    cliente: avaliacao.cliente,
+    exame: { id: avaliacao.exame.id, nome: avaliacao.exame.nome },
+    avaliacaoData: avaliacao.data,
+    retornoData: retorno.data,
+    secoes,
+  };
 }
 
 export type ExameExecucaoActionState = {

@@ -11,6 +11,11 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ExameExecucaoActionState } from "@/actions/exame-execucoes";
+import {
+  GoniometriaField,
+  type MovimentoOption,
+} from "@/components/exame-execucoes/goniometria-field";
+import { parseGoniometriaValor } from "@/lib/goniometria";
 
 const initialState: ExameExecucaoActionState = {};
 
@@ -29,7 +34,12 @@ export type ExameCompleto = {
       colunas: {
         id: string;
         titulo: string;
-        tipo: "NUMERO" | "TEXTO" | "MULTIPLA_ESCOLHA" | "SIM_NAO";
+        tipo:
+          | "NUMERO"
+          | "TEXTO"
+          | "MULTIPLA_ESCOLHA"
+          | "SIM_NAO"
+          | "GONIOMETRIA";
         formatacao: string | null;
         opcoes: string[];
         multiplaSelecao: boolean;
@@ -127,6 +137,7 @@ function SecaoFields({
   updateValor,
   addLinha,
   removeLinha,
+  movimentos,
 }: {
   secao: Secao;
   linhasDoCampo: (campoId: string, repetivel: boolean) => string[];
@@ -134,6 +145,7 @@ function SecaoFields({
   updateValor: (colunaId: string, linhaId: string, value: string) => void;
   addLinha: (campoId: string) => void;
   removeLinha: (campoId: string, linhaId: string) => void;
+  movimentos: MovimentoOption[];
 }) {
   return (
     <Card>
@@ -240,6 +252,20 @@ function SecaoFields({
                                   );
                                 })}
                               </div>
+                            ) : coluna.tipo === "GONIOMETRIA" ? (
+                              <GoniometriaField
+                                options={movimentos}
+                                value={parseGoniometriaValor(valorAtual)}
+                                onChange={(entries) =>
+                                  updateValor(
+                                    coluna.id,
+                                    linhaId,
+                                    entries.length > 0
+                                      ? JSON.stringify(entries)
+                                      : "",
+                                  )
+                                }
+                              />
                             ) : coluna.tipo === "SIM_NAO" ? (
                               <select
                                 className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
@@ -305,6 +331,7 @@ export function ExameExecucaoForm({
   defaultValores,
   cancelHref,
   successLabel,
+  movimentos,
 }: {
   action: (
     prevState: ExameExecucaoActionState,
@@ -315,6 +342,7 @@ export function ExameExecucaoForm({
   defaultValores?: { colunaId: string; valor: string; linha: number }[];
   cancelHref: string;
   successLabel: string;
+  movimentos: MovimentoOption[];
 }) {
   const router = useRouter();
   const [state, formAction] = useActionState(action, initialState);
@@ -458,6 +486,7 @@ export function ExameExecucaoForm({
             updateValor={updateValor}
             addLinha={addLinha}
             removeLinha={removeLinha}
+            movimentos={movimentos}
           />
           {totalPassos > 1 && (
             <div className="flex items-center justify-between gap-2">
@@ -497,6 +526,7 @@ export function ExameExecucaoForm({
             updateValor={updateValor}
             addLinha={addLinha}
             removeLinha={removeLinha}
+            movimentos={movimentos}
           />
         ))}
       </div>

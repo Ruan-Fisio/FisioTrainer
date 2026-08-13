@@ -21,6 +21,14 @@ model User {
   updatedAt DateTime @updatedAt
 }
 
+model Movimento {
+  id        String   @id @default(cuid())
+  nome      String   @unique
+  grauIdeal String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model Categoria {
   id         String      @id @default(cuid())
   name       String      @unique
@@ -51,6 +59,13 @@ enum TipoCampoExame {
   TEXTO
   MULTIPLA_ESCOLHA
   SIM_NAO
+  GONIOMETRIA
+}
+
+enum DirecaoIdealCampo {
+  MAIOR_MELHOR
+  MENOR_MELHOR
+  PROXIMO_IDEAL
 }
 
 model Exame {
@@ -94,6 +109,8 @@ model ExameCampoColuna {
   formatacao   String?
   opcoes       String[]            @default([])
   multiplaSelecao Boolean          @default(false)
+  valorIdeal   String?
+  direcaoIdeal DirecaoIdealCampo?
   campoId      String
   campo        ExameCampo          @relation(fields: [campoId], references: [id], onDelete: Cascade)
   valores      ExameExecucaoValor[]

@@ -3,10 +3,20 @@ import { z } from "zod";
 export const exameColunaSchema = z
   .object({
     titulo: z.string().trim().min(1, "Título da coluna é obrigatório"),
-    tipo: z.enum(["NUMERO", "TEXTO", "MULTIPLA_ESCOLHA", "SIM_NAO"]),
+    tipo: z.enum([
+      "NUMERO",
+      "TEXTO",
+      "MULTIPLA_ESCOLHA",
+      "SIM_NAO",
+      "GONIOMETRIA",
+    ]),
     formatacao: z.string().trim().optional(),
     opcoes: z.array(z.string().trim().min(1)).optional().default([]),
     multiplaSelecao: z.boolean().optional().default(false),
+    valorIdeal: z.string().trim().optional(),
+    direcaoIdeal: z
+      .enum(["MAIOR_MELHOR", "MENOR_MELHOR", "PROXIMO_IDEAL"])
+      .optional(),
   })
   .refine(
     (coluna) =>

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { createRetorno, getExecucao } from "@/actions/exame-execucoes";
+import { listAllMovimentos } from "@/actions/movimentos";
 import { ExameExecucaoForm } from "@/components/exame-execucoes/exame-execucao-form";
 
 export default async function NovoRetornoPage({
@@ -9,7 +10,10 @@ export default async function NovoRetornoPage({
 }) {
   const { id, execucaoId } = await params;
 
-  const avaliacao = await getExecucao(execucaoId);
+  const [avaliacao, movimentos] = await Promise.all([
+    getExecucao(execucaoId),
+    listAllMovimentos(),
+  ]);
 
   if (!avaliacao || avaliacao.clienteId !== id || avaliacao.tipo !== "AVALIACAO") {
     notFound();
@@ -29,6 +33,7 @@ export default async function NovoRetornoPage({
       <ExameExecucaoForm
         action={createRetornoWithIds}
         exames={[avaliacao.exame]}
+        movimentos={movimentos}
         fixedExameId={avaliacao.exame.id}
         cancelHref={`/clientes/${id}/exames/${execucaoId}`}
         successLabel="Retorno registrado com sucesso."

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getExecucao, updateExecucao } from "@/actions/exame-execucoes";
+import { listAllMovimentos } from "@/actions/movimentos";
 import { ExameExecucaoForm } from "@/components/exame-execucoes/exame-execucao-form";
 
 export default async function EditarExecucaoPage({
@@ -9,7 +10,10 @@ export default async function EditarExecucaoPage({
 }) {
   const { id, execucaoId } = await params;
 
-  const execucao = await getExecucao(execucaoId);
+  const [execucao, movimentos] = await Promise.all([
+    getExecucao(execucaoId),
+    listAllMovimentos(),
+  ]);
 
   if (!execucao || execucao.clienteId !== id) notFound();
 
@@ -27,6 +31,7 @@ export default async function EditarExecucaoPage({
       <ExameExecucaoForm
         action={updateExecucaoWithIds}
         exames={[execucao.exame]}
+        movimentos={movimentos}
         fixedExameId={execucao.exame.id}
         defaultValores={execucao.valores}
         cancelHref={`/clientes/${id}/exames/${execucaoId}`}

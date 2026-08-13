@@ -1,11 +1,35 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, GitCompare } from "lucide-react";
 import { getExecucao } from "@/actions/exame-execucoes";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ExecucaoRowActions } from "@/components/exame-execucoes/execucao-row-actions";
+import { parseGoniometriaValor } from "@/lib/goniometria";
+
+function ValorColuna({ tipo, valor }: { tipo: string; valor: string }) {
+  if (tipo === "GONIOMETRIA") {
+    const entries = parseGoniometriaValor(valor);
+    if (entries.length === 0) return <p className="text-sm">—</p>;
+    return (
+      <ul className="flex flex-col gap-0.5 text-sm">
+        {entries.map((entry) => (
+          <li key={entry.nome}>
+            {entry.nome}
+            {entry.grauAlcancado ? `: ${entry.grauAlcancado}` : ""}
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  return (
+    <p className="text-sm">
+      {valor.split(",").filter(Boolean).join(", ") || "—"}
+    </p>
+  );
+}
 
 export default async function ExecucaoDetailPage({
   params,
@@ -65,6 +89,14 @@ export default async function ExecucaoDetailPage({
               </Link>
             </Button>
           )}
+          {execucao.tipo === "AVALIACAO" && execucao.retornos.length > 0 && (
+            <Button asChild variant="outline" size="sm">
+              <Link href={`/clientes/${id}/exames/${execucaoId}/comparar`}>
+                <GitCompare />
+                Comparar
+              </Link>
+            </Button>
+          )}
           <Button asChild variant="outline" size="sm">
             <Link href={`/clientes/${id}/exames/${execucaoId}/editar`}>
               <Pencil />
@@ -115,16 +147,14 @@ export default async function ExecucaoDetailPage({
                                     ? ` (${coluna.formatacao})`
                                     : ""}
                                 </p>
-                                <p className="text-sm">
-                                  {(
+                                <ValorColuna
+                                  tipo={coluna.tipo}
+                                  valor={
                                     valorPorChave.get(
                                       `${coluna.id}::${linha}`,
                                     ) || ""
-                                  )
-                                    .split(",")
-                                    .filter(Boolean)
-                                    .join(", ") || "—"}
-                                </p>
+                                  }
+                                />
                               </div>
                             ))}
                           </div>
