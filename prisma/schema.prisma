@@ -45,3 +45,104 @@ model ExercicioLink {
   exercicio   Exercicio @relation(fields: [exercicioId], references: [id], onDelete: Cascade)
   createdAt   DateTime  @default(now())
 }
+
+enum TipoCampoExame {
+  NUMERO
+  TEXTO
+  MULTIPLA_ESCOLHA
+  SIM_NAO
+}
+
+model Exame {
+  id          String          @id @default(cuid())
+  nome        String
+  descricao   String?
+  secoes      ExameSecao[]
+  execucoes   ExameExecucao[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+}
+
+model ExameSecao {
+  id        String        @id @default(cuid())
+  nome      String
+  ordem     Int
+  exameId   String
+  exame     Exame         @relation(fields: [exameId], references: [id], onDelete: Cascade)
+  campos    ExameCampo[]
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+}
+
+model ExameCampo {
+  id        String               @id @default(cuid())
+  nome      String
+  ordem     Int
+  repetivel Boolean              @default(false)
+  secaoId   String
+  secao     ExameSecao           @relation(fields: [secaoId], references: [id], onDelete: Cascade)
+  colunas   ExameCampoColuna[]
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+}
+
+model ExameCampoColuna {
+  id           String              @id @default(cuid())
+  titulo       String
+  ordem        Int
+  tipo         TipoCampoExame
+  formatacao   String?
+  opcoes       String[]            @default([])
+  multiplaSelecao Boolean          @default(false)
+  campoId      String
+  campo        ExameCampo          @relation(fields: [campoId], references: [id], onDelete: Cascade)
+  valores      ExameExecucaoValor[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+}
+
+model Cliente {
+  id                    String          @id @default(cuid())
+  nome                  String
+  idade                 Int?
+  cpf                   String?         @unique
+  contato               String?
+  historicoClinico      String?
+  objetivo              String?
+  doencasPreexistentes  String?
+  cirurgiasAnteriores   String?
+  medicamentos          String?
+  execucoes             ExameExecucao[]
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+}
+
+enum TipoExecucaoExame {
+  AVALIACAO
+  RETORNO
+}
+
+model ExameExecucao {
+  id           String               @id @default(cuid())
+  tipo         TipoExecucaoExame
+  data         DateTime             @default(now())
+  exameId      String
+  exame        Exame                @relation(fields: [exameId], references: [id], onDelete: Cascade)
+  clienteId    String
+  cliente      Cliente              @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  avaliacaoId  String?
+  avaliacao    ExameExecucao?       @relation("AvaliacaoRetornos", fields: [avaliacaoId], references: [id], onDelete: Cascade)
+  retornos     ExameExecucao[]      @relation("AvaliacaoRetornos")
+  valores      ExameExecucaoValor[]
+  createdAt    DateTime             @default(now())
+}
+
+model ExameExecucaoValor {
+  id          String        @id @default(cuid())
+  valor       String
+  linha       Int           @default(0)
+  execucaoId  String
+  execucao    ExameExecucao @relation(fields: [execucaoId], references: [id], onDelete: Cascade)
+  colunaId    String
+  coluna      ExameCampoColuna @relation(fields: [colunaId], references: [id], onDelete: Cascade)
+}
