@@ -18,11 +18,11 @@ import { deleteExecucao } from "@/actions/exame-execucoes";
 
 export function ExecucaoRowActions({
   id,
-  clienteId,
+  pacienteId,
   tipo,
 }: {
   id: string;
-  clienteId: string;
+  pacienteId: string;
   tipo: "AVALIACAO" | "RETORNO";
 }) {
   const [open, setOpen] = useState(false);
@@ -32,7 +32,7 @@ export function ExecucaoRowActions({
   function handleDelete() {
     startTransition(async () => {
       try {
-        await deleteExecucao(id, clienteId);
+        await deleteExecucao(id, pacienteId);
         toast.success(
           `${tipo === "AVALIACAO" ? "Avaliação" : "Retorno"} excluído com sucesso.`,
         );
@@ -46,13 +46,13 @@ export function ExecucaoRowActions({
   return (
     <div className="flex items-center gap-1">
       <Button variant="ghost" size="icon" asChild>
-        <Link href={`/clientes/${clienteId}/exames/${id}`}>
+        <Link href={`/pacientes/${pacienteId}/exames/${id}`}>
           <Eye className="size-4" />
           <span className="sr-only">Visualizar</span>
         </Link>
       </Button>
       <Button variant="ghost" size="icon" asChild>
-        <Link href={`/clientes/${clienteId}/exames/${id}/editar`}>
+        <Link href={`/pacientes/${pacienteId}/exames/${id}/editar`}>
           <Pencil className="size-4" />
           <span className="sr-only">Editar</span>
         </Link>

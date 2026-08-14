@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AvaliacoesList } from "@/components/exame-execucoes/avaliacoes-list";
 import { TableSkeleton } from "@/components/skeletons/table-skeleton";
 
-const HISTORICO_FIELDS: { key: keyof HistoricoCliente; label: string }[] = [
+const HISTORICO_FIELDS: { key: keyof HistoricoPaciente; label: string }[] = [
   { key: "historicoClinico", label: "Histórico Clínico" },
   { key: "objetivo", label: "Objetivo" },
   { key: "doencasPreexistentes", label: "Doenças Pré-existentes" },
@@ -16,7 +16,7 @@ const HISTORICO_FIELDS: { key: keyof HistoricoCliente; label: string }[] = [
   { key: "medicamentos", label: "Medicamentos" },
 ];
 
-type HistoricoCliente = {
+type HistoricoPaciente = {
   historicoClinico: string | null;
   objetivo: string | null;
   doencasPreexistentes: string | null;
@@ -24,34 +24,34 @@ type HistoricoCliente = {
   medicamentos: string | null;
 };
 
-export default async function ClienteDetailPage({
+export default async function PacienteDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
 
-  const cliente = await prisma.cliente.findUnique({ where: { id } });
+  const paciente = await prisma.paciente.findUnique({ where: { id } });
 
-  if (!cliente) notFound();
+  if (!paciente) notFound();
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold">{cliente.nome}</h1>
+          <h1 className="text-2xl font-semibold">{paciente.nome}</h1>
           <p className="text-sm text-muted-foreground">
             {[
-              cliente.idade != null ? `${cliente.idade} anos` : null,
-              cliente.cpf,
-              cliente.contato,
+              paciente.idade != null ? `${paciente.idade} anos` : null,
+              paciente.cpf,
+              paciente.contato,
             ]
               .filter(Boolean)
               .join(" · ") || "Sem dados de contato cadastrados"}
           </p>
         </div>
         <Button asChild variant="outline">
-          <Link href={`/clientes/${id}/editar`}>
+          <Link href={`/pacientes/${id}/editar`}>
             <Pencil />
             Editar
           </Link>
@@ -68,7 +68,7 @@ export default async function ClienteDetailPage({
               <p className="text-xs font-medium text-muted-foreground">
                 {label}
               </p>
-              <p className="text-sm">{cliente[key] || "—"}</p>
+              <p className="text-sm">{paciente[key] || "—"}</p>
             </div>
           ))}
         </CardContent>
@@ -78,7 +78,7 @@ export default async function ClienteDetailPage({
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold">Avaliações</h2>
           <Button asChild size="sm">
-            <Link href={`/clientes/${id}/exames/novo`}>
+            <Link href={`/pacientes/${id}/exames/novo`}>
               <Plus />
               Nova avaliação
             </Link>
@@ -86,7 +86,7 @@ export default async function ClienteDetailPage({
         </div>
 
         <Suspense fallback={<TableSkeleton />}>
-          <AvaliacoesList clienteId={id} />
+          <AvaliacoesList pacienteId={id} />
         </Suspense>
       </div>
     </div>

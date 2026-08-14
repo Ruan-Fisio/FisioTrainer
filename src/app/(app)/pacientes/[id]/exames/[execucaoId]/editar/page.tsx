@@ -15,7 +15,7 @@ export default async function EditarExecucaoPage({
     listAllMovimentos(),
   ]);
 
-  if (!execucao || execucao.clienteId !== id) notFound();
+  if (!execucao || execucao.pacienteId !== id) notFound();
 
   const updateExecucaoWithIds = updateExecucao.bind(null, execucaoId, id);
   const rotulo = execucao.tipo === "AVALIACAO" ? "avaliação" : "retorno";
@@ -25,7 +25,7 @@ export default async function EditarExecucaoPage({
       <div>
         <h1 className="text-2xl font-semibold">Editar {rotulo}</h1>
         <p className="text-sm text-muted-foreground">
-          {execucao.exame.nome} — {execucao.cliente.nome}
+          {execucao.exame.nome} — {execucao.paciente.nome}
         </p>
       </div>
       <ExameExecucaoForm
@@ -34,7 +34,7 @@ export default async function EditarExecucaoPage({
         movimentos={movimentos}
         fixedExameId={execucao.exame.id}
         defaultValores={execucao.valores}
-        cancelHref={`/clientes/${id}/exames/${execucaoId}`}
+        cancelHref={`/pacientes/${id}/exames/${execucaoId}`}
         successLabel={`${rotulo === "avaliação" ? "Avaliação" : "Retorno"} atualizado com sucesso.`}
       />
     </div>

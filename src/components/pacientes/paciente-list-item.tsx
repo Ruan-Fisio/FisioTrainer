@@ -4,9 +4,9 @@ import { useRouter } from "next/navigation";
 import { ClipboardList } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { TableCell, TableRow } from "@/components/ui/table";
-import { ClienteRowActions } from "@/components/clientes/cliente-row-actions";
+import { PacienteRowActions } from "@/components/pacientes/paciente-row-actions";
 
-type ClienteListItemProps = {
+type PacienteListItemProps = {
   id: string;
   nome: string;
   idade: number | null;
@@ -14,19 +14,19 @@ type ClienteListItemProps = {
   execucoesCount: number;
 };
 
-export function ClienteTableRow({
+export function PacienteTableRow({
   id,
   nome,
   idade,
   contato,
   execucoesCount,
-}: ClienteListItemProps) {
+}: PacienteListItemProps) {
   const router = useRouter();
 
   return (
     <TableRow
       className="cursor-pointer"
-      onClick={() => router.push(`/clientes/${id}`)}
+      onClick={() => router.push(`/pacientes/${id}`)}
     >
       <TableCell className="font-medium">{nome}</TableCell>
       <TableCell className="text-muted-foreground">{idade ?? "—"}</TableCell>
@@ -40,30 +40,30 @@ export function ClienteTableRow({
         </div>
       </TableCell>
       <TableCell>
-        <ClienteRowActions id={id} nome={nome} />
+        <PacienteRowActions id={id} nome={nome} />
       </TableCell>
     </TableRow>
   );
 }
 
-export function ClienteCard({
+export function PacienteCard({
   id,
   nome,
   idade,
   contato,
   execucoesCount,
-}: ClienteListItemProps) {
+}: PacienteListItemProps) {
   const router = useRouter();
 
   return (
     <Card
       className="cursor-pointer"
-      onClick={() => router.push(`/clientes/${id}`)}
+      onClick={() => router.push(`/pacientes/${id}`)}
     >
       <CardContent className="flex flex-col gap-3 p-4">
         <div className="flex items-start justify-between gap-2">
           <p className="font-medium">{nome}</p>
-          <ClienteRowActions id={id} nome={nome} />
+          <PacienteRowActions id={id} nome={nome} />
         </div>
         <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
           {idade != null && <span>{idade} anos</span>}

@@ -19,8 +19,7 @@ export type NavItem =
 
 export const navItems: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { title: "Usuários", href: "/usuarios", icon: Users },
-  { title: "Clientes", href: "/clientes", icon: UserRound },
+  { title: "Pacientes", href: "/pacientes", icon: UserRound },
   { title: "Exames", href: "/exames", icon: ClipboardList },
   {
     title: "Biblioteca de Exercícios",
@@ -40,4 +39,5 @@ export const navItems: NavItem[] = [
       },
     ],
   },
+  { title: "Usuários", href: "/usuarios", icon: Users },
 ];

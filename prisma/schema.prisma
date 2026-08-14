@@ -118,7 +118,7 @@ model ExameCampoColuna {
   updatedAt    DateTime            @updatedAt
 }
 
-model Cliente {
+model Paciente {
   id                    String          @id @default(cuid())
   nome                  String
   idade                 Int?
@@ -145,8 +145,8 @@ model ExameExecucao {
   data         DateTime             @default(now())
   exameId      String
   exame        Exame                @relation(fields: [exameId], references: [id], onDelete: Cascade)
-  clienteId    String
-  cliente      Cliente              @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  pacienteId   String
+  paciente     Paciente             @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
   avaliacaoId  String?
   avaliacao    ExameExecucao?       @relation("AvaliacaoRetornos", fields: [avaliacaoId], references: [id], onDelete: Cascade)
   retornos     ExameExecucao[]      @relation("AvaliacaoRetornos")

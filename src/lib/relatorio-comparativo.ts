@@ -15,6 +15,8 @@ export type ExameParaComparativo = {
         formatacao: string | null;
         valorIdeal: string | null;
         direcaoIdeal: string | null;
+        opcoes: string[];
+        multiplaSelecao: boolean;
       }[];
     }[];
   }[];
@@ -34,8 +36,10 @@ export type LinhaComparativo = {
   valorIdeal: string | null;
   avaliacaoValor: string | null;
   avaliacaoDist: number | null;
+  avaliacaoNumero: number | null;
   retornoValor: string | null;
   retornoDist: number | null;
+  retornoNumero: number | null;
   progresso: number | null;
   classificacaoAvaliacao: Classificacao | null;
 };
@@ -45,6 +49,115 @@ export type SecaoComparativo = {
   nome: string;
   linhas: LinhaComparativo[];
 };
+
+export type PacienteInfo = {
+  nome: string;
+  idade: number | null;
+  cpf: string | null;
+  contato: string | null;
+  objetivo: string | null;
+  doencasPreexistentes: string | null;
+  cirurgiasAnteriores: string | null;
+  medicamentos: string | null;
+  historicoClinico: string | null;
+};
+
+export type LinhaInfo = { label: string; valor: string };
+
+export function montarDadosPaciente(paciente: PacienteInfo): LinhaInfo[] {
+  return [
+    { label: "Nome", valor: paciente.nome },
+    paciente.idade ? { label: "Idade", valor: `${paciente.idade} anos` } : null,
+    paciente.cpf ? { label: "CPF", valor: paciente.cpf } : null,
+    paciente.contato ? { label: "Contato", valor: paciente.contato } : null,
+  ].filter((linha): linha is LinhaInfo => linha !== null);
+}
+
+export function montarHistoricoClinico(paciente: PacienteInfo): LinhaInfo[] {
+  return [
+    paciente.objetivo ? { label: "Objetivo", valor: paciente.objetivo } : null,
+    paciente.doencasPreexistentes
+      ? { label: "Doenças pré-existentes", valor: paciente.doencasPreexistentes }
+      : null,
+    paciente.cirurgiasAnteriores
+      ? { label: "Cirurgias anteriores", valor: paciente.cirurgiasAnteriores }
+      : null,
+    paciente.medicamentos
+      ? { label: "Medicamentos", valor: paciente.medicamentos }
+      : null,
+    paciente.historicoClinico
+      ? { label: "Histórico clínico", valor: paciente.historicoClinico }
+      : null,
+  ].filter((linha): linha is LinhaInfo => linha !== null);
+}
+
+export function montarSessao(
+  exameNome: string,
+  avaliacaoData: string,
+  retornoData: string,
+): LinhaInfo[] {
+  return [
+    { label: "Exame", valor: exameNome },
+    { label: "Data da avaliação", valor: avaliacaoData },
+    { label: "Data do retorno", valor: retornoData },
+  ];
+}
+
+export type ItemGrafico = {
+  chave: string;
+  rotulo: string;
+  avaliacao: number | null;
+  retorno: number | null;
+};
+
+export type GraficoSecao = {
+  titulo: string;
+  itens: ItemGrafico[];
+  sufixo: string;
+};
+
+function chunk<T>(itens: T[], tamanho: number): T[][] {
+  const grupos: T[][] = [];
+  for (let i = 0; i < itens.length; i += tamanho) {
+    grupos.push(itens.slice(i, i + tamanho));
+  }
+  return grupos;
+}
+
+export function graficosDaSecao(
+  secao: SecaoComparativo,
+  itensPorGrafico = 8,
+): GraficoSecao[] {
+  const itensGraficaveis = secao.linhas
+    .filter((linha) => linha.avaliacaoNumero !== null || linha.retornoNumero !== null)
+    .map((linha) => ({
+      chave: linha.chave,
+      rotulo: linha.rotulo,
+      avaliacao: linha.avaliacaoNumero,
+      retorno: linha.retornoNumero,
+    }));
+
+  if (itensGraficaveis.length === 0) return [];
+
+  const ehGoniometria = secao.linhas.some((linha) => linha.contexto !== null);
+  const unidades = new Set(
+    secao.linhas.map((linha) => linha.unidade).filter(Boolean),
+  );
+  const sufixo = ehGoniometria
+    ? "°"
+    : unidades.size === 1
+      ? ` ${[...unidades][0]}`
+      : "";
+
+  return chunk(itensGraficaveis, itensPorGrafico).map((grupo, index, grupos) => ({
+    titulo:
+      grupos.length > 1
+        ? `${secao.nome} (parte ${index + 1} de ${grupos.length})`
+        : secao.nome,
+    itens: grupo,
+    sufixo,
+  }));
+}
 
 function extrairNumeros(texto: string): number[] {
   // Lookbehind evita que o hífen de uma faixa como "60-100" seja lido
@@ -92,6 +205,29 @@ export function parseAlvoGoniometria(
   if (!texto) return null;
   const numeros = extrairNumeros(texto);
   return numeros.length > 0 ? numeros[numeros.length - 1] : null;
+}
+
+/**
+ * Deriva um valor numérico "plotável" a partir de qualquer tipo de coluna,
+ * mesmo quando o dado bruto é texto (ex: múltipla escolha de seleção única
+ * vira a posição da opção escolhida na lista cadastrada, SIM_NAO vira 1/0).
+ * Usado só para os gráficos consolidados — não afeta a distância/progresso
+ * calculados para a tabela comparativa.
+ */
+export function numeroParaGrafico(
+  tipo: string,
+  opcoes: string[],
+  multiplaSelecao: boolean,
+  raw: string | null | undefined,
+): number | null {
+  if (!raw) return null;
+  if (tipo === "NUMERO") return parseNumero(raw);
+  if (tipo === "SIM_NAO") return raw === "Sim" ? 1 : raw === "Não" ? 0 : null;
+  if (tipo === "MULTIPLA_ESCOLHA" && !multiplaSelecao) {
+    const indice = opcoes.indexOf(raw);
+    return indice >= 0 ? indice : null;
+  }
+  return null;
 }
 
 export function classificarDistancia(dist: number): Classificacao {
@@ -196,8 +332,10 @@ export function montarComparativo(
                 valorIdeal: idealTexto,
                 avaliacaoValor: avalEntry?.grauAlcancado || null,
                 avaliacaoDist: avalDist,
+                avaliacaoNumero: avalNum,
                 retornoValor: retEntry?.grauAlcancado || null,
                 retornoDist: retDist,
+                retornoNumero: retNum,
                 progresso,
                 classificacaoAvaliacao:
                   avalDist !== null ? classificarDistancia(avalDist) : null,
@@ -218,17 +356,34 @@ export function montarComparativo(
           const faixa =
             coluna.tipo === "NUMERO" ? parseFaixaIdeal(coluna.valorIdeal) : null;
 
+          const avalNumGrafico = numeroParaGrafico(
+            coluna.tipo,
+            coluna.opcoes,
+            coluna.multiplaSelecao,
+            avalRaw,
+          );
+          const retNumGrafico = numeroParaGrafico(
+            coluna.tipo,
+            coluna.opcoes,
+            coluna.multiplaSelecao,
+            retRaw,
+          );
+
           if (faixa) {
-            const avalNum = parseNumero(avalRaw);
-            const retNum = parseNumero(retRaw);
-            avalDist = avalNum !== null ? calcularDistancia(avalNum, faixa) : null;
-            retDist = retNum !== null ? calcularDistancia(retNum, faixa) : null;
+            avalDist =
+              avalNumGrafico !== null
+                ? calcularDistancia(avalNumGrafico, faixa)
+                : null;
+            retDist =
+              retNumGrafico !== null
+                ? calcularDistancia(retNumGrafico, faixa)
+                : null;
             progresso =
-              avalNum !== null && retNum !== null
+              avalNumGrafico !== null && retNumGrafico !== null
                 ? calcularProgresso(
                     coluna.direcaoIdeal,
-                    avalNum,
-                    retNum,
+                    avalNumGrafico,
+                    retNumGrafico,
                     faixa,
                   )
                 : null;
@@ -242,8 +397,10 @@ export function montarComparativo(
             valorIdeal: coluna.tipo === "NUMERO" ? coluna.valorIdeal : null,
             avaliacaoValor: avalRaw || null,
             avaliacaoDist: avalDist,
+            avaliacaoNumero: avalNumGrafico,
             retornoValor: retRaw || null,
             retornoDist: retDist,
+            retornoNumero: retNumGrafico,
             progresso,
             classificacaoAvaliacao:
               avalDist !== null ? classificarDistancia(avalDist) : null,

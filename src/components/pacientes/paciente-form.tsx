@@ -9,9 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { ClienteActionState } from "@/actions/clientes";
+import type { PacienteActionState } from "@/actions/pacientes";
 
-const initialState: ClienteActionState = {};
+const initialState: PacienteActionState = {};
 
 function SubmitButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
@@ -23,15 +23,15 @@ function SubmitButton({ label }: { label: string }) {
   );
 }
 
-export function ClienteForm({
+export function PacienteForm({
   action,
   defaultValues,
   mode,
 }: {
   action: (
-    prevState: ClienteActionState,
+    prevState: PacienteActionState,
     formData: FormData,
-  ) => Promise<ClienteActionState>;
+  ) => Promise<PacienteActionState>;
   defaultValues?: {
     nome: string;
     idade: number | null;
@@ -52,10 +52,10 @@ export function ClienteForm({
     if (state.success) {
       toast.success(
         mode === "create"
-          ? "Cliente criado com sucesso."
-          : "Cliente atualizado com sucesso.",
+          ? "Paciente criado com sucesso."
+          : "Paciente atualizado com sucesso.",
       );
-      router.push("/clientes");
+      router.push("/pacientes");
     }
   }, [state.success, mode, router]);
 
@@ -162,12 +162,12 @@ export function ClienteForm({
 
       <div className="flex gap-2">
         <SubmitButton
-          label={mode === "create" ? "Criar cliente" : "Salvar alterações"}
+          label={mode === "create" ? "Criar paciente" : "Salvar alterações"}
         />
         <Button
           type="button"
           variant="outline"
-          onClick={() => router.push("/clientes")}
+          onClick={() => router.push("/pacientes")}
         >
           Cancelar
         </Button>

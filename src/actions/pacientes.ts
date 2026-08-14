@@ -2,11 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { clienteSchema } from "@/lib/validations/cliente";
+import { pacienteSchema } from "@/lib/validations/paciente";
 
 const PAGE_SIZE = 10;
 
-export async function listClientes(filters: { q?: string }, page: number) {
+export async function listPacientes(filters: { q?: string }, page: number) {
   const where = filters.q
     ? {
         OR: [
@@ -16,34 +16,34 @@ export async function listClientes(filters: { q?: string }, page: number) {
       }
     : {};
 
-  const [clientes, total] = await Promise.all([
-    prisma.cliente.findMany({
+  const [pacientes, total] = await Promise.all([
+    prisma.paciente.findMany({
       where,
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       include: { _count: { select: { execucoes: true } } },
     }),
-    prisma.cliente.count({ where }),
+    prisma.paciente.count({ where }),
   ]);
 
   return {
-    clientes,
+    pacientes,
     total,
     totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
     page,
   };
 }
 
-export type ClienteActionState = {
+export type PacienteActionState = {
   error?: string;
   success?: boolean;
 };
 
-function parseClienteForm(formData: FormData) {
+function parsePacienteForm(formData: FormData) {
   const idadeRaw = formData.get("idade");
 
-  return clienteSchema.safeParse({
+  return pacienteSchema.safeParse({
     nome: formData.get("nome"),
     idade: idadeRaw ? String(idadeRaw) : undefined,
     cpf: formData.get("cpf") || undefined,
@@ -56,17 +56,17 @@ function parseClienteForm(formData: FormData) {
   });
 }
 
-export async function createCliente(
-  _prevState: ClienteActionState,
+export async function createPaciente(
+  _prevState: PacienteActionState,
   formData: FormData,
-): Promise<ClienteActionState> {
-  const parsed = parseClienteForm(formData);
+): Promise<PacienteActionState> {
+  const parsed = parsePacienteForm(formData);
 
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
 
-  await prisma.cliente.create({
+  await prisma.paciente.create({
     data: {
       ...parsed.data,
       idade: parsed.data.idade ?? null,
@@ -74,22 +74,22 @@ export async function createCliente(
     },
   });
 
-  revalidatePath("/clientes");
+  revalidatePath("/pacientes");
   return { success: true };
 }
 
-export async function updateCliente(
+export async function updatePaciente(
   id: string,
-  _prevState: ClienteActionState,
+  _prevState: PacienteActionState,
   formData: FormData,
-): Promise<ClienteActionState> {
-  const parsed = parseClienteForm(formData);
+): Promise<PacienteActionState> {
+  const parsed = parsePacienteForm(formData);
 
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
 
-  await prisma.cliente.update({
+  await prisma.paciente.update({
     where: { id },
     data: {
       ...parsed.data,
@@ -98,11 +98,11 @@ export async function updateCliente(
     },
   });
 
-  revalidatePath("/clientes");
+  revalidatePath("/pacientes");
   return { success: true };
 }
 
-export async function deleteCliente(id: string) {
-  await prisma.cliente.delete({ where: { id } });
-  revalidatePath("/clientes");
+export async function deletePaciente(id: string) {
+  await prisma.paciente.delete({ where: { id } });
+  revalidatePath("/pacientes");
 }

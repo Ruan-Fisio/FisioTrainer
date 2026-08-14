@@ -1,4 +1,4 @@
-import { listClientes } from "@/actions/clientes";
+import { listPacientes } from "@/actions/pacientes";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -8,28 +8,28 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  ClienteTableRow,
-  ClienteCard,
-} from "@/components/clientes/cliente-list-item";
+  PacienteTableRow,
+  PacienteCard,
+} from "@/components/pacientes/paciente-list-item";
 import { PaginationControls } from "@/components/filters/pagination-controls";
 
-export async function ClientesTable({
+export async function PacientesTable({
   page,
   search,
 }: {
   page: number;
   search: string;
 }) {
-  const { clientes, total, totalPages } = await listClientes(
+  const { pacientes, total, totalPages } = await listPacientes(
     { q: search },
     page,
   );
 
-  if (clientes.length === 0) {
+  if (pacientes.length === 0) {
     return (
       <Card>
         <CardContent className="py-12 text-center text-sm text-muted-foreground">
-          Nenhum cliente encontrado.
+          Nenhum paciente encontrado.
         </CardContent>
       </Card>
     );
@@ -38,20 +38,20 @@ export async function ClientesTable({
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-muted-foreground">
-        {total} cliente{total !== 1 ? "s" : ""} encontrado
+        {total} paciente{total !== 1 ? "s" : ""} encontrado
         {total !== 1 ? "s" : ""}
       </p>
 
       {/* Mobile: cards */}
       <div className="flex flex-col gap-3 md:hidden">
-        {clientes.map((cliente) => (
-          <ClienteCard
-            key={cliente.id}
-            id={cliente.id}
-            nome={cliente.nome}
-            idade={cliente.idade}
-            contato={cliente.contato}
-            execucoesCount={cliente._count.execucoes}
+        {pacientes.map((paciente) => (
+          <PacienteCard
+            key={paciente.id}
+            id={paciente.id}
+            nome={paciente.nome}
+            idade={paciente.idade}
+            contato={paciente.contato}
+            execucoesCount={paciente._count.execucoes}
           />
         ))}
       </div>
@@ -69,14 +69,14 @@ export async function ClientesTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {clientes.map((cliente) => (
-              <ClienteTableRow
-                key={cliente.id}
-                id={cliente.id}
-                nome={cliente.nome}
-                idade={cliente.idade}
-                contato={cliente.contato}
-                execucoesCount={cliente._count.execucoes}
+            {pacientes.map((paciente) => (
+              <PacienteTableRow
+                key={paciente.id}
+                id={paciente.id}
+                nome={paciente.nome}
+                idade={paciente.idade}
+                contato={paciente.contato}
+                execucoesCount={paciente._count.execucoes}
               />
             ))}
           </TableBody>

@@ -15,7 +15,7 @@ export default async function NovoRetornoPage({
     listAllMovimentos(),
   ]);
 
-  if (!avaliacao || avaliacao.clienteId !== id || avaliacao.tipo !== "AVALIACAO") {
+  if (!avaliacao || avaliacao.pacienteId !== id || avaliacao.tipo !== "AVALIACAO") {
     notFound();
   }
 
@@ -27,7 +27,7 @@ export default async function NovoRetornoPage({
         <h1 className="text-2xl font-semibold">Novo retorno</h1>
         <p className="text-sm text-muted-foreground">
           Registre um novo retorno do exame {avaliacao.exame.nome} para{" "}
-          {avaliacao.cliente.nome}.
+          {avaliacao.paciente.nome}.
         </p>
       </div>
       <ExameExecucaoForm
@@ -35,7 +35,7 @@ export default async function NovoRetornoPage({
         exames={[avaliacao.exame]}
         movimentos={movimentos}
         fixedExameId={avaliacao.exame.id}
-        cancelHref={`/clientes/${id}/exames/${execucaoId}`}
+        cancelHref={`/pacientes/${id}/exames/${execucaoId}`}
         successLabel="Retorno registrado com sucesso."
       />
     </div>

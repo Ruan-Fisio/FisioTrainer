@@ -14,20 +14,20 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { deleteCliente } from "@/actions/clientes";
+import { deletePaciente } from "@/actions/pacientes";
 
-export function ClienteRowActions({ id, nome }: { id: string; nome: string }) {
+export function PacienteRowActions({ id, nome }: { id: string; nome: string }) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   function handleDelete() {
     startTransition(async () => {
       try {
-        await deleteCliente(id);
-        toast.success("Cliente excluído com sucesso.");
+        await deletePaciente(id);
+        toast.success("Paciente excluído com sucesso.");
         setOpen(false);
       } catch {
-        toast.error("Não foi possível excluir o cliente.");
+        toast.error("Não foi possível excluir o paciente.");
       }
     });
   }
@@ -38,13 +38,13 @@ export function ClienteRowActions({ id, nome }: { id: string; nome: string }) {
       onClick={(event) => event.stopPropagation()}
     >
       <Button variant="ghost" size="icon" asChild>
-        <Link href={`/clientes/${id}`}>
+        <Link href={`/pacientes/${id}`}>
           <Eye className="size-4" />
           <span className="sr-only">Visualizar</span>
         </Link>
       </Button>
       <Button variant="ghost" size="icon" asChild>
-        <Link href={`/clientes/${id}/editar`}>
+        <Link href={`/pacientes/${id}/editar`}>
           <Pencil className="size-4" />
           <span className="sr-only">Editar</span>
         </Link>
@@ -58,7 +58,7 @@ export function ClienteRowActions({ id, nome }: { id: string; nome: string }) {
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Excluir cliente</DialogTitle>
+            <DialogTitle>Excluir paciente</DialogTitle>
             <DialogDescription>
               Tem certeza que deseja excluir <strong>{nome}</strong>? Todas as
               avaliações e retornos associados também serão excluídos. Esta

@@ -13,9 +13,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { RetornoSelect } from "@/components/exame-execucoes/retorno-select";
-import { PrintButton } from "@/components/exame-execucoes/print-button";
+import { BaixarPdfButton } from "@/components/exame-execucoes/baixar-pdf-button";
+import { RelatorioBarChart } from "@/components/exame-execucoes/relatorio-bar-chart";
 import { cn } from "@/lib/utils";
-import type { Classificacao } from "@/lib/relatorio-comparativo";
+import {
+  montarDadosPaciente,
+  montarHistoricoClinico,
+  montarSessao,
+  graficosDaSecao,
+  type Classificacao,
+} from "@/lib/relatorio-comparativo";
 
 function formatarSinal(valor: number) {
   const arredondado = Math.round(valor * 10) / 10;
@@ -23,10 +30,45 @@ function formatarSinal(valor: number) {
 }
 
 function classificacaoClasses(classificacao: Classificacao | null) {
-  if (classificacao === "proximo") return "text-emerald-600 dark:text-emerald-400";
-  if (classificacao === "moderado") return "text-amber-600 dark:text-amber-400";
-  if (classificacao === "distante") return "text-destructive";
+  if (classificacao === "proximo")
+    return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
+  if (classificacao === "moderado")
+    return "bg-amber-500/10 text-amber-600 dark:text-amber-400";
+  if (classificacao === "distante")
+    return "bg-destructive/10 text-destructive";
   return "text-muted-foreground";
+}
+
+function InfoTable({
+  titulo,
+  linhas,
+}: {
+  titulo: string;
+  linhas: { label: string; valor: string }[];
+}) {
+  if (linhas.length === 0) return null;
+
+  return (
+    <Card className="break-inside-avoid">
+      <CardHeader>
+        <CardTitle className="text-base">{titulo}</CardTitle>
+      </CardHeader>
+      <CardContent className="overflow-x-auto">
+        <Table>
+          <TableBody>
+            {linhas.map((linha) => (
+              <TableRow key={linha.label}>
+                <TableCell className="w-1/3 font-medium text-primary">
+                  {linha.label}
+                </TableCell>
+                <TableCell>{linha.valor}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
 }
 
 export default async function CompararExecucaoPage({
@@ -43,7 +85,7 @@ export default async function CompararExecucaoPage({
 
   if (
     !avaliacao ||
-    avaliacao.clienteId !== id ||
+    avaliacao.pacienteId !== id ||
     avaliacao.tipo !== "AVALIACAO"
   ) {
     notFound();
@@ -59,7 +101,7 @@ export default async function CompararExecucaoPage({
           </p>
         </div>
         <Button asChild variant="outline" className="w-fit">
-          <Link href={`/clientes/${id}/exames/${execucaoId}`}>
+          <Link href={`/pacientes/${id}/exames/${execucaoId}`}>
             <ChevronLeft />
             Voltar
           </Link>
@@ -79,12 +121,27 @@ export default async function CompararExecucaoPage({
       timeStyle: "short",
     }).format(data);
 
+  const paciente = comparativo.paciente;
+
+  const dadosPacienteLinhas = montarDadosPaciente(paciente);
+  const historicoLinhas = montarHistoricoClinico(paciente);
+  const sessaoLinhas = montarSessao(
+    comparativo.exame.nome,
+    formatarData(comparativo.avaliacaoData),
+    formatarData(comparativo.retornoData),
+  );
+
+  const graficos = comparativo.secoes.flatMap(graficosDaSecao);
+  const temLinhaComIdeal = comparativo.secoes.some((secao) =>
+    secao.linhas.some((linha) => linha.valorIdeal !== null),
+  );
+
   return (
-    <div className="flex flex-col gap-6 print:gap-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between print:hidden">
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <Button asChild variant="ghost" size="sm" className="mb-2 -ml-2">
-            <Link href={`/clientes/${id}/exames/${execucaoId}`}>
+            <Link href={`/pacientes/${id}/exames/${execucaoId}`}>
               <ChevronLeft />
               Voltar
             </Link>
@@ -93,7 +150,7 @@ export default async function CompararExecucaoPage({
             Comparativo — {comparativo.exame.nome}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {comparativo.cliente.nome}
+            {comparativo.paciente.nome}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -101,22 +158,17 @@ export default async function CompararExecucaoPage({
             retornos={avaliacao.retornos}
             value={retornoSelecionadoId}
           />
-          <PrintButton />
+          <BaixarPdfButton
+            execucaoId={execucaoId}
+            retornoId={retornoSelecionadoId}
+          />
         </div>
       </div>
 
-      <div className="hidden flex-col gap-1 print:flex">
-        <h1 className="text-xl font-semibold">
-          Comparativo — {comparativo.exame.nome}
-        </h1>
-        <p className="text-sm text-muted-foreground">
-          {comparativo.cliente.nome}
-        </p>
-      </div>
-
-      <div className="flex flex-col gap-1 text-sm text-muted-foreground">
-        <p>Avaliação: {formatarData(comparativo.avaliacaoData)}</p>
-        <p>Retorno: {formatarData(comparativo.retornoData)}</p>
+      <div className="flex flex-col gap-4">
+        <InfoTable titulo="Dados do paciente" linhas={dadosPacienteLinhas} />
+        <InfoTable titulo="Histórico clínico" linhas={historicoLinhas} />
+        <InfoTable titulo="Sessão" linhas={sessaoLinhas} />
       </div>
 
       {comparativo.secoes.length === 0 && (
@@ -158,14 +210,17 @@ export default async function CompararExecucaoPage({
                       </TableCell>
                       <TableCell>{linha.valorIdeal ?? "—"}</TableCell>
                       <TableCell>{linha.avaliacaoValor ?? "—"}</TableCell>
-                      <TableCell
-                        className={classificacaoClasses(
-                          linha.classificacaoAvaliacao,
-                        )}
-                      >
-                        {linha.avaliacaoDist !== null
-                          ? formatarSinal(linha.avaliacaoDist)
-                          : "—"}
+                      <TableCell>
+                        <span
+                          className={cn(
+                            "rounded px-1.5 py-0.5 text-xs font-medium",
+                            classificacaoClasses(linha.classificacaoAvaliacao),
+                          )}
+                        >
+                          {linha.avaliacaoDist !== null
+                            ? formatarSinal(linha.avaliacaoDist)
+                            : "—"}
+                        </span>
                       </TableCell>
                       <TableCell>{linha.retornoValor ?? "—"}</TableCell>
                       <TableCell>
@@ -197,6 +252,50 @@ export default async function CompararExecucaoPage({
             </CardContent>
           </Card>
         ))}
+      </div>
+
+      {temLinhaComIdeal && (
+        <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block size-2.5 rounded-sm bg-emerald-500/70" />
+            Próximo do ideal (dist. ≤ 5)
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block size-2.5 rounded-sm bg-amber-500/70" />
+            Distância moderada (5–15)
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="inline-block size-2.5 rounded-sm bg-destructive/70" />
+            Distante do ideal (&gt; 15)
+          </span>
+        </div>
+      )}
+
+      {graficos.length > 0 && (
+        <div className="flex flex-col gap-4 break-before-page">
+          <h2 className="text-lg font-semibold print:text-base">
+            Gráficos Consolidados — Avaliação x Retorno
+          </h2>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 print:grid-cols-1">
+            {graficos.map((grafico) => (
+              <RelatorioBarChart
+                key={grafico.titulo}
+                titulo={grafico.titulo}
+                itens={grafico.itens}
+                sufixo={grafico.sufixo}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="hidden border-t pt-3 text-xs text-muted-foreground print:block">
+        Gerado automaticamente em{" "}
+        {new Intl.DateTimeFormat("pt-BR", {
+          dateStyle: "short",
+          timeStyle: "short",
+        }).format(new Date())}
+        {" — Fisiotrainer Centro de Reabilitação e Performance"}
       </div>
     </div>
   );

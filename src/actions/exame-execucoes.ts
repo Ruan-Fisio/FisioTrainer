@@ -22,9 +22,9 @@ export async function listAllExamesCompletos() {
   });
 }
 
-export async function listAvaliacoesByCliente(clienteId: string) {
+export async function listAvaliacoesByPaciente(pacienteId: string) {
   return prisma.exameExecucao.findMany({
-    where: { clienteId, tipo: "AVALIACAO" },
+    where: { pacienteId, tipo: "AVALIACAO" },
     orderBy: { data: "desc" },
     include: {
       exame: { select: { id: true, nome: true } },
@@ -40,7 +40,7 @@ export async function getExecucao(id: string) {
   return prisma.exameExecucao.findUnique({
     where: { id },
     include: {
-      cliente: { select: { id: true, nome: true } },
+      paciente: { select: { id: true, nome: true } },
       exame: {
         include: {
           secoes: {
@@ -69,7 +69,20 @@ export async function getComparativo(avaliacaoId: string, retornoId: string) {
     prisma.exameExecucao.findUnique({
       where: { id: avaliacaoId },
       include: {
-        cliente: { select: { id: true, nome: true } },
+        paciente: {
+          select: {
+            id: true,
+            nome: true,
+            idade: true,
+            cpf: true,
+            contato: true,
+            objetivo: true,
+            doencasPreexistentes: true,
+            cirurgiasAnteriores: true,
+            medicamentos: true,
+            historicoClinico: true,
+          },
+        },
         exame: {
           include: {
             secoes: {
@@ -110,7 +123,7 @@ export async function getComparativo(avaliacaoId: string, retornoId: string) {
   );
 
   return {
-    cliente: avaliacao.cliente,
+    paciente: avaliacao.paciente,
     exame: { id: avaliacao.exame.id, nome: avaliacao.exame.nome },
     avaliacaoData: avaliacao.data,
     retornoData: retorno.data,
@@ -140,7 +153,7 @@ function parseExecucaoForm(formData: FormData) {
 }
 
 export async function createAvaliacao(
-  clienteId: string,
+  pacienteId: string,
   _prevState: ExameExecucaoActionState,
   formData: FormData,
 ): Promise<ExameExecucaoActionState> {
@@ -153,7 +166,7 @@ export async function createAvaliacao(
   const execucao = await prisma.exameExecucao.create({
     data: {
       tipo: "AVALIACAO",
-      clienteId,
+      pacienteId,
       exameId: parsed.data.exameId,
       valores: {
         create: parsed.data.valores.map((v) => ({
@@ -165,12 +178,12 @@ export async function createAvaliacao(
     },
   });
 
-  revalidatePath(`/clientes/${clienteId}`);
+  revalidatePath(`/pacientes/${pacienteId}`);
   return { success: true, execucaoId: execucao.id };
 }
 
 export async function createRetorno(
-  clienteId: string,
+  pacienteId: string,
   avaliacaoId: string,
   _prevState: ExameExecucaoActionState,
   formData: FormData,
@@ -183,17 +196,17 @@ export async function createRetorno(
 
   const avaliacao = await prisma.exameExecucao.findUnique({
     where: { id: avaliacaoId },
-    select: { exameId: true, clienteId: true },
+    select: { exameId: true, pacienteId: true },
   });
 
-  if (!avaliacao || avaliacao.clienteId !== clienteId) {
+  if (!avaliacao || avaliacao.pacienteId !== pacienteId) {
     return { error: "Avaliação não encontrada." };
   }
 
   const execucao = await prisma.exameExecucao.create({
     data: {
       tipo: "RETORNO",
-      clienteId,
+      pacienteId,
       exameId: avaliacao.exameId,
       avaliacaoId,
       valores: {
@@ -206,13 +219,13 @@ export async function createRetorno(
     },
   });
 
-  revalidatePath(`/clientes/${clienteId}`);
+  revalidatePath(`/pacientes/${pacienteId}`);
   return { success: true, execucaoId: execucao.id };
 }
 
 export async function updateExecucao(
   execucaoId: string,
-  clienteId: string,
+  pacienteId: string,
   _prevState: ExameExecucaoActionState,
   formData: FormData,
 ): Promise<ExameExecucaoActionState> {
@@ -224,10 +237,10 @@ export async function updateExecucao(
 
   const execucao = await prisma.exameExecucao.findUnique({
     where: { id: execucaoId },
-    select: { clienteId: true },
+    select: { pacienteId: true },
   });
 
-  if (!execucao || execucao.clienteId !== clienteId) {
+  if (!execucao || execucao.pacienteId !== pacienteId) {
     return { error: "Registro não encontrado." };
   }
 
@@ -247,12 +260,12 @@ export async function updateExecucao(
     }),
   ]);
 
-  revalidatePath(`/clientes/${clienteId}`);
-  revalidatePath(`/clientes/${clienteId}/exames/${execucaoId}`);
+  revalidatePath(`/pacientes/${pacienteId}`);
+  revalidatePath(`/pacientes/${pacienteId}/exames/${execucaoId}`);
   return { success: true, execucaoId };
 }
 
-export async function deleteExecucao(id: string, clienteId: string) {
+export async function deleteExecucao(id: string, pacienteId: string) {
   await prisma.exameExecucao.delete({ where: { id } });
-  revalidatePath(`/clientes/${clienteId}`);
+  revalidatePath(`/pacientes/${pacienteId}`);
 }

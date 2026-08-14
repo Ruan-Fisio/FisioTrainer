@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { listAvaliacoesByCliente } from "@/actions/exame-execucoes";
+import { listAvaliacoesByPaciente } from "@/actions/exame-execucoes";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,14 +12,14 @@ function formatarData(data: Date) {
   }).format(data);
 }
 
-export async function AvaliacoesList({ clienteId }: { clienteId: string }) {
-  const avaliacoes = await listAvaliacoesByCliente(clienteId);
+export async function AvaliacoesList({ pacienteId }: { pacienteId: string }) {
+  const avaliacoes = await listAvaliacoesByPaciente(pacienteId);
 
   if (avaliacoes.length === 0) {
     return (
       <Card>
         <CardContent className="py-10 text-center text-sm text-muted-foreground">
-          Nenhuma avaliação cadastrada para este cliente ainda.
+          Nenhuma avaliação cadastrada para este paciente ainda.
         </CardContent>
       </Card>
     );
@@ -43,14 +43,14 @@ export async function AvaliacoesList({ clienteId }: { clienteId: string }) {
               <div className="flex items-center gap-2">
                 <Button size="sm" asChild>
                   <Link
-                    href={`/clientes/${clienteId}/exames/${avaliacao.id}/retorno`}
+                    href={`/pacientes/${pacienteId}/exames/${avaliacao.id}/retorno`}
                   >
                     Novo retorno
                   </Link>
                 </Button>
                 <ExecucaoRowActions
                   id={avaliacao.id}
-                  clienteId={clienteId}
+                  pacienteId={pacienteId}
                   tipo="AVALIACAO"
                 />
               </div>
@@ -71,7 +71,7 @@ export async function AvaliacoesList({ clienteId }: { clienteId: string }) {
                     </div>
                     <ExecucaoRowActions
                       id={retorno.id}
-                      clienteId={clienteId}
+                      pacienteId={pacienteId}
                       tipo="RETORNO"
                     />
                   </div>

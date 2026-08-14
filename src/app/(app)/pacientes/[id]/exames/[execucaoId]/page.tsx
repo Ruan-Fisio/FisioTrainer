@@ -40,7 +40,7 @@ export default async function ExecucaoDetailPage({
 
   const execucao = await getExecucao(execucaoId);
 
-  if (!execucao || execucao.clienteId !== id) notFound();
+  if (!execucao || execucao.pacienteId !== id) notFound();
 
   const valores = execucao.valores;
   const valorPorChave = new Map(
@@ -72,7 +72,7 @@ export default async function ExecucaoDetailPage({
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            {execucao.cliente.nome}
+            {execucao.paciente.nome}
             {" · "}
             {new Intl.DateTimeFormat("pt-BR", {
               dateStyle: "short",
@@ -83,7 +83,7 @@ export default async function ExecucaoDetailPage({
         <div className="flex items-center gap-2">
           {execucao.tipo === "AVALIACAO" && (
             <Button asChild size="sm">
-              <Link href={`/clientes/${id}/exames/${execucaoId}/retorno`}>
+              <Link href={`/pacientes/${id}/exames/${execucaoId}/retorno`}>
                 <Plus />
                 Novo retorno
               </Link>
@@ -91,14 +91,14 @@ export default async function ExecucaoDetailPage({
           )}
           {execucao.tipo === "AVALIACAO" && execucao.retornos.length > 0 && (
             <Button asChild variant="outline" size="sm">
-              <Link href={`/clientes/${id}/exames/${execucaoId}/comparar`}>
+              <Link href={`/pacientes/${id}/exames/${execucaoId}/comparar`}>
                 <GitCompare />
                 Comparar
               </Link>
             </Button>
           )}
           <Button asChild variant="outline" size="sm">
-            <Link href={`/clientes/${id}/exames/${execucaoId}/editar`}>
+            <Link href={`/pacientes/${id}/exames/${execucaoId}/editar`}>
               <Pencil />
               Editar
             </Link>
@@ -183,7 +183,7 @@ export default async function ExecucaoDetailPage({
                 </p>
                 <ExecucaoRowActions
                   id={retorno.id}
-                  clienteId={id}
+                  pacienteId={id}
                   tipo="RETORNO"
                 />
               </CardContent>
@@ -201,7 +201,7 @@ export default async function ExecucaoDetailPage({
           }).format(execucao.avaliacao.data)}
           {" — "}
           <Link
-            href={`/clientes/${id}/exames/${execucao.avaliacao.id}`}
+            href={`/pacientes/${id}/exames/${execucao.avaliacao.id}`}
             className="underline"
           >
             ver avaliação original

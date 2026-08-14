@@ -11,29 +11,29 @@ export default async function NovaAvaliacaoPage({
 }) {
   const { id } = await params;
 
-  const [cliente, exames, movimentos] = await Promise.all([
-    prisma.cliente.findUnique({ where: { id }, select: { id: true, nome: true } }),
+  const [paciente, exames, movimentos] = await Promise.all([
+    prisma.paciente.findUnique({ where: { id }, select: { id: true, nome: true } }),
     listAllExamesCompletos(),
     listAllMovimentos(),
   ]);
 
-  if (!cliente) notFound();
+  if (!paciente) notFound();
 
-  const createAvaliacaoWithCliente = createAvaliacao.bind(null, id);
+  const createAvaliacaoWithPaciente = createAvaliacao.bind(null, id);
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Nova avaliação</h1>
         <p className="text-sm text-muted-foreground">
-          Selecione o exame e preencha os valores para {cliente.nome}.
+          Selecione o exame e preencha os valores para {paciente.nome}.
         </p>
       </div>
       <ExameExecucaoForm
-        action={createAvaliacaoWithCliente}
+        action={createAvaliacaoWithPaciente}
         exames={exames}
         movimentos={movimentos}
-        cancelHref={`/clientes/${id}`}
+        cancelHref={`/pacientes/${id}`}
         successLabel="Avaliação registrada com sucesso."
       />
     </div>
