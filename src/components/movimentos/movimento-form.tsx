@@ -1,25 +1,14 @@
 "use client";
 
 import { useActionState, useEffect } from "react";
-import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FormActions } from "@/components/ui/form-actions";
 import type { MovimentoActionState } from "@/actions/movimentos";
 
 const initialState: MovimentoActionState = {};
-
-function SubmitButton({ label }: { label: string }) {
-  const { pending } = useFormStatus();
-
-  return (
-    <Button type="submit" disabled={pending}>
-      {pending ? "Salvando..." : label}
-    </Button>
-  );
-}
 
 export function MovimentoForm({
   action,
@@ -48,7 +37,7 @@ export function MovimentoForm({
   }, [state.success, mode, router]);
 
   return (
-    <form action={formAction} className="flex max-w-md flex-col gap-4">
+    <form action={formAction} className="flex max-w-md flex-col gap-4 pb-24">
       <div className="flex flex-col gap-2">
         <Label htmlFor="nome">Nome</Label>
         <Input
@@ -70,18 +59,10 @@ export function MovimentoForm({
       {state.error && (
         <p className="text-sm text-destructive">{state.error}</p>
       )}
-      <div className="flex gap-2">
-        <SubmitButton
-          label={mode === "create" ? "Criar movimento" : "Salvar alterações"}
-        />
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.push("/biblioteca-movimento/goniometria")}
-        >
-          Cancelar
-        </Button>
-      </div>
+      <FormActions
+        submitLabel={mode === "create" ? "Criar movimento" : "Salvar alterações"}
+        onCancel={() => router.push("/biblioteca-movimento/goniometria")}
+      />
     </form>
   );
 }

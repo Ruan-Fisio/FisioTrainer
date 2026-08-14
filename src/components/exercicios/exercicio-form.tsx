@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, X } from "lucide-react";
@@ -10,19 +9,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CategoriaSelect, type CategoriaOption } from "@/components/exercicios/categoria-select";
 import { LinkPreviewCard } from "@/components/exercicios/link-preview-card";
+import { FormActions } from "@/components/ui/form-actions";
 import type { ExercicioActionState } from "@/actions/exercicios";
 
 const initialState: ExercicioActionState = {};
-
-function SubmitButton({ label }: { label: string }) {
-  const { pending } = useFormStatus();
-
-  return (
-    <Button type="submit" disabled={pending}>
-      {pending ? "Salvando..." : label}
-    </Button>
-  );
-}
 
 export function ExercicioForm({
   action,
@@ -79,7 +69,7 @@ export function ExercicioForm({
   const validLinks = links.filter((url) => url.trim().length > 0);
 
   return (
-    <form action={formAction} className="flex max-w-xl flex-col gap-6">
+    <form action={formAction} className="flex max-w-xl flex-col gap-6 pb-24">
       <input
         type="hidden"
         name="categoriaIds"
@@ -152,18 +142,10 @@ export function ExercicioForm({
         <p className="text-sm text-destructive">{state.error}</p>
       )}
 
-      <div className="flex gap-2">
-        <SubmitButton
-          label={mode === "create" ? "Criar exercício" : "Salvar alterações"}
-        />
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.push("/biblioteca/exercicios")}
-        >
-          Cancelar
-        </Button>
-      </div>
+      <FormActions
+        submitLabel={mode === "create" ? "Criar exercício" : "Salvar alterações"}
+        onCancel={() => router.push("/biblioteca/exercicios")}
+      />
     </form>
   );
 }

@@ -1,9 +1,12 @@
+"use client";
+
 import Link from "next/link";
-import { listAvaliacoesByPaciente } from "@/actions/exame-execucoes";
+import { ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ExecucaoRowActions } from "@/components/exame-execucoes/execucao-row-actions";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import type { getAvaliacoesByPaciente } from "@/actions/exame-execucoes";
 
 function formatarData(data: Date) {
   return new Intl.DateTimeFormat("pt-BR", {
@@ -12,9 +15,48 @@ function formatarData(data: Date) {
   }).format(data);
 }
 
-export async function AvaliacoesList({ pacienteId }: { pacienteId: string }) {
-  const avaliacoes = await listAvaliacoesByPaciente(pacienteId);
+type Avaliacao = Awaited<ReturnType<typeof getAvaliacoesByPaciente>>[number];
 
+export function AvaliacoesList({
+  pacienteId,
+  avaliacoes,
+}: {
+  pacienteId: string;
+  avaliacoes: Avaliacao[];
+}) {
+  return (
+    <Tabs defaultValue="FISIOTERAPIA">
+      <TabsList className="w-full">
+        <TabsTrigger className="flex-1" value="FISIOTERAPIA">
+          Fisioterapia
+        </TabsTrigger>
+        <TabsTrigger className="flex-1" value="EDUCACAO_FISICA">
+          Educação Física
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="FISIOTERAPIA">
+        <AvaliacoesListContent
+          pacienteId={pacienteId}
+          avaliacoes={avaliacoes.filter((a) => a.exame.tipo === "FISIOTERAPIA")}
+        />
+      </TabsContent>
+      <TabsContent value="EDUCACAO_FISICA">
+        <AvaliacoesListContent
+          pacienteId={pacienteId}
+          avaliacoes={avaliacoes.filter((a) => a.exame.tipo === "EDUCACAO_FISICA")}
+        />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+function AvaliacoesListContent({
+  pacienteId,
+  avaliacoes,
+}: {
+  pacienteId: string;
+  avaliacoes: Avaliacao[];
+}) {
   if (avaliacoes.length === 0) {
     return (
       <Card>
@@ -29,39 +71,36 @@ export async function AvaliacoesList({ pacienteId }: { pacienteId: string }) {
     <div className="flex flex-col gap-3">
       {avaliacoes.map((avaliacao) => (
         <Card key={avaliacao.id}>
-          <CardContent className="flex flex-col gap-3 p-4">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <p className="font-medium">{avaliacao.exame.nome}</p>
-                  <Badge variant="secondary">Avaliação</Badge>
-                </div>
+          <CardContent className="flex flex-col gap-3">
+            <Link
+              href={`/pacientes/${pacienteId}/exames/${avaliacao.id}`}
+              className="group -mx-4 -mt-4 flex items-center justify-between gap-2 rounded-t-xl px-4 pt-4 pb-2 transition-colors hover:bg-primary/5"
+            >
+              <div>
+                <p className="font-medium">{avaliacao.exame.nome}</p>
                 <p className="text-xs text-muted-foreground">
                   {formatarData(avaliacao.data)}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <Button size="sm" asChild>
-                  <Link
-                    href={`/pacientes/${pacienteId}/exames/${avaliacao.id}/retorno`}
-                  >
-                    Novo retorno
-                  </Link>
-                </Button>
-                <ExecucaoRowActions
-                  id={avaliacao.id}
-                  pacienteId={pacienteId}
-                  tipo="AVALIACAO"
-                />
-              </div>
+              <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+            </Link>
+            <div className="flex justify-end">
+              <Button size="sm" asChild>
+                <Link
+                  href={`/pacientes/${pacienteId}/exames/${avaliacao.id}/retorno`}
+                >
+                  Novo retorno
+                </Link>
+              </Button>
             </div>
 
             {avaliacao.retornos.length > 0 && (
-              <div className="flex flex-col gap-2 border-t pt-3">
+              <div className="-mx-4 -mb-4 flex flex-col border-t">
                 {avaliacao.retornos.map((retorno) => (
-                  <div
+                  <Link
                     key={retorno.id}
-                    className="flex items-center justify-between gap-2"
+                    href={`/pacientes/${pacienteId}/exames/${retorno.id}`}
+                    className="group flex items-center justify-between gap-2 px-4 py-2.5 transition-colors last:rounded-b-xl hover:bg-primary/5"
                   >
                     <div className="flex items-center gap-2">
                       <Badge variant="outline">Retorno</Badge>
@@ -69,12 +108,8 @@ export async function AvaliacoesList({ pacienteId }: { pacienteId: string }) {
                         {formatarData(retorno.data)}
                       </p>
                     </div>
-                    <ExecucaoRowActions
-                      id={retorno.id}
-                      pacienteId={pacienteId}
-                      tipo="RETORNO"
-                    />
-                  </div>
+                    <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                  </Link>
                 ))}
               </div>
             )}

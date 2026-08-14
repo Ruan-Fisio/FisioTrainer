@@ -1,25 +1,14 @@
 "use client";
 
 import { useActionState, useEffect } from "react";
-import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FormActions } from "@/components/ui/form-actions";
 import type { UsuarioActionState } from "@/actions/usuarios";
 
 const initialState: UsuarioActionState = {};
-
-function SubmitButton({ label }: { label: string }) {
-  const { pending } = useFormStatus();
-
-  return (
-    <Button type="submit" disabled={pending}>
-      {pending ? "Salvando..." : label}
-    </Button>
-  );
-}
 
 export function UsuarioForm({
   action,
@@ -48,7 +37,7 @@ export function UsuarioForm({
   }, [state.success, mode, router]);
 
   return (
-    <form action={formAction} className="flex max-w-md flex-col gap-4">
+    <form action={formAction} className="flex max-w-md flex-col gap-4 pb-24">
       <div className="flex flex-col gap-2">
         <Label htmlFor="name">Nome</Label>
         <Input
@@ -82,18 +71,10 @@ export function UsuarioForm({
       {state.error && (
         <p className="text-sm text-destructive">{state.error}</p>
       )}
-      <div className="flex gap-2">
-        <SubmitButton
-          label={mode === "create" ? "Criar usuário" : "Salvar alterações"}
-        />
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.push("/usuarios")}
-        >
-          Cancelar
-        </Button>
-      </div>
+      <FormActions
+        submitLabel={mode === "create" ? "Criar usuário" : "Salvar alterações"}
+        onCancel={() => router.push("/usuarios")}
+      />
     </form>
   );
 }

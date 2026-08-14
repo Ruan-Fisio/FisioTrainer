@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { ChevronDown, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -29,11 +29,13 @@ export function MultiSelectFilter({
   paramName,
   options,
   placeholder = "Filtrar...",
+  icon,
   defaultValue,
 }: {
   paramName: string;
   options: MultiSelectOption[];
   placeholder?: string;
+  icon?: ReactNode;
   defaultValue: string[];
 }) {
   const router = useRouter();
@@ -66,11 +68,17 @@ export function MultiSelectFilter({
   );
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
+    <div className="flex shrink-0 flex-wrap items-center gap-2">
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
-          <Button variant="outline" className="justify-between">
+          <Button variant="outline" className="shrink-0 justify-between gap-2">
+            {icon}
             {placeholder}
+            {selected.length > 0 && (
+              <Badge variant="secondary" className="px-1.5">
+                {selected.length}
+              </Badge>
+            )}
             <ChevronDown className="size-4 text-muted-foreground" />
           </Button>
         </PopoverTrigger>

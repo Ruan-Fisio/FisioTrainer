@@ -34,15 +34,23 @@ export default async function EditarExamePage({
             campos: secao.campos.map((campo) => ({
               nome: campo.nome,
               repetivel: campo.repetivel,
-              colunas: campo.colunas.map((coluna) => ({
-                titulo: coluna.titulo,
-                tipo: coluna.tipo,
-                formatacao: coluna.formatacao ?? "",
-                opcoes: coluna.opcoes,
-                multiplaSelecao: coluna.multiplaSelecao,
-                valorIdeal: coluna.valorIdeal ?? "",
-                direcaoIdeal: coluna.direcaoIdeal ?? "PROXIMO_IDEAL",
-              })),
+              identificarMembro: campo.identificarMembro,
+              colunas: campo.colunas
+                .filter((coluna) => coluna.tipo !== "MEMBRO")
+                .map((coluna) => ({
+                  titulo: coluna.titulo,
+                  tipo: coluna.tipo as
+                    | "NUMERO"
+                    | "TEXTO"
+                    | "MULTIPLA_ESCOLHA"
+                    | "SIM_NAO"
+                    | "GONIOMETRIA",
+                  formatacao: coluna.formatacao ?? "",
+                  opcoes: coluna.opcoes,
+                  multiplaSelecao: coluna.multiplaSelecao,
+                  valorIdeal: coluna.valorIdeal ?? "",
+                  direcaoIdeal: coluna.direcaoIdeal ?? "PROXIMO_IDEAL",
+                })),
             })),
           })),
         }}

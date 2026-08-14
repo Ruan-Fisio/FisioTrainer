@@ -10,4 +10,6 @@ export const pacienteSchema = z.object({
   doencasPreexistentes: z.string().trim().optional(),
   cirurgiasAnteriores: z.string().trim().optional(),
   medicamentos: z.string().trim().optional(),
+  numeroIndicacao: z.string().trim().optional(),
+  pessoaIndicacao: z.string().trim().optional(),
 });

@@ -131,7 +131,7 @@ export default async function CompararExecucaoPage({
     formatarData(comparativo.retornoData),
   );
 
-  const graficos = comparativo.secoes.flatMap(graficosDaSecao);
+  const graficos = comparativo.secoes.flatMap((secao) => graficosDaSecao(secao));
   const temLinhaComIdeal = comparativo.secoes.some((secao) =>
     secao.linhas.some((linha) => linha.valorIdeal !== null),
   );
@@ -201,7 +201,14 @@ export default async function CompararExecucaoPage({
                   {secao.linhas.map((linha) => (
                     <TableRow key={linha.chave}>
                       <TableCell className="font-medium">
-                        {linha.rotulo}
+                        <span className="flex items-center gap-1.5">
+                          {linha.rotulo}
+                          {linha.lado && (
+                            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                              {linha.lado}
+                            </span>
+                          )}
+                        </span>
                         {linha.contexto && (
                           <p className="text-xs font-normal text-muted-foreground">
                             {linha.contexto}
@@ -224,9 +231,16 @@ export default async function CompararExecucaoPage({
                       </TableCell>
                       <TableCell>{linha.retornoValor ?? "—"}</TableCell>
                       <TableCell>
-                        {linha.retornoDist !== null
-                          ? formatarSinal(linha.retornoDist)
-                          : "—"}
+                        <span
+                          className={cn(
+                            "rounded px-1.5 py-0.5 text-xs font-medium",
+                            classificacaoClasses(linha.classificacaoRetorno),
+                          )}
+                        >
+                          {linha.retornoDist !== null
+                            ? formatarSinal(linha.retornoDist)
+                            : "—"}
+                        </span>
                       </TableCell>
                       <TableCell
                         className={cn(
@@ -272,11 +286,11 @@ export default async function CompararExecucaoPage({
       )}
 
       {graficos.length > 0 && (
-        <div className="flex flex-col gap-4 break-before-page">
-          <h2 className="text-lg font-semibold print:text-base">
+        <div className="flex flex-col gap-4">
+          <h2 className="text-lg font-semibold">
             Gráficos Consolidados — Avaliação x Retorno
           </h2>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 print:grid-cols-1">
+          <div className="grid grid-cols-1 gap-4">
             {graficos.map((grafico) => (
               <RelatorioBarChart
                 key={grafico.titulo}
@@ -288,15 +302,6 @@ export default async function CompararExecucaoPage({
           </div>
         </div>
       )}
-
-      <div className="hidden border-t pt-3 text-xs text-muted-foreground print:block">
-        Gerado automaticamente em{" "}
-        {new Intl.DateTimeFormat("pt-BR", {
-          dateStyle: "short",
-          timeStyle: "short",
-        }).format(new Date())}
-        {" — Fisiotrainer Centro de Reabilitação e Performance"}
-      </div>
     </div>
   );
 }

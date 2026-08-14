@@ -9,6 +9,7 @@ export const exameColunaSchema = z
       "MULTIPLA_ESCOLHA",
       "SIM_NAO",
       "GONIOMETRIA",
+      "MEMBRO",
     ]),
     formatacao: z.string().trim().optional(),
     opcoes: z.array(z.string().trim().min(1)).optional().default([]),
@@ -30,6 +31,7 @@ export const exameColunaSchema = z
 export const exameCampoSchema = z.object({
   nome: z.string().trim().optional().default(""),
   repetivel: z.boolean().optional().default(false),
+  identificarMembro: z.boolean().optional().default(false),
   colunas: z
     .array(exameColunaSchema)
     .min(1, "Adicione ao menos uma coluna"),

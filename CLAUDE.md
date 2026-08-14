@@ -33,6 +33,10 @@ A URL é a única fonte da verdade dos filtros — nunca guardar filtro em `useS
 
 **Ao adicionar um novo filtro por característica de uma entidade** (ex. filtrar pacientes por status, consultas por data): reutilize `SearchInput`/`MultiSelectFilter` existentes ou crie um novo componente em `src/components/filters/` seguindo o mesmo contrato (lê `useSearchParams`, escreve via `router.push`, nunca duplica estado).
 
+## Padrão de ações em formulários
+
+Em qualquer par de botões de ação (salvar/cancelar, confirmar/voltar), o botão que **avança/confirma** (submit, "Criar X", "Salvar alterações") fica à **direita**, e o botão que **recua/cancela** ("Cancelar", "Voltar") fica à **esquerda** — use `className="flex justify-end gap-2"` no container e coloque o botão de cancelar antes do botão de submit no JSX.
+
 ## Design system / UI
 
 A aplicação usa um visual "moderno com profundidade", não flat. Ao criar ou alterar telas, seguir:

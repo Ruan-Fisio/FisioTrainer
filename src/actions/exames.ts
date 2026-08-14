@@ -79,35 +79,60 @@ function parseExameForm(formData: FormData) {
   return exameSchema.safeParse({ nome, descricao, tipo, secoes });
 }
 
+const OPCOES_MEMBRO = ["Esquerdo", "Direito", "Bilateral"];
+
 function secoesCreateData(secoes: ReturnType<typeof exameSchema.parse>["secoes"]) {
   return secoes.map((secao, secaoIndex) => ({
     nome: secao.nome,
     ordem: secaoIndex,
     campos: {
-      create: secao.campos.map((campo, campoIndex) => ({
-        nome: campo.nome,
-        ordem: campoIndex,
-        repetivel: campo.repetivel,
-        colunas: {
-          create: campo.colunas.map((coluna, colunaIndex) => ({
-            titulo: coluna.titulo,
-            tipo: coluna.tipo,
-            formatacao: coluna.formatacao || null,
-            opcoes: coluna.tipo === "MULTIPLA_ESCOLHA" ? coluna.opcoes : [],
-            multiplaSelecao:
-              coluna.tipo === "MULTIPLA_ESCOLHA"
-                ? coluna.multiplaSelecao
-                : false,
-            valorIdeal:
-              coluna.tipo === "NUMERO" && coluna.valorIdeal
-                ? coluna.valorIdeal
-                : null,
-            direcaoIdeal:
-              coluna.tipo === "NUMERO" ? coluna.direcaoIdeal || null : null,
-            ordem: colunaIndex,
-          })),
-        },
-      })),
+      create: secao.campos.map((campo, campoIndex) => {
+        const temGoniometria = campo.colunas.some(
+          (coluna) => coluna.tipo === "GONIOMETRIA",
+        );
+        const colunasData = campo.colunas.map((coluna) => ({
+          titulo: coluna.titulo,
+          tipo: coluna.tipo,
+          formatacao: coluna.formatacao || null,
+          opcoes: coluna.tipo === "MULTIPLA_ESCOLHA" ? coluna.opcoes : [],
+          multiplaSelecao:
+            coluna.tipo === "MULTIPLA_ESCOLHA"
+              ? coluna.multiplaSelecao
+              : false,
+          valorIdeal:
+            coluna.tipo === "NUMERO" && coluna.valorIdeal
+              ? coluna.valorIdeal
+              : null,
+          direcaoIdeal:
+            coluna.tipo === "NUMERO" ? coluna.direcaoIdeal || null : null,
+        }));
+
+        if (campo.repetivel && campo.identificarMembro && !temGoniometria) {
+          colunasData.unshift({
+            titulo: "Membro",
+            tipo: "MEMBRO",
+            formatacao: null,
+            opcoes: OPCOES_MEMBRO,
+            multiplaSelecao: false,
+            valorIdeal: null,
+            direcaoIdeal: null,
+          });
+        }
+
+        return {
+          nome: campo.nome,
+          ordem: campoIndex,
+          repetivel: campo.repetivel,
+          identificarMembro:
+            (campo.repetivel || temGoniometria) && campo.identificarMembro,
+          colunas: {
+            create: colunasData.map((coluna, colunaIndex) => ({
+              ...coluna,
+              ordem: colunaIndex,
+            })),
+          },
+        };
+      }),
     },
   }));
 }

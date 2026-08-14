@@ -37,13 +37,13 @@ export function PacienteRowActions({ id, nome }: { id: string; nome: string }) {
       className="flex items-center justify-end gap-1"
       onClick={(event) => event.stopPropagation()}
     >
-      <Button variant="ghost" size="icon" asChild>
+      <Button variant="outline" size="icon" asChild>
         <Link href={`/pacientes/${id}`}>
           <Eye className="size-4" />
           <span className="sr-only">Visualizar</span>
         </Link>
       </Button>
-      <Button variant="ghost" size="icon" asChild>
+      <Button variant="outline" size="icon" asChild>
         <Link href={`/pacientes/${id}/editar`}>
           <Pencil className="size-4" />
           <span className="sr-only">Editar</span>
@@ -51,7 +51,7 @@ export function PacienteRowActions({ id, nome }: { id: string; nome: string }) {
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button variant="ghost" size="icon">
+          <Button variant="outline" size="icon">
             <Trash2 className="size-4 text-destructive" />
             <span className="sr-only">Excluir</span>
           </Button>

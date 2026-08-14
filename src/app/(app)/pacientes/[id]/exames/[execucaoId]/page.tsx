@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Plus, Pencil, GitCompare } from "lucide-react";
+import { ChevronRight, Plus, GitCompare } from "lucide-react";
 import { getExecucao } from "@/actions/exame-execucoes";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ExecucaoRowActions } from "@/components/exame-execucoes/execucao-row-actions";
+import { ExecucaoDetailActions } from "@/components/exame-execucoes/execucao-detail-actions";
 import { parseGoniometriaValor } from "@/lib/goniometria";
 
 function ValorColuna({ tipo, valor }: { tipo: string; valor: string }) {
@@ -14,9 +14,10 @@ function ValorColuna({ tipo, valor }: { tipo: string; valor: string }) {
     if (entries.length === 0) return <p className="text-sm">—</p>;
     return (
       <ul className="flex flex-col gap-0.5 text-sm">
-        {entries.map((entry) => (
-          <li key={entry.nome}>
+        {entries.map((entry, index) => (
+          <li key={`${entry.nome}-${entry.lado ?? ""}-${index}`}>
             {entry.nome}
+            {entry.lado ? ` (${entry.lado})` : ""}
             {entry.grauAlcancado ? `: ${entry.grauAlcancado}` : ""}
           </li>
         ))}
@@ -97,12 +98,11 @@ export default async function ExecucaoDetailPage({
               </Link>
             </Button>
           )}
-          <Button asChild variant="outline" size="sm">
-            <Link href={`/pacientes/${id}/exames/${execucaoId}/editar`}>
-              <Pencil />
-              Editar
-            </Link>
-          </Button>
+          <ExecucaoDetailActions
+            id={execucaoId}
+            pacienteId={id}
+            tipo={execucao.tipo}
+          />
         </div>
       </div>
 
@@ -173,20 +173,19 @@ export default async function ExecucaoDetailPage({
         <div className="flex flex-col gap-3">
           <h2 className="text-lg font-semibold">Retornos</h2>
           {execucao.retornos.map((retorno) => (
-            <Card key={retorno.id}>
-              <CardContent className="flex items-center justify-between p-4">
+            <Card key={retorno.id} className="p-0">
+              <Link
+                href={`/pacientes/${id}/exames/${retorno.id}`}
+                className="group flex items-center justify-between gap-2 p-4 transition-colors hover:bg-primary/5"
+              >
                 <p className="text-sm">
                   {new Intl.DateTimeFormat("pt-BR", {
                     dateStyle: "short",
                     timeStyle: "short",
                   }).format(retorno.data)}
                 </p>
-                <ExecucaoRowActions
-                  id={retorno.id}
-                  pacienteId={id}
-                  tipo="RETORNO"
-                />
-              </CardContent>
+                <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+              </Link>
             </Card>
           ))}
         </div>

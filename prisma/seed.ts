@@ -19,6 +19,17 @@ async function main() {
     },
   });
 
+  await prisma.user.upsert({
+    where: { email: "sem-usuario@sistema.local" },
+    update: {},
+    create: {
+      id: "sem-usuario",
+      name: "SEM_USUARIO",
+      email: "sem-usuario@sistema.local",
+      password: await bcrypt.hash(crypto.randomUUID(), 10),
+    },
+  });
+
   console.log("Seed concluído: admin@admin.com criado/atualizado.");
 }
 

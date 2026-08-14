@@ -31,6 +31,7 @@ export type Classificacao = "proximo" | "moderado" | "distante";
 export type LinhaComparativo = {
   chave: string;
   rotulo: string;
+  lado: string | null;
   contexto: string | null;
   unidade: string | null;
   valorIdeal: string | null;
@@ -42,6 +43,7 @@ export type LinhaComparativo = {
   retornoNumero: number | null;
   progresso: number | null;
   classificacaoAvaliacao: Classificacao | null;
+  classificacaoRetorno: Classificacao | null;
 };
 
 export type SecaoComparativo = {
@@ -126,13 +128,13 @@ function chunk<T>(itens: T[], tamanho: number): T[][] {
 
 export function graficosDaSecao(
   secao: SecaoComparativo,
-  itensPorGrafico = 8,
+  itensPorGrafico = 2,
 ): GraficoSecao[] {
   const itensGraficaveis = secao.linhas
     .filter((linha) => linha.avaliacaoNumero !== null || linha.retornoNumero !== null)
     .map((linha) => ({
       chave: linha.chave,
-      rotulo: linha.rotulo,
+      rotulo: linha.lado ? `${linha.rotulo} (${linha.lado})` : linha.rotulo,
       avaliacao: linha.avaliacaoNumero,
       retorno: linha.retornoNumero,
     }));
@@ -303,14 +305,30 @@ export function montarComparativo(
           if (coluna.tipo === "GONIOMETRIA") {
             const avalEntries = parseGoniometriaValor(avalRaw);
             const retEntries = parseGoniometriaValor(retRaw);
-            const nomes = new Set([
-              ...avalEntries.map((e) => e.nome),
-              ...retEntries.map((e) => e.nome),
-            ]);
+            const chaveEntry = (e: { nome: string; lado?: string }) =>
+              `${e.nome}::${e.lado ?? ""}`;
+            const ordemLado = ["", "Esquerdo", "Direito", "Bilateral"];
+            const chavesMovimento = Array.from(
+              new Set([
+                ...avalEntries.map(chaveEntry),
+                ...retEntries.map(chaveEntry),
+              ]),
+            ).sort((a, b) => {
+              const [nomeA, ladoA] = a.split("::");
+              const [nomeB, ladoB] = b.split("::");
+              if (nomeA !== nomeB) return nomeA.localeCompare(nomeB);
+              return ordemLado.indexOf(ladoA) - ordemLado.indexOf(ladoB);
+            });
 
-            for (const nome of nomes) {
-              const avalEntry = avalEntries.find((e) => e.nome === nome);
-              const retEntry = retEntries.find((e) => e.nome === nome);
+            for (const chaveMovimento of chavesMovimento) {
+              const avalEntry = avalEntries.find(
+                (e) => chaveEntry(e) === chaveMovimento,
+              );
+              const retEntry = retEntries.find(
+                (e) => chaveEntry(e) === chaveMovimento,
+              );
+              const nome = (avalEntry ?? retEntry)!.nome;
+              const lado = (avalEntry ?? retEntry)!.lado;
               const idealTexto = movimentoPorNome.get(nome)?.grauIdeal ?? null;
               const alvo = parseAlvoGoniometria(idealTexto);
               const avalNum = parseNumero(avalEntry?.grauAlcancado);
@@ -325,8 +343,9 @@ export function montarComparativo(
                   : null;
 
               linhas.push({
-                chave: `${chave}::${nome}`,
+                chave: `${chave}::${chaveMovimento}`,
                 rotulo: nome,
+                lado: lado || null,
                 contexto: coluna.titulo,
                 unidade: null,
                 valorIdeal: idealTexto,
@@ -339,6 +358,8 @@ export function montarComparativo(
                 progresso,
                 classificacaoAvaliacao:
                   avalDist !== null ? classificarDistancia(avalDist) : null,
+                classificacaoRetorno:
+                  retDist !== null ? classificarDistancia(retDist) : null,
               });
             }
             continue;
@@ -392,6 +413,7 @@ export function montarComparativo(
           linhas.push({
             chave,
             rotulo,
+            lado: null,
             contexto: null,
             unidade: coluna.formatacao,
             valorIdeal: coluna.tipo === "NUMERO" ? coluna.valorIdeal : null,
@@ -404,6 +426,8 @@ export function montarComparativo(
             progresso,
             classificacaoAvaliacao:
               avalDist !== null ? classificarDistancia(avalDist) : null,
+            classificacaoRetorno:
+              retDist !== null ? classificarDistancia(retDist) : null,
           });
         }
       }

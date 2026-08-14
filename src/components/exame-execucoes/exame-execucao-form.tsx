@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useEffect, useMemo, useState } from "react";
-import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
@@ -10,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FormActions } from "@/components/ui/form-actions";
 import type { ExameExecucaoActionState } from "@/actions/exame-execucoes";
 import {
   GoniometriaField,
@@ -32,6 +32,7 @@ export type ExameCompleto = {
       id: string;
       nome: string;
       repetivel: boolean;
+      identificarMembro: boolean;
       colunas: {
         id: string;
         titulo: string;
@@ -40,7 +41,8 @@ export type ExameCompleto = {
           | "TEXTO"
           | "MULTIPLA_ESCOLHA"
           | "SIM_NAO"
-          | "GONIOMETRIA";
+          | "GONIOMETRIA"
+          | "MEMBRO";
         formatacao: string | null;
         opcoes: string[];
         multiplaSelecao: boolean;
@@ -118,22 +120,6 @@ function construirEstadoInicial(
   }
 
   return { valores, linhasPorCampo };
-}
-
-function SubmitButton({
-  label,
-  className,
-}: {
-  label: string;
-  className?: string;
-}) {
-  const { pending } = useFormStatus();
-
-  return (
-    <Button type="submit" disabled={pending} className={className}>
-      {pending ? "Salvando..." : label}
-    </Button>
-  );
 }
 
 function SecaoFields({
@@ -262,6 +248,7 @@ function SecaoFields({
                               <GoniometriaField
                                 options={movimentos}
                                 value={parseGoniometriaValor(valorAtual)}
+                                comLado={campo.identificarMembro}
                                 onChange={(entries) =>
                                   updateValor(
                                     coluna.id,
@@ -287,6 +274,25 @@ function SecaoFields({
                                 <option value="">Selecione</option>
                                 <option value="Sim">Sim</option>
                                 <option value="Não">Não</option>
+                              </select>
+                            ) : coluna.tipo === "MEMBRO" ? (
+                              <select
+                                className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
+                                value={valorAtual}
+                                onChange={(e) =>
+                                  updateValor(
+                                    coluna.id,
+                                    linhaId,
+                                    e.target.value,
+                                  )
+                                }
+                              >
+                                <option value="">Selecione</option>
+                                {coluna.opcoes.map((opcao) => (
+                                  <option key={opcao} value={opcao}>
+                                    {opcao}
+                                  </option>
+                                ))}
                               </select>
                             ) : (
                               <Input
@@ -463,7 +469,7 @@ export function ExameExecucaoForm({
   return (
     <form
       action={formAction}
-      className="flex max-w-3xl flex-col gap-6 pb-24 md:pb-0"
+      className="flex max-w-3xl flex-col gap-6 pb-24"
     >
       <input type="hidden" name="exameId" value={exameId} />
       <input type="hidden" name="valores" value={valoresJson} />
@@ -596,29 +602,10 @@ export function ExameExecucaoForm({
         <p className="text-sm text-destructive">{state.error}</p>
       )}
 
-      {/* Desktop: botões inline */}
-      <div className="hidden gap-2 md:flex">
-        <SubmitButton label="Salvar" />
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.push(cancelHref)}
-        >
-          Cancelar
-        </Button>
-      </div>
-
-      {/* Mobile: botão flutuante sempre acessível */}
-      <div className="fixed inset-x-0 bottom-0 z-20 flex gap-2 border-t bg-background/95 p-3 backdrop-blur-sm md:hidden">
-        <SubmitButton label="Salvar" className="flex-1" />
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.push(cancelHref)}
-        >
-          Cancelar
-        </Button>
-      </div>
+      <FormActions
+        submitLabel="Salvar"
+        onCancel={() => router.push(cancelHref)}
+      />
         </>
       )}
     </form>

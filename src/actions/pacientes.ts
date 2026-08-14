@@ -53,6 +53,8 @@ function parsePacienteForm(formData: FormData) {
     doencasPreexistentes: formData.get("doencasPreexistentes") || undefined,
     cirurgiasAnteriores: formData.get("cirurgiasAnteriores") || undefined,
     medicamentos: formData.get("medicamentos") || undefined,
+    numeroIndicacao: formData.get("numeroIndicacao") || undefined,
+    pessoaIndicacao: formData.get("pessoaIndicacao") || undefined,
   });
 }
 

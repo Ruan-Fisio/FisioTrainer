@@ -1,6 +1,7 @@
 export type MovimentoGrauEntry = {
   nome: string;
   grauAlcancado: string;
+  lado?: string;
 };
 
 export function parseGoniometriaValor(valor: string): MovimentoGrauEntry[] {

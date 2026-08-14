@@ -28,34 +28,40 @@ export type MovimentoOption = {
 
 export type { MovimentoGrauEntry };
 
+const OPCOES_LADO = ["Esquerdo", "Direito", "Bilateral"];
+
 export function GoniometriaField({
   options,
   value,
   onChange,
+  comLado = false,
 }: {
   options: MovimentoOption[];
   value: MovimentoGrauEntry[];
   onChange: (entries: MovimentoGrauEntry[]) => void;
+  comLado?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const selecionados = new Set(value.map((entry) => entry.nome));
 
   function addMovimento(nome: string) {
-    if (selecionados.has(nome)) return;
-    onChange([...value, { nome, grauAlcancado: "" }]);
+    if (!comLado && selecionados.has(nome)) return;
+    onChange([...value, { nome, grauAlcancado: "", lado: comLado ? "" : undefined }]);
     setOpen(false);
   }
 
-  function removeMovimento(nome: string) {
-    onChange(value.filter((entry) => entry.nome !== nome));
+  function removeMovimento(index: number) {
+    onChange(value.filter((_, i) => i !== index));
   }
 
-  function updateGrau(nome: string, grauAlcancado: string) {
+  function updateGrau(index: number, grauAlcancado: string) {
     onChange(
-      value.map((entry) =>
-        entry.nome === nome ? { ...entry, grauAlcancado } : entry,
-      ),
+      value.map((entry, i) => (i === index ? { ...entry, grauAlcancado } : entry)),
     );
+  }
+
+  function updateLado(index: number, lado: string) {
+    onChange(value.map((entry, i) => (i === index ? { ...entry, lado } : entry)));
   }
 
   return (
@@ -81,7 +87,7 @@ export function GoniometriaField({
                   <CommandItem
                     key={option.id}
                     value={option.nome}
-                    data-checked={selecionados.has(option.nome)}
+                    data-checked={!comLado && selecionados.has(option.nome)}
                     onSelect={() => addMovimento(option.nome)}
                   >
                     <span className="flex-1 truncate">{option.nome}</span>
@@ -98,41 +104,57 @@ export function GoniometriaField({
 
       {value.length > 0 && (
         <div className="flex flex-col gap-2">
-          {value.map((entry) => {
+          {value.map((entry, index) => {
             const grauIdeal = options.find(
               (option) => option.nome === entry.nome,
             )?.grauIdeal;
             return (
               <div
-                key={entry.nome}
-                className="flex items-center gap-2 rounded-lg border border-input p-2"
+                key={`${entry.nome}-${index}`}
+                className="flex flex-col gap-2 rounded-lg border border-input p-2"
               >
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">
-                    {entry.nome}
-                  </p>
-                  {grauIdeal && (
-                    <p className="text-xs text-muted-foreground">
-                      Grau ideal: {grauIdeal}
+                <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">
+                      {entry.nome}
                     </p>
-                  )}
+                    {grauIdeal && (
+                      <p className="text-xs text-muted-foreground">
+                        Grau ideal: {grauIdeal}
+                      </p>
+                    )}
+                  </div>
+                  <Input
+                    className="w-32 shrink-0"
+                    placeholder="Grau alcançado"
+                    value={entry.grauAlcancado}
+                    onChange={(e) => updateGrau(index, e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="shrink-0"
+                    onClick={() => removeMovimento(index)}
+                  >
+                    <X className="size-4 text-destructive" />
+                    <span className="sr-only">Remover {entry.nome}</span>
+                  </Button>
                 </div>
-                <Input
-                  className="w-32 shrink-0"
-                  placeholder="Grau alcançado"
-                  value={entry.grauAlcancado}
-                  onChange={(e) => updateGrau(entry.nome, e.target.value)}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="shrink-0"
-                  onClick={() => removeMovimento(entry.nome)}
-                >
-                  <X className="size-4 text-destructive" />
-                  <span className="sr-only">Remover {entry.nome}</span>
-                </Button>
+                {comLado && (
+                  <select
+                    className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
+                    value={entry.lado ?? ""}
+                    onChange={(e) => updateLado(index, e.target.value)}
+                  >
+                    <option value="">Lado do membro</option>
+                    {OPCOES_LADO.map((opcao) => (
+                      <option key={opcao} value={opcao}>
+                        {opcao}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
             );
           })}

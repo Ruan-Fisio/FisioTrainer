@@ -4,25 +4,23 @@ import { notFound } from "next/navigation";
 import { Pencil, Plus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AvaliacoesList } from "@/components/exame-execucoes/avaliacoes-list";
+import { EvolucoesList } from "@/components/evolucoes/evolucoes-list";
 import { TableSkeleton } from "@/components/skeletons/table-skeleton";
+import { getAvaliacoesByPaciente } from "@/actions/exame-execucoes";
+import { getEvolucoesByPaciente } from "@/actions/evolucoes";
+import { HistoricoClinicoDialog } from "@/components/pacientes/historico-clinico-dialog";
+import { CollapsibleSection } from "@/components/collapsible-section";
 
-const HISTORICO_FIELDS: { key: keyof HistoricoPaciente; label: string }[] = [
-  { key: "historicoClinico", label: "Histórico Clínico" },
-  { key: "objetivo", label: "Objetivo" },
-  { key: "doencasPreexistentes", label: "Doenças Pré-existentes" },
-  { key: "cirurgiasAnteriores", label: "Cirurgias Anteriores" },
-  { key: "medicamentos", label: "Medicamentos" },
-];
+async function AvaliacoesListLoader({ pacienteId }: { pacienteId: string }) {
+  const avaliacoes = await getAvaliacoesByPaciente(pacienteId);
+  return <AvaliacoesList pacienteId={pacienteId} avaliacoes={avaliacoes} />;
+}
 
-type HistoricoPaciente = {
-  historicoClinico: string | null;
-  objetivo: string | null;
-  doencasPreexistentes: string | null;
-  cirurgiasAnteriores: string | null;
-  medicamentos: string | null;
-};
+async function EvolucoesListLoader({ pacienteId }: { pacienteId: string }) {
+  const evolucoes = await getEvolucoesByPaciente(pacienteId);
+  return <EvolucoesList pacienteId={pacienteId} evolucoes={evolucoes} />;
+}
 
 export default async function PacienteDetailPage({
   params,
@@ -50,45 +48,48 @@ export default async function PacienteDetailPage({
               .join(" · ") || "Sem dados de contato cadastrados"}
           </p>
         </div>
-        <Button asChild variant="outline">
-          <Link href={`/pacientes/${id}/editar`}>
-            <Pencil />
-            Editar
-          </Link>
-        </Button>
+        <div className="flex items-center gap-2">
+          <HistoricoClinicoDialog paciente={paciente} />
+          <Button asChild variant="outline">
+            <Link href={`/pacientes/${id}/editar`}>
+              <Pencil />
+              Editar
+            </Link>
+          </Button>
+        </div>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Histórico clínico</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {HISTORICO_FIELDS.map(({ key, label }) => (
-            <div key={key} className="flex flex-col gap-1">
-              <p className="text-xs font-medium text-muted-foreground">
-                {label}
-              </p>
-              <p className="text-sm">{paciente[key] || "—"}</p>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+      <CollapsibleSection
+        title="Evoluções"
+        action={
+          <Button asChild size="sm">
+            <Link href={`/pacientes/${id}/evolucoes/novo`}>
+              <Plus />
+              Nova evolução
+            </Link>
+          </Button>
+        }
+      >
+        <Suspense fallback={<TableSkeleton />}>
+          <EvolucoesListLoader pacienteId={id} />
+        </Suspense>
+      </CollapsibleSection>
 
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Avaliações</h2>
+      <CollapsibleSection
+        title="Avaliações"
+        action={
           <Button asChild size="sm">
             <Link href={`/pacientes/${id}/exames/novo`}>
               <Plus />
               Nova avaliação
             </Link>
           </Button>
-        </div>
-
+        }
+      >
         <Suspense fallback={<TableSkeleton />}>
-          <AvaliacoesList pacienteId={id} />
+          <AvaliacoesListLoader pacienteId={id} />
         </Suspense>
-      </div>
+      </CollapsibleSection>
     </div>
   );
 }

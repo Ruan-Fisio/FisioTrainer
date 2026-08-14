@@ -6,6 +6,7 @@ import {
   ClipboardList,
   UserRound,
   Activity,
+  NotebookPen,
 } from "lucide-react";
 
 export type NavLeaf = {
@@ -21,6 +22,7 @@ export const navItems: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { title: "Pacientes", href: "/pacientes", icon: UserRound },
   { title: "Exames", href: "/exames", icon: ClipboardList },
+  { title: "Evoluções", href: "/evolucoes", icon: NotebookPen },
   {
     title: "Biblioteca de Exercícios",
     icon: Dumbbell,

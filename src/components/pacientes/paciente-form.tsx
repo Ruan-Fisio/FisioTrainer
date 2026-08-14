@@ -1,27 +1,16 @@
 "use client";
 
 import { useActionState, useEffect } from "react";
-import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FormActions } from "@/components/ui/form-actions";
 import type { PacienteActionState } from "@/actions/pacientes";
 
 const initialState: PacienteActionState = {};
-
-function SubmitButton({ label }: { label: string }) {
-  const { pending } = useFormStatus();
-
-  return (
-    <Button type="submit" disabled={pending}>
-      {pending ? "Salvando..." : label}
-    </Button>
-  );
-}
 
 export function PacienteForm({
   action,
@@ -42,6 +31,8 @@ export function PacienteForm({
     doencasPreexistentes: string | null;
     cirurgiasAnteriores: string | null;
     medicamentos: string | null;
+    numeroIndicacao: string | null;
+    pessoaIndicacao: string | null;
   };
   mode: "create" | "edit";
 }) {
@@ -60,7 +51,7 @@ export function PacienteForm({
   }, [state.success, mode, router]);
 
   return (
-    <form action={formAction} className="flex max-w-2xl flex-col gap-6">
+    <form action={formAction} className="flex max-w-2xl flex-col gap-6 pb-24">
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Dados pessoais</CardTitle>
@@ -156,22 +147,38 @@ export function PacienteForm({
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Dados de Indicação</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="pessoaIndicacao">Pessoa que Indicou</Label>
+            <Input
+              id="pessoaIndicacao"
+              name="pessoaIndicacao"
+              defaultValue={defaultValues?.pessoaIndicacao ?? undefined}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="numeroIndicacao">Número de Quem Indicou</Label>
+            <Input
+              id="numeroIndicacao"
+              name="numeroIndicacao"
+              defaultValue={defaultValues?.numeroIndicacao ?? undefined}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {state.error && (
         <p className="text-sm text-destructive">{state.error}</p>
       )}
 
-      <div className="flex gap-2">
-        <SubmitButton
-          label={mode === "create" ? "Criar paciente" : "Salvar alterações"}
-        />
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.push("/pacientes")}
-        >
-          Cancelar
-        </Button>
-      </div>
+      <FormActions
+        submitLabel={mode === "create" ? "Criar paciente" : "Salvar alterações"}
+        onCancel={() => router.push("/pacientes")}
+      />
     </form>
   );
 }

@@ -13,12 +13,13 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
+  id        String     @id @default(cuid())
   name      String
-  email     String   @unique
+  email     String     @unique
   password  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  evolucoes Evolucao[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 }
 
 model Movimento {
@@ -60,6 +61,7 @@ enum TipoCampoExame {
   MULTIPLA_ESCOLHA
   SIM_NAO
   GONIOMETRIA
+  MEMBRO
 }
 
 enum DirecaoIdealCampo {
@@ -100,6 +102,7 @@ model ExameCampo {
   nome      String
   ordem     Int
   repetivel Boolean              @default(false)
+  identificarMembro Boolean      @default(false)
   secaoId   String
   secao     ExameSecao           @relation(fields: [secaoId], references: [id], onDelete: Cascade)
   colunas   ExameCampoColuna[]
@@ -135,9 +138,32 @@ model Paciente {
   doencasPreexistentes  String?
   cirurgiasAnteriores   String?
   medicamentos          String?
+  numeroIndicacao       String?
+  pessoaIndicacao       String?
   execucoes             ExameExecucao[]
+  evolucoes             Evolucao[]
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
+}
+
+model Evolucao {
+  id             String   @id @default(cuid())
+  data           DateTime @default(now())
+  profissionalId String
+  profissional   User     @relation(fields: [profissionalId], references: [id])
+  hdp            String
+  hda            String
+  pa             String
+  fc             String
+  spo2           String
+  fr             String
+  temperatura    String
+  evolucao       String
+  conduta        String
+  pacienteId     String
+  paciente       Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 enum TipoExecucaoExame {

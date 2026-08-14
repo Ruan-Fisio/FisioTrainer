@@ -14,66 +14,57 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { deleteExecucao } from "@/actions/exame-execucoes";
+import { deleteEvolucao } from "@/actions/evolucoes";
 
-export function ExecucaoRowActions({
+export function EvolucaoRowActions({
   id,
   pacienteId,
-  tipo,
 }: {
   id: string;
   pacienteId: string;
-  tipo: "AVALIACAO" | "RETORNO";
 }) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const rotulo = tipo === "AVALIACAO" ? "avaliação" : "retorno";
 
   function handleDelete() {
     startTransition(async () => {
       try {
-        await deleteExecucao(id, pacienteId);
-        toast.success(
-          `${tipo === "AVALIACAO" ? "Avaliação" : "Retorno"} excluído com sucesso.`,
-        );
+        await deleteEvolucao(id, pacienteId);
+        toast.success("Evolução excluída com sucesso.");
         setOpen(false);
       } catch {
-        toast.error(`Não foi possível excluir ${tipo === "AVALIACAO" ? "a avaliação" : "o retorno"}.`);
+        toast.error("Não foi possível excluir a evolução.");
       }
     });
   }
 
   return (
-    <div className="flex items-center gap-1">
-      <Button variant="ghost" size="icon" asChild>
-        <Link href={`/pacientes/${pacienteId}/exames/${id}`}>
+    <div className="flex items-center justify-end gap-1">
+      <Button variant="outline" size="icon" asChild>
+        <Link href={`/pacientes/${pacienteId}/evolucoes/${id}`}>
           <Eye className="size-4" />
           <span className="sr-only">Visualizar</span>
         </Link>
       </Button>
-      <Button variant="ghost" size="icon" asChild>
-        <Link href={`/pacientes/${pacienteId}/exames/${id}/editar`}>
+      <Button variant="outline" size="icon" asChild>
+        <Link href={`/pacientes/${pacienteId}/evolucoes/${id}/editar`}>
           <Pencil className="size-4" />
           <span className="sr-only">Editar</span>
         </Link>
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
-          <Button variant="ghost" size="icon">
+          <Button variant="outline" size="icon">
             <Trash2 className="size-4 text-destructive" />
             <span className="sr-only">Excluir</span>
           </Button>
         </DialogTrigger>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>
-              Excluir {tipo === "AVALIACAO" ? "avaliação" : "retorno"}
-            </DialogTitle>
+            <DialogTitle>Excluir evolução</DialogTitle>
             <DialogDescription>
-              Tem certeza que deseja excluir esta {rotulo}?
-              {tipo === "AVALIACAO" &&
-                " Todos os retornos vinculados a ela também serão excluídos."}{" "}
-              Esta ação não pode ser desfeita.
+              Tem certeza que deseja excluir esta evolução? Esta ação não
+              pode ser desfeita.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

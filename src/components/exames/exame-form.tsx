@@ -1,7 +1,6 @@
 "use client";
 
 import { useActionState, useEffect, useState } from "react";
-import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -25,6 +24,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
+import { FormActions } from "@/components/ui/form-actions";
 import type { ExameActionState } from "@/actions/exames";
 
 const initialState: ExameActionState = {};
@@ -48,6 +48,7 @@ type ColunaDraft = {
 type CampoDraft = {
   nome: string;
   repetivel: boolean;
+  identificarMembro: boolean;
   colunas: ColunaDraft[];
 };
 type SecaoDraft = { nome: string; campos: CampoDraft[] };
@@ -79,27 +80,16 @@ function novaColuna(): ColunaDraft {
 }
 
 function novoCampo(): CampoDraft {
-  return { nome: "", repetivel: false, colunas: [novaColuna()] };
+  return {
+    nome: "",
+    repetivel: false,
+    identificarMembro: false,
+    colunas: [novaColuna()],
+  };
 }
 
 function novaSecao(): SecaoDraft {
   return { nome: "", campos: [novoCampo()] };
-}
-
-function SubmitButton({
-  label,
-  className,
-}: {
-  label: string;
-  className?: string;
-}) {
-  const { pending } = useFormStatus();
-
-  return (
-    <Button type="submit" disabled={pending} className={className}>
-      {pending ? "Salvando..." : label}
-    </Button>
-  );
 }
 
 function selectClassName() {
@@ -255,6 +245,28 @@ function SecaoCard({
               />
               Permitir múltiplas entradas deste campo (ex: um por membro)
             </label>
+
+            {(campo.repetivel ||
+              campo.colunas.some((c) => c.tipo === "GONIOMETRIA")) && (
+              <label
+                onClick={(e) => {
+                  e.preventDefault();
+                  updateCampo(secaoIndex, campoIndex, {
+                    identificarMembro: !campo.identificarMembro,
+                  });
+                }}
+                className="flex min-h-8 cursor-pointer items-center gap-2 text-xs text-muted-foreground select-none"
+              >
+                <Checkbox
+                  checked={campo.identificarMembro}
+                  tabIndex={-1}
+                  className="pointer-events-none"
+                />
+                {campo.colunas.some((c) => c.tipo === "GONIOMETRIA")
+                  ? "Identificar o lado (Esquerdo/Direito/Bilateral) de cada movimento"
+                  : "Identificar o membro de cada entrada (Esquerdo/Direito/Bilateral)"}
+              </label>
+            )}
 
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between">
@@ -990,7 +1002,7 @@ export function ExameForm({
     <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
     <form
       action={formAction}
-      className="flex max-w-3xl flex-1 flex-col gap-6 pb-24 md:pb-0"
+      className="flex max-w-3xl flex-1 flex-col gap-6 pb-24"
     >
       <input type="hidden" name="secoes" value={JSON.stringify(secoes)} />
 
@@ -1125,34 +1137,10 @@ export function ExameForm({
         <p className="text-sm text-destructive">{state.error}</p>
       )}
 
-      {/* Desktop: botões inline */}
-      <div className="hidden gap-2 md:flex">
-        <SubmitButton
-          label={mode === "create" ? "Criar exame" : "Salvar alterações"}
-        />
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.push("/exames")}
-        >
-          Cancelar
-        </Button>
-      </div>
-
-      {/* Mobile: botão flutuante sempre acessível */}
-      <div className="fixed inset-x-0 bottom-0 z-20 flex gap-2 border-t bg-background/95 p-3 backdrop-blur-sm md:hidden">
-        <SubmitButton
-          label={mode === "create" ? "Criar exame" : "Salvar alterações"}
-          className="flex-1"
-        />
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.push("/exames")}
-        >
-          Cancelar
-        </Button>
-      </div>
+      <FormActions
+        submitLabel={mode === "create" ? "Criar exame" : "Salvar alterações"}
+        onCancel={() => router.push("/exames")}
+      />
     </form>
 
     <aside className="hidden lg:sticky lg:top-6 lg:block lg:w-96 lg:shrink-0">

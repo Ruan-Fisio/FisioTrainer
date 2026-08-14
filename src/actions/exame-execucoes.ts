@@ -22,12 +22,12 @@ export async function listAllExamesCompletos() {
   });
 }
 
-export async function listAvaliacoesByPaciente(pacienteId: string) {
+export async function getAvaliacoesByPaciente(pacienteId: string) {
   return prisma.exameExecucao.findMany({
     where: { pacienteId, tipo: "AVALIACAO" },
     orderBy: { data: "desc" },
     include: {
-      exame: { select: { id: true, nome: true } },
+      exame: { select: { id: true, nome: true, tipo: true } },
       retornos: {
         orderBy: { data: "desc" },
         select: { id: true, data: true },
