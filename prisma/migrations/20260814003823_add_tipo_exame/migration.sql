@@ -1,0 +1,5 @@
+-- CreateEnum
+CREATE TYPE "TipoExame" AS ENUM ('FISIOTERAPIA', 'EDUCACAO_FISICA');
+
+-- AlterTable
+ALTER TABLE "Exame" ADD COLUMN     "tipo" "TipoExame" NOT NULL DEFAULT 'FISIOTERAPIA';

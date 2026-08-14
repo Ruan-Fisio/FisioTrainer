@@ -604,6 +604,7 @@ export function ExameForm({
   defaultValues?: {
     nome: string;
     descricao: string;
+    tipo: "FISIOTERAPIA" | "EDUCACAO_FISICA";
     secoes: SecaoDraft[];
   };
   mode: "create" | "edit";
@@ -611,6 +612,9 @@ export function ExameForm({
   const router = useRouter();
   const [state, formAction] = useActionState(action, initialState);
   const [nomeExame, setNomeExame] = useState(defaultValues?.nome ?? "");
+  const [tipoExame, setTipoExame] = useState<
+    "FISIOTERAPIA" | "EDUCACAO_FISICA"
+  >(defaultValues?.tipo ?? "FISIOTERAPIA");
   const [secoes, setSecoes] = useState<SecaoDraft[]>(
     defaultValues?.secoes && defaultValues.secoes.length > 0
       ? defaultValues.secoes
@@ -1010,6 +1014,22 @@ export function ExameForm({
           defaultValue={defaultValues?.descricao}
           placeholder="Descrição opcional do exame"
         />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="tipo">Tipo de exame</Label>
+        <select
+          id="tipo"
+          name="tipo"
+          className={selectClassName()}
+          value={tipoExame}
+          onChange={(e) =>
+            setTipoExame(e.target.value as "FISIOTERAPIA" | "EDUCACAO_FISICA")
+          }
+        >
+          <option value="FISIOTERAPIA">Fisioterapia</option>
+          <option value="EDUCACAO_FISICA">Educação Física</option>
+        </select>
       </div>
 
       {/* Mobile: uma seção por vez, como um passo-a-passo */}

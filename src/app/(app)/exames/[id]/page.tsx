@@ -21,7 +21,12 @@ export default async function ExameDetailPage({
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold">{exame.nome}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold">{exame.nome}</h1>
+            <Badge variant="secondary">
+              {exame.tipo === "FISIOTERAPIA" ? "Fisioterapia" : "Educação Física"}
+            </Badge>
+          </div>
           {exame.descricao && (
             <p className="text-sm text-muted-foreground">
               {exame.descricao}

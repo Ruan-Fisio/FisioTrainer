@@ -43,5 +43,6 @@ export const exameSecaoSchema = z.object({
 export const exameSchema = z.object({
   nome: z.string().trim().min(2, "Nome deve ter ao menos 2 caracteres"),
   descricao: z.string().trim().optional(),
+  tipo: z.enum(["FISIOTERAPIA", "EDUCACAO_FISICA"]),
   secoes: z.array(exameSecaoSchema).min(1, "Adicione ao menos uma seção"),
 });

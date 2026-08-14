@@ -68,10 +68,16 @@ enum DirecaoIdealCampo {
   PROXIMO_IDEAL
 }
 
+enum TipoExame {
+  FISIOTERAPIA
+  EDUCACAO_FISICA
+}
+
 model Exame {
   id          String          @id @default(cuid())
   nome        String
   descricao   String?
+  tipo        TipoExame       @default(FISIOTERAPIA)
   secoes      ExameSecao[]
   execucoes   ExameExecucao[]
   createdAt   DateTime        @default(now())

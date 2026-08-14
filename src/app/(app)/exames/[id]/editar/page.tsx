@@ -28,6 +28,7 @@ export default async function EditarExamePage({
         defaultValues={{
           nome: exame.nome,
           descricao: exame.descricao ?? "",
+          tipo: exame.tipo,
           secoes: exame.secoes.map((secao) => ({
             nome: secao.nome,
             campos: secao.campos.map((campo) => ({

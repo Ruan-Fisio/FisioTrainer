@@ -24,6 +24,7 @@ const LINHA_UNICA = "0";
 export type ExameCompleto = {
   id: string;
   nome: string;
+  tipo: "FISIOTERAPIA" | "EDUCACAO_FISICA";
   secoes: {
     id: string;
     nome: string;
@@ -62,6 +63,11 @@ function toggleOpcao(valor: string, opcao: string) {
 function gerarLinhaId() {
   return Math.random().toString(36).slice(2);
 }
+
+const TIPO_EXAME_LABELS: Record<ExameCompleto["tipo"], string> = {
+  FISIOTERAPIA: "Fisioterapia",
+  EDUCACAO_FISICA: "Educação Física",
+};
 
 function chaveValor(colunaId: string, linhaId: string) {
   return `${colunaId}::${linhaId}`;
@@ -346,7 +352,22 @@ export function ExameExecucaoForm({
 }) {
   const router = useRouter();
   const [state, formAction] = useActionState(action, initialState);
-  const [exameId, setExameId] = useState(fixedExameId ?? exames[0]?.id ?? "");
+  const exameFixo = fixedExameId
+    ? exames.find((e) => e.id === fixedExameId)
+    : undefined;
+  const [tipoSelecionado, setTipoSelecionado] = useState<
+    ExameCompleto["tipo"] | null
+  >(exameFixo?.tipo ?? null);
+  const examesFiltrados = useMemo(
+    () =>
+      tipoSelecionado
+        ? exames.filter((e) => e.tipo === tipoSelecionado)
+        : exames,
+    [exames, tipoSelecionado],
+  );
+  const [exameId, setExameId] = useState(
+    fixedExameId ?? examesFiltrados[0]?.id ?? "",
+  );
   const [passoAtual, setPassoAtual] = useState(0);
   const estadoInicial = useMemo(
     () =>
@@ -381,6 +402,12 @@ export function ExameExecucaoForm({
     setValores({});
     setLinhasPorCampo({});
     setPassoAtual(0);
+  }
+
+  function handleTipoChange(tipo: ExameCompleto["tipo"]) {
+    setTipoSelecionado(tipo);
+    const primeiroExame = exames.find((e) => e.tipo === tipo);
+    handleExameChange(primeiroExame?.id ?? "");
   }
 
   function updateValor(colunaId: string, linhaId: string, value: string) {
@@ -441,31 +468,65 @@ export function ExameExecucaoForm({
       <input type="hidden" name="exameId" value={exameId} />
       <input type="hidden" name="valores" value={valoresJson} />
 
-      {fixedExameId ? (
-        <div className="flex flex-col gap-2">
-          <Label>Exame</Label>
-          <p className="text-sm font-medium">{exame?.nome}</p>
+      {!fixedExameId && !tipoSelecionado ? (
+        <div className="flex flex-col gap-3">
+          <Label>Tipo de exame</Label>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {(
+              Object.keys(TIPO_EXAME_LABELS) as ExameCompleto["tipo"][]
+            ).map((tipo) => (
+              <button
+                key={tipo}
+                type="button"
+                onClick={() => handleTipoChange(tipo)}
+                className="rounded-lg border border-input bg-card p-4 text-left text-sm font-medium shadow-sm shadow-black/5 ring-1 ring-foreground/10 transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                {TIPO_EXAME_LABELS[tipo]}
+              </button>
+            ))}
+          </div>
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
-          <Label htmlFor="exame-select">Exame</Label>
-          <select
-            id="exame-select"
-            className="h-8 w-full max-w-md min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
-            value={exameId}
-            onChange={(e) => handleExameChange(e.target.value)}
-          >
-            {exames.length === 0 && <option value="">Nenhum exame cadastrado</option>}
-            {exames.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.nome}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+        <>
+          {fixedExameId ? (
+            <div className="flex flex-col gap-2">
+              <Label>Exame</Label>
+              <p className="text-sm font-medium">{exame?.nome}</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="exame-select">
+                  Exame ({TIPO_EXAME_LABELS[tipoSelecionado!]})
+                </Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setTipoSelecionado(null)}
+                >
+                  Trocar tipo
+                </Button>
+              </div>
+              <select
+                id="exame-select"
+                className="h-8 w-full max-w-md min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 md:text-sm dark:bg-input/30"
+                value={exameId}
+                onChange={(e) => handleExameChange(e.target.value)}
+              >
+                {examesFiltrados.length === 0 && (
+                  <option value="">Nenhum exame cadastrado para este tipo</option>
+                )}
+                {examesFiltrados.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
-      {exame && secoes.length === 0 && (
+          {exame && secoes.length === 0 && (
         <p className="text-sm text-muted-foreground">
           Este exame não possui seções cadastradas.
         </p>
@@ -558,6 +619,8 @@ export function ExameExecucaoForm({
           Cancelar
         </Button>
       </div>
+        </>
+      )}
     </form>
   );
 }

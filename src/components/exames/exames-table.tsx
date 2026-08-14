@@ -47,6 +47,7 @@ export async function ExamesTable({
             id={exame.id}
             nome={exame.nome}
             descricao={exame.descricao}
+            tipo={exame.tipo}
             secoesCount={exame._count.secoes}
           />
         ))}
@@ -59,6 +60,7 @@ export async function ExamesTable({
             <TableRow>
               <TableHead>Nome</TableHead>
               <TableHead>Descrição</TableHead>
+              <TableHead>Tipo</TableHead>
               <TableHead>Seções</TableHead>
               <TableHead className="w-[140px] text-right">Ações</TableHead>
             </TableRow>
@@ -70,6 +72,7 @@ export async function ExamesTable({
                 id={exame.id}
                 nome={exame.nome}
                 descricao={exame.descricao}
+                tipo={exame.tipo}
                 secoesCount={exame._count.secoes}
               />
             ))}

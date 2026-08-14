@@ -6,11 +6,15 @@ import { exameSchema } from "@/lib/validations/exame";
 
 const PAGE_SIZE = 10;
 
-export async function listExames(filters: { q?: string }, page: number) {
+export async function listExames(
+  filters: { q?: string; tipo?: "FISIOTERAPIA" | "EDUCACAO_FISICA" },
+  page: number,
+) {
   const where = {
     ...(filters.q
       ? { nome: { contains: filters.q, mode: "insensitive" as const } }
       : {}),
+    ...(filters.tipo ? { tipo: filters.tipo } : {}),
   };
 
   const [exames, total] = await Promise.all([
@@ -61,6 +65,7 @@ export type ExameActionState = {
 function parseExameForm(formData: FormData) {
   const nome = formData.get("nome");
   const descricao = formData.get("descricao");
+  const tipo = formData.get("tipo");
   const secoesRaw = formData.get("secoes");
 
   let secoes: unknown = [];
@@ -71,7 +76,7 @@ function parseExameForm(formData: FormData) {
     return null;
   }
 
-  return exameSchema.safeParse({ nome, descricao, secoes });
+  return exameSchema.safeParse({ nome, descricao, tipo, secoes });
 }
 
 function secoesCreateData(secoes: ReturnType<typeof exameSchema.parse>["secoes"]) {
@@ -123,6 +128,7 @@ export async function createExame(
     data: {
       nome: parsed.data.nome,
       descricao: parsed.data.descricao || null,
+      tipo: parsed.data.tipo,
       secoes: { create: secoesCreateData(parsed.data.secoes) },
     },
   });
@@ -151,6 +157,7 @@ export async function updateExame(
       data: {
         nome: parsed.data.nome,
         descricao: parsed.data.descricao || null,
+        tipo: parsed.data.tipo,
         secoes: { create: secoesCreateData(parsed.data.secoes) },
       },
     }),
