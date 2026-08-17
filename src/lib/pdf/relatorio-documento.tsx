@@ -48,14 +48,13 @@ const styles = StyleSheet.create({
     marginTop: 14,
     borderWidth: 1,
     borderColor: CORES.borda,
-    borderRadius: 6,
   },
   cardTitulo: {
     fontSize: 10,
     fontWeight: 700,
     padding: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: CORES.borda,
+    backgroundColor: CORES.primary,
+    color: "#ffffff",
   },
   linha: {
     flexDirection: "row",
@@ -123,17 +122,18 @@ const styles = StyleSheet.create({
   },
   historicoDestaque: {
     marginTop: 12,
-    padding: 8,
     borderWidth: 1,
     borderColor: CORES.borda,
-    borderRadius: 6,
-    backgroundColor: "#f9fafb",
   },
   historicoDestaqueTitulo: {
     fontSize: 9,
     fontWeight: 700,
-    color: CORES.primary,
-    marginBottom: 4,
+    color: "#ffffff",
+    backgroundColor: CORES.primary,
+    padding: 8,
+  },
+  historicoDestaqueBody: {
+    padding: 8,
   },
 });
 
@@ -310,7 +310,6 @@ function GraficoBarras({ grafico }: { grafico: GraficoSecao }) {
         width: "100%",
         borderWidth: 1,
         borderColor: CORES.borda,
-        borderRadius: 6,
         padding: 8,
         marginBottom: 10,
       }}
@@ -474,7 +473,7 @@ export function RelatorioPdfDocument({
         {historicoClinico && (
           <View style={styles.historicoDestaque} wrap={false}>
             <Text style={styles.historicoDestaqueTitulo}>Histórico clínico</Text>
-            <Text>{historicoClinico}</Text>
+            <Text style={styles.historicoDestaqueBody}>{historicoClinico}</Text>
           </View>
         )}
 
