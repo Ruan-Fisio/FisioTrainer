@@ -63,10 +63,11 @@ const styles = StyleSheet.create({
     color: CORES.mutedTexto,
   },
   carimbo: {
-    alignSelf: "flex-end",
+    position: "absolute",
+    bottom: 50,
+    left: 32,
+    right: 32,
     alignItems: "center",
-    marginTop: 32,
-    paddingTop: 6,
   },
   carimboLinha: {
     width: 200,
