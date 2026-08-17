@@ -14,6 +14,7 @@ import type {
   LinhaInfo,
   SecaoComparativo,
 } from "@/lib/relatorio-comparativo";
+import { FONTE_ASSINATURA } from "@/lib/pdf/fonts";
 
 const CORES = {
   primary: "#1d3b86",
@@ -109,6 +110,13 @@ const styles = StyleSheet.create({
     left: 32,
     right: 32,
     alignItems: "center",
+  },
+  carimboAssinatura: {
+    width: 200,
+    fontFamily: FONTE_ASSINATURA,
+    fontSize: 26,
+    color: CORES.texto,
+    textAlign: "center",
   },
   carimboLinha: {
     width: 200,
@@ -446,6 +454,7 @@ function Carimbo({ profissional }: { profissional: ProfissionalInfo }) {
 
   return (
     <View style={styles.carimbo} wrap={false}>
+      <Text style={styles.carimboAssinatura}>{profissional.nome}</Text>
       <View style={styles.carimboLinha} />
       <Text style={styles.carimboNome}>{profissional.nome}</Text>
       {registro && <Text style={styles.carimboRegistro}>{registro}</Text>}

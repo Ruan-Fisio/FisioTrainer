@@ -15,7 +15,7 @@ import { MensalidadesList } from "@/components/mensalidades/mensalidades-list";
 import { AgendamentosList } from "@/components/agendamentos/agendamentos-list";
 import { formatarMoeda } from "@/lib/format";
 import { HistoricoClinicoDialog } from "@/components/pacientes/historico-clinico-dialog";
-import { CollapsibleSection } from "@/components/collapsible-section";
+import { PacienteTabs } from "@/components/pacientes/paciente-tabs";
 
 async function AvaliacoesListLoader({ pacienteId }: { pacienteId: string }) {
   const avaliacoes = await getAvaliacoesByPaciente(pacienteId);
@@ -91,69 +91,79 @@ export default async function PacienteDetailPage({
         </p>
       )}
 
-      <CollapsibleSection
-        title="Retornos e reavaliações"
-        action={
-          <Button asChild size="sm">
-            <Link href={`/agenda/novo?pacienteId=${id}`}>
-              <Plus />
-              Novo agendamento
-            </Link>
-          </Button>
-        }
-      >
-        <Suspense fallback={<TableSkeleton />}>
-          <AgendamentosListLoader pacienteId={id} />
-        </Suspense>
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Mensalidades"
-        action={
-          <Button asChild size="sm">
-            <Link href={`/pacientes/${id}/mensalidades/novo`}>
-              <Plus />
-              Nova mensalidade
-            </Link>
-          </Button>
-        }
-      >
-        <Suspense fallback={<TableSkeleton />}>
-          <MensalidadesListLoader pacienteId={id} />
-        </Suspense>
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Evoluções"
-        action={
-          <Button asChild size="sm">
-            <Link href={`/pacientes/${id}/evolucoes/novo`}>
-              <Plus />
-              Nova evolução
-            </Link>
-          </Button>
-        }
-      >
-        <Suspense fallback={<TableSkeleton />}>
-          <EvolucoesListLoader pacienteId={id} />
-        </Suspense>
-      </CollapsibleSection>
-
-      <CollapsibleSection
-        title="Avaliações"
-        action={
-          <Button asChild size="sm">
-            <Link href={`/pacientes/${id}/exames/novo`}>
-              <Plus />
-              Nova avaliação
-            </Link>
-          </Button>
-        }
-      >
-        <Suspense fallback={<TableSkeleton />}>
-          <AvaliacoesListLoader pacienteId={id} />
-        </Suspense>
-      </CollapsibleSection>
+      <PacienteTabs
+        defaultValue="retornos"
+        tabs={[
+          {
+            value: "retornos",
+            label: "Retornos e reavaliações",
+            action: (
+              <Button asChild size="sm">
+                <Link href={`/agenda/novo?pacienteId=${id}`}>
+                  <Plus />
+                  Novo agendamento
+                </Link>
+              </Button>
+            ),
+            content: (
+              <Suspense fallback={<TableSkeleton />}>
+                <AgendamentosListLoader pacienteId={id} />
+              </Suspense>
+            ),
+          },
+          {
+            value: "mensalidades",
+            label: "Mensalidades",
+            action: (
+              <Button asChild size="sm">
+                <Link href={`/pacientes/${id}/mensalidades/novo`}>
+                  <Plus />
+                  Nova mensalidade
+                </Link>
+              </Button>
+            ),
+            content: (
+              <Suspense fallback={<TableSkeleton />}>
+                <MensalidadesListLoader pacienteId={id} />
+              </Suspense>
+            ),
+          },
+          {
+            value: "evolucoes",
+            label: "Evoluções",
+            action: (
+              <Button asChild size="sm">
+                <Link href={`/pacientes/${id}/evolucoes/novo`}>
+                  <Plus />
+                  Nova evolução
+                </Link>
+              </Button>
+            ),
+            content: (
+              <Suspense fallback={<TableSkeleton />}>
+                <EvolucoesListLoader pacienteId={id} />
+              </Suspense>
+            ),
+          },
+          {
+            value: "avaliacoes",
+            label: "Avaliações",
+            action: (
+              <Button asChild size="sm">
+                <Link href={`/pacientes/${id}/exames/novo`}>
+                  <Plus />
+                  Nova avaliação
+                </Link>
+              </Button>
+            ),
+            content: (
+              <Suspense fallback={<TableSkeleton />}>
+                <AvaliacoesListLoader pacienteId={id} />
+              </Suspense>
+            ),
+          },
+        ]}
+      />
     </div>
   );
 }
