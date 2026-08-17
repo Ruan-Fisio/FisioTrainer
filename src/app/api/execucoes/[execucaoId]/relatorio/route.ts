@@ -44,8 +44,14 @@ export async function GET(
     select: { name: true, cref: true, crefito: true },
   });
 
+  const titulo =
+    comparativo.exame.tipo === "EDUCACAO_FISICA"
+      ? "Relatório de avaliação de Educação física"
+      : "Relatório de Avaliação Fisioterapêutica";
+
   const buffer = await renderToBuffer(
     RelatorioPdfDocument({
+      titulo,
       pacienteNome: comparativo.paciente.nome,
       profissional: profissional
         ? { nome: profissional.name, cref: profissional.cref, crefito: profissional.crefito }

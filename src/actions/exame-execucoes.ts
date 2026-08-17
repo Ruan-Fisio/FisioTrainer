@@ -126,7 +126,11 @@ export async function getComparativo(avaliacaoId: string, retornoId: string) {
 
   return {
     paciente: avaliacao.paciente,
-    exame: { id: avaliacao.exame.id, nome: avaliacao.exame.nome },
+    exame: {
+      id: avaliacao.exame.id,
+      nome: avaliacao.exame.nome,
+      tipo: avaliacao.exame.tipo,
+    },
     avaliacaoData: avaliacao.data,
     retornoData: retorno.data,
     secoes,

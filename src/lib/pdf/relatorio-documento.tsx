@@ -431,6 +431,7 @@ export type ProfissionalInfo = {
 } | null;
 
 export type RelatorioPdfProps = {
+  titulo: string;
   pacienteNome: string;
   dadosPaciente: LinhaInfo[];
   historico: LinhaInfo[];
@@ -463,6 +464,7 @@ function Carimbo({ profissional }: { profissional: ProfissionalInfo }) {
 }
 
 export function RelatorioPdfDocument({
+  titulo,
   pacienteNome,
   dadosPaciente,
   historico,
@@ -482,7 +484,7 @@ export function RelatorioPdfDocument({
         {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image, not an HTML img */}
         <Image src={{ data: logoBuffer, format: "png" }} style={styles.logo} />
         <View style={styles.tituloBox}>
-          <Text style={styles.titulo}>Ficha de Acompanhamento — {pacienteNome}</Text>
+          <Text style={styles.titulo}>{titulo} — {pacienteNome}</Text>
         </View>
 
         {historicoClinico && (
