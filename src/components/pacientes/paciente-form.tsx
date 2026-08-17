@@ -24,8 +24,10 @@ export function PacienteForm({
   defaultValues?: {
     nome: string;
     idade: number | null;
+    dataNascimento: string | null;
     cpf: string | null;
     contato: string | null;
+    endereco: string | null;
     historicoClinico: string | null;
     objetivo: string | null;
     doencasPreexistentes: string | null;
@@ -33,6 +35,8 @@ export function PacienteForm({
     medicamentos: string | null;
     numeroIndicacao: string | null;
     pessoaIndicacao: string | null;
+    planoNome: string | null;
+    planoValor: string | null;
   };
   mode: "create" | "edit";
 }) {
@@ -66,7 +70,7 @@ export function PacienteForm({
               required
             />
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
             <div className="flex flex-col gap-2">
               <Label htmlFor="idade">Idade</Label>
               <Input
@@ -75,6 +79,15 @@ export function PacienteForm({
                 type="number"
                 min={0}
                 defaultValue={defaultValues?.idade ?? undefined}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="dataNascimento">Data de Nascimento</Label>
+              <Input
+                id="dataNascimento"
+                name="dataNascimento"
+                type="date"
+                defaultValue={defaultValues?.dataNascimento ?? undefined}
               />
             </div>
             <div className="flex flex-col gap-2">
@@ -93,6 +106,14 @@ export function PacienteForm({
                 defaultValue={defaultValues?.contato ?? undefined}
               />
             </div>
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="endereco">Endereço</Label>
+            <Input
+              id="endereco"
+              name="endereco"
+              defaultValue={defaultValues?.endereco ?? undefined}
+            />
           </div>
         </CardContent>
       </Card>
@@ -149,6 +170,33 @@ export function PacienteForm({
 
       <Card>
         <CardHeader>
+          <CardTitle className="text-base">Plano</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="planoNome">Plano Escolhido</Label>
+            <Input
+              id="planoNome"
+              name="planoNome"
+              placeholder="Mensal Recovery"
+              defaultValue={defaultValues?.planoNome ?? undefined}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="planoValor">Valor do Plano (R$)</Label>
+            <Input
+              id="planoValor"
+              name="planoValor"
+              inputMode="decimal"
+              placeholder="250,00"
+              defaultValue={defaultValues?.planoValor ?? undefined}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle className="text-base">Dados de Indicação</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -161,7 +209,7 @@ export function PacienteForm({
             />
           </div>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="numeroIndicacao">Número de Quem Indicou</Label>
+            <Label htmlFor="numeroIndicacao">Contatos</Label>
             <Input
               id="numeroIndicacao"
               name="numeroIndicacao"

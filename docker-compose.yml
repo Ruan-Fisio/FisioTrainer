@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fisiotrainer-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fisiotrainer
+      POSTGRES_PASSWORD: fisiotrainer
+      POSTGRES_DB: fisiotrainer
+    ports:
+      - "5432:5432"
+    volumes:
+      - fisiotrainer_pgdata:/var/lib/postgresql/data
+
+volumes:
+  fisiotrainer_pgdata:

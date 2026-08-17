@@ -146,6 +146,16 @@ export function EvolucaoForm({
         </div>
       </div>
 
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="auscultaPulmonar">Ausculta Pulmonar</Label>
+        <Textarea
+          id="auscultaPulmonar"
+          name="auscultaPulmonar"
+          defaultValue={defaultValues?.auscultaPulmonar}
+          rows={3}
+        />
+      </div>
+
       {EVOLUCAO_FIELDS.map(({ key, label }) => (
         <div key={key} className="flex flex-col gap-2">
           <Label htmlFor={key}>{label}</Label>

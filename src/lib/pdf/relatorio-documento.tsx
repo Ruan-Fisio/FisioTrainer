@@ -103,6 +103,43 @@ const styles = StyleSheet.create({
     fontSize: 7,
     color: CORES.mutedTexto,
   },
+  carimbo: {
+    alignSelf: "flex-end",
+    alignItems: "center",
+    marginTop: 32,
+    paddingTop: 6,
+  },
+  carimboLinha: {
+    width: 200,
+    borderTopWidth: 1,
+    borderTopColor: CORES.texto,
+  },
+  carimboNome: {
+    marginTop: 4,
+    fontSize: 9,
+    fontWeight: 700,
+    textAlign: "center",
+  },
+  carimboRegistro: {
+    marginTop: 2,
+    fontSize: 8,
+    color: CORES.mutedTexto,
+    textAlign: "center",
+  },
+  historicoDestaque: {
+    marginTop: 12,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: CORES.borda,
+    borderRadius: 6,
+    backgroundColor: "#f9fafb",
+  },
+  historicoDestaqueTitulo: {
+    fontSize: 9,
+    fontWeight: 700,
+    color: CORES.primary,
+    marginBottom: 4,
+  },
 });
 
 function classificacaoCores(classificacao: Classificacao | null) {
@@ -378,6 +415,12 @@ function GraficoBarras({ grafico }: { grafico: GraficoSecao }) {
   );
 }
 
+export type ProfissionalInfo = {
+  nome: string;
+  cref?: string | null;
+  crefito?: string | null;
+} | null;
+
 export type RelatorioPdfProps = {
   pacienteNome: string;
   dadosPaciente: LinhaInfo[];
@@ -387,7 +430,27 @@ export type RelatorioPdfProps = {
   graficos: GraficoSecao[];
   temLinhaComIdeal: boolean;
   geradoEm: string;
+  profissional?: ProfissionalInfo;
+  historicoClinico?: string | null;
 };
+
+function Carimbo({ profissional }: { profissional: ProfissionalInfo }) {
+  if (!profissional) return null;
+  const registro = [
+    profissional.cref ? `CREF ${profissional.cref}` : null,
+    profissional.crefito ? `CREFITO ${profissional.crefito}` : null,
+  ]
+    .filter(Boolean)
+    .join(" — ");
+
+  return (
+    <View style={styles.carimbo} wrap={false}>
+      <View style={styles.carimboLinha} />
+      <Text style={styles.carimboNome}>{profissional.nome}</Text>
+      {registro && <Text style={styles.carimboRegistro}>{registro}</Text>}
+    </View>
+  );
+}
 
 export function RelatorioPdfDocument({
   pacienteNome,
@@ -398,6 +461,8 @@ export function RelatorioPdfDocument({
   graficos,
   temLinhaComIdeal,
   geradoEm,
+  profissional,
+  historicoClinico,
 }: RelatorioPdfProps) {
   const logoBuffer = fs.readFileSync(path.join(process.cwd(), "public", "logo.png"));
 
@@ -409,6 +474,13 @@ export function RelatorioPdfDocument({
         <View style={styles.tituloBox}>
           <Text style={styles.titulo}>Ficha de Acompanhamento — {pacienteNome}</Text>
         </View>
+
+        {historicoClinico && (
+          <View style={styles.historicoDestaque} wrap={false}>
+            <Text style={styles.historicoDestaqueTitulo}>Histórico clínico</Text>
+            <Text>{historicoClinico}</Text>
+          </View>
+        )}
 
         <InfoCard titulo="Dados do paciente" linhas={dadosPaciente} />
         <InfoCard titulo="Histórico clínico" linhas={historico} />
@@ -456,6 +528,8 @@ export function RelatorioPdfDocument({
             ))}
           </View>
         )}
+
+        <Carimbo profissional={profissional ?? null} />
 
         <Text style={styles.footer} fixed>
           {`Gerado automaticamente em ${geradoEm} — Fisiotrainer Centro de Reabilitação e Performance`}

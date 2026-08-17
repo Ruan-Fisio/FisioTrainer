@@ -49,6 +49,8 @@ export async function createUsuario(
     name: formData.get("name"),
     email: formData.get("email"),
     password: formData.get("password"),
+    cref: formData.get("cref"),
+    crefito: formData.get("crefito"),
   });
 
   if (!parsed.success) {
@@ -66,7 +68,12 @@ export async function createUsuario(
   const password = await bcrypt.hash(parsed.data.password, 10);
 
   await prisma.user.create({
-    data: { ...parsed.data, password },
+    data: {
+      ...parsed.data,
+      password,
+      cref: parsed.data.cref || null,
+      crefito: parsed.data.crefito || null,
+    },
   });
 
   revalidatePath("/usuarios");
@@ -82,6 +89,8 @@ export async function updateUsuario(
     name: formData.get("name"),
     email: formData.get("email"),
     password: formData.get("password"),
+    cref: formData.get("cref"),
+    crefito: formData.get("crefito"),
   });
 
   if (!parsed.success) {
@@ -96,9 +105,17 @@ export async function updateUsuario(
     return { error: "Já existe um usuário com este e-mail." };
   }
 
-  const data: { name: string; email: string; password?: string } = {
+  const data: {
+    name: string;
+    email: string;
+    password?: string;
+    cref: string | null;
+    crefito: string | null;
+  } = {
     name: parsed.data.name,
     email: parsed.data.email,
+    cref: parsed.data.cref || null,
+    crefito: parsed.data.crefito || null,
   };
 
   if (parsed.data.password) {

@@ -8,6 +8,7 @@ export const evolucaoSchema = z.object({
   spo2: z.string().trim().min(1, "SpO2 é obrigatório"),
   fr: z.string().trim().min(1, "FR é obrigatória"),
   temperatura: z.string().trim().min(1, "Temperatura é obrigatória"),
+  auscultaPulmonar: z.string().trim().optional(),
   evolucao: z.string().trim().min(1, "Evolução é obrigatória"),
   conduta: z.string().trim().min(1, "Conduta é obrigatória"),
 });

@@ -17,6 +17,8 @@ model User {
   name      String
   email     String     @unique
   password  String
+  cref      String?
+  crefito   String?
   evolucoes Evolucao[]
   createdAt DateTime   @default(now())
   updatedAt DateTime   @updatedAt
@@ -131,8 +133,10 @@ model Paciente {
   id                    String          @id @default(cuid())
   nome                  String
   idade                 Int?
+  dataNascimento        DateTime?
   cpf                   String?         @unique
   contato               String?
+  endereco              String?
   historicoClinico      String?
   objetivo              String?
   doencasPreexistentes  String?
@@ -140,8 +144,12 @@ model Paciente {
   medicamentos          String?
   numeroIndicacao       String?
   pessoaIndicacao       String?
+  planoNome             String?
+  planoValor            Decimal?        @db.Decimal(10, 2)
   execucoes             ExameExecucao[]
   evolucoes             Evolucao[]
+  mensalidades          Mensalidade[]
+  agendamentos          Agendamento[]
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
 }
@@ -158,12 +166,63 @@ model Evolucao {
   spo2           String
   fr             String
   temperatura    String
+  auscultaPulmonar String?
   evolucao       String
   conduta        String
   pacienteId     String
   paciente       Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
+}
+
+enum StatusMensalidade {
+  PENDENTE
+  PAGO
+}
+
+model Mensalidade {
+  id          String            @id @default(cuid())
+  pacienteId  String
+  paciente    Paciente          @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  planoNome   String
+  valor       Decimal           @db.Decimal(10, 2)
+  vencimento  DateTime
+  status      StatusMensalidade @default(PENDENTE)
+  pagoEm      DateTime?
+  observacao  String?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([vencimento])
+  @@index([status])
+}
+
+enum TipoAgendamento {
+  AVALIACAO
+  RETORNO
+  SESSAO
+}
+
+enum StatusAgendamento {
+  AGENDADO
+  COMPARECEU
+  FALTOU
+  CANCELADO
+}
+
+model Agendamento {
+  id         String            @id @default(cuid())
+  pacienteId String
+  paciente   Paciente          @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  dataHora   DateTime
+  tipo       TipoAgendamento   @default(RETORNO)
+  status     StatusAgendamento @default(AGENDADO)
+  observacao String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  @@index([dataHora])
+  @@index([status])
 }
 
 enum TipoExecucaoExame {

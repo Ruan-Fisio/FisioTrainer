@@ -46,8 +46,10 @@ function parsePacienteForm(formData: FormData) {
   return pacienteSchema.safeParse({
     nome: formData.get("nome"),
     idade: idadeRaw ? String(idadeRaw) : undefined,
+    dataNascimento: formData.get("dataNascimento") || undefined,
     cpf: formData.get("cpf") || undefined,
     contato: formData.get("contato") || undefined,
+    endereco: formData.get("endereco") || undefined,
     historicoClinico: formData.get("historicoClinico") || undefined,
     objetivo: formData.get("objetivo") || undefined,
     doencasPreexistentes: formData.get("doencasPreexistentes") || undefined,
@@ -55,6 +57,8 @@ function parsePacienteForm(formData: FormData) {
     medicamentos: formData.get("medicamentos") || undefined,
     numeroIndicacao: formData.get("numeroIndicacao") || undefined,
     pessoaIndicacao: formData.get("pessoaIndicacao") || undefined,
+    planoNome: formData.get("planoNome") || undefined,
+    planoValor: formData.get("planoValor") || undefined,
   });
 }
 
@@ -72,7 +76,12 @@ export async function createPaciente(
     data: {
       ...parsed.data,
       idade: parsed.data.idade ?? null,
+      dataNascimento: parsed.data.dataNascimento
+        ? new Date(parsed.data.dataNascimento)
+        : null,
       cpf: parsed.data.cpf || null,
+      endereco: parsed.data.endereco || null,
+      planoValor: parsed.data.planoValor ?? null,
     },
   });
 
@@ -96,7 +105,12 @@ export async function updatePaciente(
     data: {
       ...parsed.data,
       idade: parsed.data.idade ?? null,
+      dataNascimento: parsed.data.dataNascimento
+        ? new Date(parsed.data.dataNascimento)
+        : null,
       cpf: parsed.data.cpf || null,
+      endereco: parsed.data.endereco || null,
+      planoValor: parsed.data.planoValor ?? null,
     },
   });
 

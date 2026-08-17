@@ -91,6 +91,7 @@ export async function createEvolucao(
     spo2: formData.get("spo2"),
     fr: formData.get("fr"),
     temperatura: formData.get("temperatura"),
+    auscultaPulmonar: formData.get("auscultaPulmonar") ?? "",
     evolucao: formData.get("evolucao"),
     conduta: formData.get("conduta"),
   });
@@ -128,6 +129,7 @@ export async function updateEvolucao(
     spo2: formData.get("spo2"),
     fr: formData.get("fr"),
     temperatura: formData.get("temperatura"),
+    auscultaPulmonar: formData.get("auscultaPulmonar") ?? "",
     evolucao: formData.get("evolucao"),
     conduta: formData.get("conduta"),
   });

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { getComparativo } from "@/actions/exame-execucoes";
 import {
   montarDadosPaciente,
@@ -38,9 +39,18 @@ export async function GET(
     return NextResponse.json({ error: "Comparativo não encontrado." }, { status: 404 });
   }
 
+  const profissional = await prisma.user.findUnique({
+    where: { id: session.user!.id! },
+    select: { name: true, cref: true, crefito: true },
+  });
+
   const buffer = await renderToBuffer(
     RelatorioPdfDocument({
       pacienteNome: comparativo.paciente.nome,
+      profissional: profissional
+        ? { nome: profissional.name, cref: profissional.cref, crefito: profissional.crefito }
+        : null,
+      historicoClinico: comparativo.paciente.historicoClinico,
       dadosPaciente: montarDadosPaciente(comparativo.paciente),
       historico: montarHistoricoClinico(comparativo.paciente),
       sessao: montarSessao(

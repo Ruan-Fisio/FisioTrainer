@@ -36,6 +36,7 @@ export default async function EditarEvolucaoPage({
           spo2: evolucao.spo2,
           fr: evolucao.fr,
           temperatura: evolucao.temperatura,
+          auscultaPulmonar: evolucao.auscultaPulmonar ?? "",
           evolucao: evolucao.evolucao,
           conduta: evolucao.conduta,
         }}

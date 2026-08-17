@@ -19,7 +19,7 @@ export function UsuarioForm({
     prevState: UsuarioActionState,
     formData: FormData,
   ) => Promise<UsuarioActionState>;
-  defaultValues?: { name: string; email: string };
+  defaultValues?: { name: string; email: string; cref?: string | null; crefito?: string | null };
   mode: "create" | "edit";
 }) {
   const router = useRouter();
@@ -66,6 +66,18 @@ export function UsuarioForm({
           name="password"
           type="password"
           required={mode === "create"}
+        />
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="cref">CREF (opcional)</Label>
+        <Input id="cref" name="cref" defaultValue={defaultValues?.cref ?? ""} />
+      </div>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="crefito">CREFITO (opcional)</Label>
+        <Input
+          id="crefito"
+          name="crefito"
+          defaultValue={defaultValues?.crefito ?? ""}
         />
       </div>
       {state.error && (

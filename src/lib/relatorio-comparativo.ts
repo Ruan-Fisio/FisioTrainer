@@ -55,8 +55,10 @@ export type SecaoComparativo = {
 export type PacienteInfo = {
   nome: string;
   idade: number | null;
+  dataNascimento: Date | null;
   cpf: string | null;
   contato: string | null;
+  endereco: string | null;
   objetivo: string | null;
   doencasPreexistentes: string | null;
   cirurgiasAnteriores: string | null;
@@ -70,8 +72,15 @@ export function montarDadosPaciente(paciente: PacienteInfo): LinhaInfo[] {
   return [
     { label: "Nome", valor: paciente.nome },
     paciente.idade ? { label: "Idade", valor: `${paciente.idade} anos` } : null,
+    paciente.dataNascimento
+      ? {
+          label: "Data de nascimento",
+          valor: new Intl.DateTimeFormat("pt-BR").format(paciente.dataNascimento),
+        }
+      : null,
     paciente.cpf ? { label: "CPF", valor: paciente.cpf } : null,
     paciente.contato ? { label: "Contato", valor: paciente.contato } : null,
+    paciente.endereco ? { label: "Endereço", valor: paciente.endereco } : null,
   ].filter((linha): linha is LinhaInfo => linha !== null);
 }
 

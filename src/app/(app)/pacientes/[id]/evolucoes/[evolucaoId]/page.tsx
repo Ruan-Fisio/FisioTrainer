@@ -87,6 +87,15 @@ export default async function VisualizarEvolucaoPage({
             </div>
           </div>
 
+          <div className="flex flex-col gap-1">
+            <p className="text-xs font-medium text-muted-foreground">
+              Ausculta Pulmonar
+            </p>
+            <p className="text-sm whitespace-pre-wrap">
+              {evolucao.auscultaPulmonar || "—"}
+            </p>
+          </div>
+
           {EVOLUCAO_FIELDS.map(({ key, label }) => (
             <div key={key} className="flex flex-col gap-1">
               <p className="text-xs font-medium text-muted-foreground">

@@ -9,6 +9,11 @@ import { EvolucoesList } from "@/components/evolucoes/evolucoes-list";
 import { TableSkeleton } from "@/components/skeletons/table-skeleton";
 import { getAvaliacoesByPaciente } from "@/actions/exame-execucoes";
 import { getEvolucoesByPaciente } from "@/actions/evolucoes";
+import { getMensalidadesByPaciente } from "@/actions/mensalidades";
+import { getAgendamentosByPaciente } from "@/actions/agendamentos";
+import { MensalidadesList } from "@/components/mensalidades/mensalidades-list";
+import { AgendamentosList } from "@/components/agendamentos/agendamentos-list";
+import { formatarMoeda } from "@/lib/format";
 import { HistoricoClinicoDialog } from "@/components/pacientes/historico-clinico-dialog";
 import { CollapsibleSection } from "@/components/collapsible-section";
 
@@ -20,6 +25,18 @@ async function AvaliacoesListLoader({ pacienteId }: { pacienteId: string }) {
 async function EvolucoesListLoader({ pacienteId }: { pacienteId: string }) {
   const evolucoes = await getEvolucoesByPaciente(pacienteId);
   return <EvolucoesList pacienteId={pacienteId} evolucoes={evolucoes} />;
+}
+
+async function MensalidadesListLoader({ pacienteId }: { pacienteId: string }) {
+  const mensalidades = await getMensalidadesByPaciente(pacienteId);
+  return (
+    <MensalidadesList pacienteId={pacienteId} mensalidades={mensalidades} />
+  );
+}
+
+async function AgendamentosListLoader({ pacienteId }: { pacienteId: string }) {
+  const agendamentos = await getAgendamentosByPaciente(pacienteId);
+  return <AgendamentosList agendamentos={agendamentos} />;
 }
 
 export default async function PacienteDetailPage({
@@ -41,8 +58,12 @@ export default async function PacienteDetailPage({
           <p className="text-sm text-muted-foreground">
             {[
               paciente.idade != null ? `${paciente.idade} anos` : null,
+              paciente.dataNascimento
+                ? new Intl.DateTimeFormat("pt-BR").format(paciente.dataNascimento)
+                : null,
               paciente.cpf,
               paciente.contato,
+              paciente.endereco,
             ]
               .filter(Boolean)
               .join(" · ") || "Sem dados de contato cadastrados"}
@@ -58,6 +79,49 @@ export default async function PacienteDetailPage({
           </Button>
         </div>
       </div>
+
+      {(paciente.planoNome || paciente.planoValor != null) && (
+        <p className="text-sm text-muted-foreground">
+          Plano: <span className="font-medium text-foreground">
+            {paciente.planoNome ?? "—"}
+          </span>
+          {paciente.planoValor != null
+            ? ` · ${formatarMoeda(Number(paciente.planoValor))}`
+            : ""}
+        </p>
+      )}
+
+      <CollapsibleSection
+        title="Retornos e reavaliações"
+        action={
+          <Button asChild size="sm">
+            <Link href={`/agenda/novo?pacienteId=${id}`}>
+              <Plus />
+              Novo agendamento
+            </Link>
+          </Button>
+        }
+      >
+        <Suspense fallback={<TableSkeleton />}>
+          <AgendamentosListLoader pacienteId={id} />
+        </Suspense>
+      </CollapsibleSection>
+
+      <CollapsibleSection
+        title="Mensalidades"
+        action={
+          <Button asChild size="sm">
+            <Link href={`/pacientes/${id}/mensalidades/novo`}>
+              <Plus />
+              Nova mensalidade
+            </Link>
+          </Button>
+        }
+      >
+        <Suspense fallback={<TableSkeleton />}>
+          <MensalidadesListLoader pacienteId={id} />
+        </Suspense>
+      </CollapsibleSection>
 
       <CollapsibleSection
         title="Evoluções"

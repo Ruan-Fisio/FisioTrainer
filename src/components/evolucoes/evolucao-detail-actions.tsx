@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Pencil, Trash2 } from "lucide-react";
+import { Download, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -43,6 +43,16 @@ export function EvolucaoDetailActions({
 
   return (
     <div className="flex items-center gap-2">
+      <Button asChild variant="outline" size="sm">
+        <a
+          href={`/api/evolucoes/${id}/relatorio`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <Download />
+          Baixar PDF
+        </a>
+      </Button>
       <Button asChild variant="outline" size="sm">
         <Link href={`/pacientes/${pacienteId}/evolucoes/${id}/editar`}>
           <Pencil />
