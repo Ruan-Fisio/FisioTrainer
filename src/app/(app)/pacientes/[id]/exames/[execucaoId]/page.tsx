@@ -7,8 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ExecucaoDetailActions } from "@/components/exame-execucoes/execucao-detail-actions";
 import { parseGoniometriaValor } from "@/lib/goniometria";
+import { parseSelecionadas } from "@/lib/multipla-escolha";
 
-function ValorColuna({ tipo, valor }: { tipo: string; valor: string }) {
+function ValorColuna({
+  tipo,
+  multiplaSelecao,
+  valor,
+}: {
+  tipo: string;
+  multiplaSelecao: boolean;
+  valor: string;
+}) {
   if (tipo === "GONIOMETRIA") {
     const entries = parseGoniometriaValor(valor);
     if (entries.length === 0) return <p className="text-sm">—</p>;
@@ -25,11 +34,15 @@ function ValorColuna({ tipo, valor }: { tipo: string; valor: string }) {
     );
   }
 
-  return (
-    <p className="text-sm">
-      {valor.split(",").filter(Boolean).join(", ") || "—"}
-    </p>
-  );
+  if (tipo === "MULTIPLA_ESCOLHA" && multiplaSelecao) {
+    return (
+      <p className="text-sm">
+        {parseSelecionadas(valor).filter(Boolean).join(", ") || "—"}
+      </p>
+    );
+  }
+
+  return <p className="text-sm">{valor || "—"}</p>;
 }
 
 export default async function ExecucaoDetailPage({
@@ -149,6 +162,7 @@ export default async function ExecucaoDetailPage({
                                 </p>
                                 <ValorColuna
                                   tipo={coluna.tipo}
+                                  multiplaSelecao={coluna.multiplaSelecao}
                                   valor={
                                     valorPorChave.get(
                                       `${coluna.id}::${linha}`,

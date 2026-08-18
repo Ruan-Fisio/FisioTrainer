@@ -16,6 +16,7 @@ import {
   type MovimentoOption,
 } from "@/components/exame-execucoes/goniometria-field";
 import { parseGoniometriaValor } from "@/lib/goniometria";
+import { parseSelecionadas, toggleSelecionada } from "@/lib/multipla-escolha";
 
 const initialState: ExameExecucaoActionState = {};
 
@@ -52,15 +53,6 @@ export type ExameCompleto = {
 };
 
 type Secao = ExameCompleto["secoes"][number];
-
-function toggleOpcao(valor: string, opcao: string) {
-  const selecionadas = valor ? valor.split(",") : [];
-  const jaSelecionada = selecionadas.includes(opcao);
-  const novaSelecao = jaSelecionada
-    ? selecionadas.filter((item) => item !== opcao)
-    : [...selecionadas, opcao];
-  return novaSelecao.join(",");
-}
 
 function gerarLinhaId() {
   return Math.random().toString(36).slice(2);
@@ -199,17 +191,17 @@ function SecaoFields({
                             {coluna.tipo === "MULTIPLA_ESCOLHA" ? (
                               <div className="flex flex-col gap-1.5 rounded-lg border border-input p-2">
                                 {coluna.opcoes.map((opcao) => {
-                                  const selecionadas = valorAtual
-                                    ? valorAtual.split(",")
-                                    : [];
-                                  const checked =
-                                    selecionadas.includes(opcao);
+                                  const checked = coluna.multiplaSelecao
+                                    ? parseSelecionadas(valorAtual).includes(
+                                        opcao,
+                                      )
+                                    : valorAtual === opcao;
                                   const handleToggle = () => {
                                     if (coluna.multiplaSelecao) {
                                       updateValor(
                                         coluna.id,
                                         linhaId,
-                                        toggleOpcao(valorAtual, opcao),
+                                        toggleSelecionada(valorAtual, opcao),
                                       );
                                     } else {
                                       updateValor(coluna.id, linhaId, opcao);
