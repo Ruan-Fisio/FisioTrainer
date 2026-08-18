@@ -1,6 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
-import { Document, Page, View, Text, Image, StyleSheet } from "@react-pdf/renderer";
+import {
+  Document,
+  Page,
+  View,
+  Text,
+  Image,
+  StyleSheet,
+} from "@react-pdf/renderer";
 
 const CORES = {
   primary: "#1d3b86",
@@ -146,7 +153,9 @@ export function EvolucaoPdfDocument({
   profissional,
   geradoEm,
 }: EvolucaoPdfProps) {
-  const logoBuffer = fs.readFileSync(path.join(process.cwd(), "public", "logo.png"));
+  const logoBuffer = fs.readFileSync(
+    path.join(process.cwd(), "public", "logo.png"),
+  );
 
   return (
     <Document>
@@ -212,7 +221,7 @@ export function EvolucaoPdfDocument({
         <Carimbo profissional={profissional} />
 
         <Text style={styles.footer} fixed>
-          {`Gerado automaticamente em ${geradoEm} — Fisiotrainer Centro de Reabilitação e Performance`}
+          {`Gerado automaticamente em ${geradoEm} — FisioTrainer Centro de Reabilitação e Performance`}
         </Text>
       </Page>
     </Document>

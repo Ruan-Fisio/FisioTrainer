@@ -160,7 +160,10 @@ function InfoCard({ titulo, linhas }: { titulo: string; linhas: LinhaInfo[] }) {
       {linhas.map((linha, i) => (
         <View
           key={linha.label}
-          style={[styles.linha, i === linhas.length - 1 ? { borderBottomWidth: 0 } : {}]}
+          style={[
+            styles.linha,
+            i === linhas.length - 1 ? { borderBottomWidth: 0 } : {},
+          ]}
         >
           <Text style={styles.linhaLabel}>{linha.label}</Text>
           <Text style={styles.linhaValor}>{linha.valor}</Text>
@@ -228,7 +231,9 @@ function SecaoTabela({ secao }: { secao: SecaoComparativo }) {
                 </Text>
               )}
               {linha.contexto && (
-                <Text style={{ color: CORES.mutedTexto, fontSize: 7, marginTop: 2 }}>
+                <Text
+                  style={{ color: CORES.mutedTexto, fontSize: 7, marginTop: 2 }}
+                >
                   {linha.contexto}
                 </Text>
               )}
@@ -250,7 +255,9 @@ function SecaoTabela({ secao }: { secao: SecaoComparativo }) {
                     alignSelf: "flex-start",
                   }}
                 >
-                  {linha.avaliacaoDist !== null ? formatarSinal(linha.avaliacaoDist) : "—"}
+                  {linha.avaliacaoDist !== null
+                    ? formatarSinal(linha.avaliacaoDist)
+                    : "—"}
                 </Text>
               </View>
             )}
@@ -269,11 +276,20 @@ function SecaoTabela({ secao }: { secao: SecaoComparativo }) {
                       alignSelf: "flex-start",
                     }}
                   >
-                    {linha.retornoDist !== null ? formatarSinal(linha.retornoDist) : "—"}
+                    {linha.retornoDist !== null
+                      ? formatarSinal(linha.retornoDist)
+                      : "—"}
                   </Text>
                 </View>
-                <Text style={[colValorStyle, { color: progressoCor, fontWeight: 700 }]}>
-                  {linha.progresso !== null ? formatarSinal(linha.progresso) : "—"}
+                <Text
+                  style={[
+                    colValorStyle,
+                    { color: progressoCor, fontWeight: 700 },
+                  ]}
+                >
+                  {linha.progresso !== null
+                    ? formatarSinal(linha.progresso)
+                    : "—"}
                 </Text>
               </>
             )}
@@ -286,7 +302,7 @@ function SecaoTabela({ secao }: { secao: SecaoComparativo }) {
 
 const CHART_ALTURA_PLOT = 80;
 const CHART_LARGURA_BARRA = 16;
-const CHART_ITEM_LARGURA = 64;
+const CHART_ITEM_LARGURA = 90;
 
 /**
  * Barras montadas com flexbox (View) em vez de SVG: um viewBox com largura
@@ -298,7 +314,10 @@ const CHART_ITEM_LARGURA = 64;
 function GraficoBarras({ grafico }: { grafico: GraficoSecao }) {
   const maiorValor = Math.max(
     1,
-    ...grafico.itens.flatMap((item) => [item.avaliacao ?? 0, item.retorno ?? 0]),
+    ...grafico.itens.flatMap((item) => [
+      item.avaliacao ?? 0,
+      item.retorno ?? 0,
+    ]),
   );
 
   function alturaBarra(valor: number) {
@@ -316,7 +335,14 @@ function GraficoBarras({ grafico }: { grafico: GraficoSecao }) {
       }}
       wrap={false}
     >
-      <Text style={{ fontSize: 9, fontWeight: 700, color: CORES.primary, marginBottom: 6 }}>
+      <Text
+        style={{
+          fontSize: 9,
+          fontWeight: 700,
+          color: CORES.primary,
+          marginBottom: 6,
+        }}
+      >
         {grafico.titulo}
       </Text>
 
@@ -465,7 +491,9 @@ export function RelatorioPdfDocument({
   profissional,
   historicoClinico,
 }: RelatorioPdfProps) {
-  const logoBuffer = fs.readFileSync(path.join(process.cwd(), "public", "logo.png"));
+  const logoBuffer = fs.readFileSync(
+    path.join(process.cwd(), "public", "logo.png"),
+  );
 
   return (
     <Document>
@@ -473,12 +501,16 @@ export function RelatorioPdfDocument({
         {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image, not an HTML img */}
         <Image src={{ data: logoBuffer, format: "png" }} style={styles.logo} />
         <View style={styles.tituloBox}>
-          <Text style={styles.titulo}>{titulo} — {pacienteNome}</Text>
+          <Text style={styles.titulo}>
+            {titulo} — {pacienteNome}
+          </Text>
         </View>
 
         {historicoClinico && (
           <View style={styles.historicoDestaque} wrap={false}>
-            <Text style={styles.historicoDestaqueTitulo}>Histórico clínico</Text>
+            <Text style={styles.historicoDestaqueTitulo}>
+              Histórico clínico
+            </Text>
             <Text style={styles.historicoDestaqueBody}>{historicoClinico}</Text>
           </View>
         )}
@@ -489,7 +521,8 @@ export function RelatorioPdfDocument({
 
         {secoes.length === 0 && (
           <Text style={{ marginTop: 14, color: CORES.mutedTexto }}>
-            Nenhum valor preenchido em comum entre a avaliação e o retorno selecionado.
+            Nenhum valor preenchido em comum entre a avaliação e o retorno
+            selecionado.
           </Text>
         )}
 
@@ -502,15 +535,30 @@ export function RelatorioPdfDocument({
         {temLinhaComIdeal && (
           <View style={styles.legenda}>
             <View style={styles.legendaItem}>
-              <View style={[styles.legendaSwatch, { backgroundColor: CORES.proximoTexto }]} />
+              <View
+                style={[
+                  styles.legendaSwatch,
+                  { backgroundColor: CORES.proximoTexto },
+                ]}
+              />
               <Text>Próximo do ideal (dist. ≤ 5)</Text>
             </View>
             <View style={styles.legendaItem}>
-              <View style={[styles.legendaSwatch, { backgroundColor: CORES.moderadoTexto }]} />
+              <View
+                style={[
+                  styles.legendaSwatch,
+                  { backgroundColor: CORES.moderadoTexto },
+                ]}
+              />
               <Text>Distância moderada (5–15)</Text>
             </View>
             <View style={styles.legendaItem}>
-              <View style={[styles.legendaSwatch, { backgroundColor: CORES.distanteTexto }]} />
+              <View
+                style={[
+                  styles.legendaSwatch,
+                  { backgroundColor: CORES.distanteTexto },
+                ]}
+              />
               <Text>Distante do ideal (&gt; 15)</Text>
             </View>
           </View>
@@ -533,7 +581,7 @@ export function RelatorioPdfDocument({
         <Carimbo profissional={profissional ?? null} />
 
         <Text style={styles.footer} fixed>
-          {`Gerado automaticamente em ${geradoEm} — Fisiotrainer Centro de Reabilitação e Performance`}
+          {`Gerado automaticamente em ${geradoEm} — FisioTrainer Centro de Reabilitação e Performance`}
         </Text>
       </Page>
     </Document>
