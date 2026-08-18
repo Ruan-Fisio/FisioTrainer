@@ -286,6 +286,7 @@ function SecaoTabela({ secao }: { secao: SecaoComparativo }) {
 
 const CHART_ALTURA_PLOT = 80;
 const CHART_LARGURA_BARRA = 16;
+const CHART_ITEM_LARGURA = 64;
 
 /**
  * Barras montadas com flexbox (View) em vez de SVG: um viewBox com largura
@@ -323,6 +324,7 @@ function GraficoBarras({ grafico }: { grafico: GraficoSecao }) {
         style={{
           flexDirection: "row",
           alignItems: "flex-end",
+          justifyContent: "center",
           height: CHART_ALTURA_PLOT + 14,
           borderBottomWidth: 1,
           borderBottomColor: CORES.borda,
@@ -332,7 +334,9 @@ function GraficoBarras({ grafico }: { grafico: GraficoSecao }) {
           <View
             key={item.chave}
             style={{
-              flex: 1,
+              flexBasis: CHART_ITEM_LARGURA,
+              flexGrow: 0,
+              flexShrink: 1,
               flexDirection: "row",
               alignItems: "flex-end",
               justifyContent: "center",
@@ -388,12 +392,14 @@ function GraficoBarras({ grafico }: { grafico: GraficoSecao }) {
         ))}
       </View>
 
-      <View style={{ flexDirection: "row" }}>
+      <View style={{ flexDirection: "row", justifyContent: "center" }}>
         {grafico.itens.map((item) => (
           <Text
             key={item.chave}
             style={{
-              flex: 1,
+              flexBasis: CHART_ITEM_LARGURA,
+              flexGrow: 0,
+              flexShrink: 1,
               fontSize: 6,
               color: CORES.mutedTexto,
               textAlign: "center",
