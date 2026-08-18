@@ -57,8 +57,6 @@ function parsePacienteForm(formData: FormData) {
     medicamentos: formData.get("medicamentos") || undefined,
     numeroIndicacao: formData.get("numeroIndicacao") || undefined,
     pessoaIndicacao: formData.get("pessoaIndicacao") || undefined,
-    planoNome: formData.get("planoNome") || undefined,
-    planoValor: formData.get("planoValor") || undefined,
   });
 }
 
@@ -81,7 +79,6 @@ export async function createPaciente(
         : null,
       cpf: parsed.data.cpf || null,
       endereco: parsed.data.endereco || null,
-      planoValor: parsed.data.planoValor ?? null,
     },
   });
 
@@ -110,7 +107,6 @@ export async function updatePaciente(
         : null,
       cpf: parsed.data.cpf || null,
       endereco: parsed.data.endereco || null,
-      planoValor: parsed.data.planoValor ?? null,
     },
   });
 

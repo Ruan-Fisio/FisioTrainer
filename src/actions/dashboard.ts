@@ -31,21 +31,21 @@ export async function getResumoFinanceiro() {
   const inicioProximoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 1);
 
   const [recebidoMes, aReceberMes, atrasadas] = await Promise.all([
-    prisma.mensalidade.aggregate({
+    prisma.cobranca.aggregate({
       _sum: { valor: true },
       where: {
         status: "PAGO",
         pagoEm: { gte: inicioMes, lt: inicioProximoMes },
       },
     }),
-    prisma.mensalidade.aggregate({
+    prisma.cobranca.aggregate({
       _sum: { valor: true },
       where: {
         status: "PENDENTE",
         vencimento: { gte: hoje, lt: inicioProximoMes },
       },
     }),
-    prisma.mensalidade.findMany({
+    prisma.cobranca.findMany({
       where: { status: "PENDENTE", vencimento: { lt: hoje } },
       orderBy: { vencimento: "asc" },
       include: { paciente: { select: { id: true, nome: true } } },

@@ -78,14 +78,20 @@ enum TipoExame {
 }
 
 model Exame {
-  id          String          @id @default(cuid())
-  nome        String
-  descricao   String?
-  tipo        TipoExame       @default(FISIOTERAPIA)
-  secoes      ExameSecao[]
-  execucoes   ExameExecucao[]
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id            String          @id @default(cuid())
+  nome          String
+  descricao     String?
+  tipo          TipoExame       @default(FISIOTERAPIA)
+  versaoAtual   Boolean         @default(true)
+  exameOrigemId String?
+  origem        Exame?          @relation("VersoesExame", fields: [exameOrigemId], references: [id], onDelete: SetNull)
+  versoes       Exame[]         @relation("VersoesExame")
+  secoes        ExameSecao[]
+  execucoes     ExameExecucao[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([versaoAtual])
 }
 
 model ExameSecao {
@@ -144,12 +150,11 @@ model Paciente {
   medicamentos          String?
   numeroIndicacao       String?
   pessoaIndicacao       String?
-  planoNome             String?
-  planoValor            Decimal?        @db.Decimal(10, 2)
   execucoes             ExameExecucao[]
   evolucoes             Evolucao[]
-  mensalidades          Mensalidade[]
+  cobrancas             Cobranca[]
   agendamentos          Agendamento[]
+  planoAtribuicoes      PlanoAtribuicao[]
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
 }
@@ -175,26 +180,89 @@ model Evolucao {
   updatedAt      DateTime @updatedAt
 }
 
-enum StatusMensalidade {
+enum StatusCobranca {
   PENDENTE
   PAGO
 }
 
-model Mensalidade {
-  id          String            @id @default(cuid())
-  pacienteId  String
-  paciente    Paciente          @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
-  planoNome   String
-  valor       Decimal           @db.Decimal(10, 2)
-  vencimento  DateTime
-  status      StatusMensalidade @default(PENDENTE)
-  pagoEm      DateTime?
-  observacao  String?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+model Cobranca {
+  id                String           @id @default(cuid())
+  pacienteId        String
+  paciente          Paciente         @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  planoNome         String
+  valor             Decimal          @db.Decimal(10, 2)
+  vencimento        DateTime
+  status            StatusCobranca   @default(PENDENTE)
+  pagoEm            DateTime?
+  observacao        String?
+  planoAtribuicaoId String?
+  planoAtribuicao   PlanoAtribuicao? @relation(fields: [planoAtribuicaoId], references: [id], onDelete: SetNull)
+  numeroParcela     Int?
+  totalParcelas     Int?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   @@index([vencimento])
   @@index([status])
+  @@index([planoAtribuicaoId])
+}
+
+enum StatusPlanoAtribuicao {
+  ATIVO
+  CANCELADO
+  CONCLUIDO
+}
+
+enum TipoPlano {
+  FISIOTERAPIA
+  EDUCACAO_FISICA
+}
+
+model Plano {
+  id             String            @id @default(cuid())
+  nome           String            @unique
+  descricao      String?
+  tipos          TipoPlano[]
+  taxaCartao     Decimal           @default(0) @db.Decimal(5, 2)
+  opcoes         PlanoOpcao[]
+  atribuicoes    PlanoAtribuicao[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+}
+
+model PlanoOpcao {
+  id            String            @id @default(cuid())
+  planoId       String
+  plano         Plano             @relation(fields: [planoId], references: [id], onDelete: Cascade)
+  atendimentos  Int
+  valor         Decimal           @db.Decimal(10, 2)
+  ordem         Int               @default(0)
+  atribuicoes   PlanoAtribuicao[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+}
+
+model PlanoAtribuicao {
+  id             String                @id @default(cuid())
+  pacienteId     String
+  paciente       Paciente              @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  planoId        String?
+  plano          Plano?                @relation(fields: [planoId], references: [id], onDelete: SetNull)
+  planoOpcaoId   String?
+  planoOpcao     PlanoOpcao?           @relation(fields: [planoOpcaoId], references: [id], onDelete: SetNull)
+  planoNome      String
+  atendimentos   Int?
+  valor          Decimal               @db.Decimal(10, 2)
+  cartao         Boolean               @default(false)
+  taxaCartao     Decimal               @default(0) @db.Decimal(5, 2)
+  numeroParcelas Int
+  dataInicio     DateTime
+  status         StatusPlanoAtribuicao @default(ATIVO)
+  cobrancas      Cobranca[]
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@index([pacienteId])
 }
 
 enum TipoAgendamento {

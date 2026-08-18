@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const mensalidadeSchema = z.object({
+export const cobrancaSchema = z.object({
   planoNome: z.string().trim().min(1, "Nome do plano é obrigatório"),
   valor: z
     .string()

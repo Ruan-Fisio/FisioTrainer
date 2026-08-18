@@ -35,8 +35,6 @@ export function PacienteForm({
     medicamentos: string | null;
     numeroIndicacao: string | null;
     pessoaIndicacao: string | null;
-    planoNome: string | null;
-    planoValor: string | null;
   };
   mode: "create" | "edit";
 }) {
@@ -163,33 +161,6 @@ export function PacienteForm({
               id="medicamentos"
               name="medicamentos"
               defaultValue={defaultValues?.medicamentos ?? undefined}
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Plano</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="planoNome">Plano Escolhido</Label>
-            <Input
-              id="planoNome"
-              name="planoNome"
-              placeholder="Mensal Recovery"
-              defaultValue={defaultValues?.planoNome ?? undefined}
-            />
-          </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="planoValor">Valor do Plano (R$)</Label>
-            <Input
-              id="planoValor"
-              name="planoValor"
-              inputMode="decimal"
-              placeholder="250,00"
-              defaultValue={defaultValues?.planoValor ?? undefined}
             />
           </div>
         </CardContent>

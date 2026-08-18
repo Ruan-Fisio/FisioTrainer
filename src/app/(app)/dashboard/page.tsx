@@ -123,32 +123,32 @@ export default async function DashboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
               <AlertTriangle className="size-4 text-muted-foreground" />
-              Mensalidades em atraso
+              Cobranças em atraso
             </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
             {financeiro.atrasadas.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">
-                Nenhuma mensalidade em atraso.
+                Nenhuma cobrança em atraso.
               </p>
             ) : (
-              financeiro.atrasadas.map((mensalidade) => (
+              financeiro.atrasadas.map((cobranca) => (
                 <Link
-                  key={mensalidade.id}
-                  href={`/pacientes/${mensalidade.pacienteId}`}
+                  key={cobranca.id}
+                  href={`/pacientes/${cobranca.pacienteId}`}
                   className="flex items-center justify-between gap-2 rounded-lg px-2 py-2 transition-colors hover:bg-primary/5"
                 >
                   <div className="flex flex-col">
                     <span className="text-sm font-medium">
-                      {mensalidade.paciente.nome}
+                      {cobranca.paciente.nome}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {mensalidade.planoNome} · venceu em{" "}
-                      {formatarData(mensalidade.vencimento)}
+                      {cobranca.planoNome} · venceu em{" "}
+                      {formatarData(cobranca.vencimento)}
                     </span>
                   </div>
                   <Badge variant="destructive">
-                    {formatarMoeda(mensalidade.valor)}
+                    {formatarMoeda(cobranca.valor)}
                   </Badge>
                 </Link>
               ))

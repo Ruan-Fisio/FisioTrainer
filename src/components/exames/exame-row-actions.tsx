@@ -14,11 +14,25 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { deleteExame } from "@/actions/exames";
 
-export function ExameRowActions({ id, nome }: { id: string; nome: string }) {
+export function ExameRowActions({
+  id,
+  nome,
+  execucoesCount,
+}: {
+  id: string;
+  nome: string;
+  execucoesCount: number;
+}) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const emUso = execucoesCount > 0;
 
   function handleDelete() {
     startTransition(async () => {
@@ -49,6 +63,22 @@ export function ExameRowActions({ id, nome }: { id: string; nome: string }) {
           <span className="sr-only">Editar</span>
         </Link>
       </Button>
+      {emUso ? (
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span>
+              <Button variant="outline" size="icon" disabled>
+                <Trash2 className="size-4 text-muted-foreground" />
+                <span className="sr-only">Excluir</span>
+              </Button>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            Usado por {execucoesCount} avaliação
+            {execucoesCount !== 1 ? "ões" : ""}. Não pode ser excluído.
+          </TooltipContent>
+        </Tooltip>
+      ) : (
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogTrigger asChild>
           <Button variant="outline" size="icon">
@@ -78,6 +108,7 @@ export function ExameRowActions({ id, nome }: { id: string; nome: string }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      )}
     </div>
   );
 }

@@ -8,6 +8,8 @@ import {
   Activity,
   NotebookPen,
   CalendarClock,
+  Wallet,
+  Receipt,
 } from "lucide-react";
 
 export type NavLeaf = {
@@ -22,6 +24,8 @@ export type NavItem =
 export const navItems: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { title: "Pacientes", href: "/pacientes", icon: UserRound },
+  { title: "Planos", href: "/planos", icon: Wallet },
+  { title: "Cobranças", href: "/cobrancas", icon: Receipt },
   { title: "Agenda", href: "/agenda", icon: CalendarClock },
   { title: "Exames", href: "/exames", icon: ClipboardList },
   { title: "Evoluções", href: "/evolucoes", icon: NotebookPen },

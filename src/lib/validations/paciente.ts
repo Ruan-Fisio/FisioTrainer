@@ -14,15 +14,4 @@ export const pacienteSchema = z.object({
   medicamentos: z.string().trim().optional(),
   numeroIndicacao: z.string().trim().optional(),
   pessoaIndicacao: z.string().trim().optional(),
-  planoNome: z.string().trim().optional(),
-  planoValor: z
-    .string()
-    .trim()
-    .optional()
-    .transform((v) =>
-      v ? Number(v.replace(/\./g, "").replace(",", ".")) : undefined,
-    )
-    .refine((v) => v === undefined || (!Number.isNaN(v) && v >= 0), {
-      message: "Valor do plano inválido",
-    }),
 });

@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const exameColunaSchema = z
   .object({
+    id: z.string().trim().optional(),
     titulo: z.string().trim().min(1, "Título da coluna é obrigatório"),
     tipo: z.enum([
       "NUMERO",
@@ -29,6 +30,7 @@ export const exameColunaSchema = z
   );
 
 export const exameCampoSchema = z.object({
+  id: z.string().trim().optional(),
   nome: z.string().trim().optional().default(""),
   repetivel: z.boolean().optional().default(false),
   identificarMembro: z.boolean().optional().default(false),
@@ -38,6 +40,7 @@ export const exameCampoSchema = z.object({
 });
 
 export const exameSecaoSchema = z.object({
+  id: z.string().trim().optional(),
   nome: z.string().trim().min(1, "Nome da seção é obrigatório"),
   campos: z.array(exameCampoSchema).min(1, "Adicione ao menos um campo"),
 });

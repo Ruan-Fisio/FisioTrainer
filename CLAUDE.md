@@ -50,6 +50,16 @@ A aplicação usa um visual "moderno com profundidade", não flat. Ao criar ou a
 - **Cores de marca**: `--primary` (azul, `#1d3b86`) para ações/foco; `--sidebar-primary`/`--accent` (laranja, `#f19c09`) como destaque pontual (ícone ativo, hover), nunca como cor de fundo dominante.
 - Ao usar `color-mix(in oklch, ...)` inline via `style` (Tailwind v4 não tem utilitário nativo pra isso ainda), preferir isso a hardcode de hex — mantém consistência com dark mode automaticamente, já que lê a custom property do tema.
 
+## Responsividade (obrigatório em toda tela)
+
+Todo o sistema deve ser responsivo para mobile — não só as telas de listagem. Ao criar ou alterar qualquer tela:
+
+- **Listagens**: cards empilhados em mobile (`flex flex-col gap-3 md:hidden`) / tabela em desktop (`hidden md:block`), como em `categorias-table.tsx`. Nunca deixar só a tabela com scroll horizontal como única opção em telas pequenas.
+- **Formulários**: campos empilhados em coluna única por padrão (`flex flex-col gap-4`), grids de campos relacionados usam `grid-cols-1 sm:grid-cols-N` (nunca fixar múltiplas colunas abaixo do breakpoint `sm`). Ações de salvar/cancelar usam o componente `FormActions` (`src/components/ui/form-actions.tsx`), que já resolve o padrão mobile (FAB fixo) vs. desktop (barra fixa no rodapé) — não reimplementar isso na mão.
+- **Cabeçalhos de página**: `flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between`, título/descrição empilhados sobre o botão de ação em mobile.
+- **Abas** (`Tabs`/`TabsList`): lista de abas com overflow horizontal roll ável (`-mx-4 overflow-x-auto px-4 md:-mx-6 md:px-6` no wrapper, `w-max` na `TabsList`), como em `paciente-tabs.tsx` — nunca deixar abas quebrando linha ou cortadas sem scroll.
+- Testar toda tela nova/alterada num viewport mobile (largura ~375px) antes de considerar pronta, não só no desktop.
+
 ## Campos MULTIPLA_ESCOLHA (exames) — nunca serializar seleção com vírgula
 
 O texto das opções de uma coluna `MULTIPLA_ESCOLHA` (ex. "Positivo = Reprodução da dor, irradiação ou fraqueza") é livre e pode conter vírgula. Um bug real: no formulário de execução de exame, a seleção (única ou múltipla) era serializada/comparada com `valor.split(",")`/`.join(",")`, então uma opção com vírgula no próprio texto quebrava o parse e nunca aparecia marcada (o radio "Positivo" não marcava, só "Negativo", que não tinha vírgula).

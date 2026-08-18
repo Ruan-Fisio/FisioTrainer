@@ -6,10 +6,13 @@ import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { AvaliacoesList } from "@/components/exame-execucoes/avaliacoes-list";
 import { EvolucoesList } from "@/components/evolucoes/evolucoes-list";
+import { PacienteCobrancasList } from "@/components/cobrancas/paciente-cobrancas-list";
+import { PlanoAtribuicoesList } from "@/components/plano-atribuicoes/plano-atribuicoes-list";
 import { TableSkeleton } from "@/components/skeletons/table-skeleton";
 import { getAvaliacoesByPaciente } from "@/actions/exame-execucoes";
 import { getEvolucoesByPaciente } from "@/actions/evolucoes";
-import { formatarMoeda } from "@/lib/format";
+import { getCobrancasByPaciente } from "@/actions/cobrancas";
+import { listPlanoAtribuicoesByPaciente } from "@/actions/plano-atribuicoes";
 import { HistoricoClinicoDialog } from "@/components/pacientes/historico-clinico-dialog";
 import { PacienteTabs } from "@/components/pacientes/paciente-tabs";
 
@@ -21,6 +24,31 @@ async function AvaliacoesListLoader({ pacienteId }: { pacienteId: string }) {
 async function EvolucoesListLoader({ pacienteId }: { pacienteId: string }) {
   const evolucoes = await getEvolucoesByPaciente(pacienteId);
   return <EvolucoesList pacienteId={pacienteId} evolucoes={evolucoes} />;
+}
+
+async function FinanceiroLoader({ pacienteId }: { pacienteId: string }) {
+  const [atribuicoes, cobrancas] = await Promise.all([
+    listPlanoAtribuicoesByPaciente(pacienteId),
+    getCobrancasByPaciente(pacienteId),
+  ]);
+
+  return (
+    <div className="flex flex-col gap-6">
+      <PlanoAtribuicoesList atribuicoes={atribuicoes} pacienteId={pacienteId} />
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Cobranças</h2>
+          <Button asChild size="sm" variant="outline">
+            <Link href={`/pacientes/${pacienteId}/cobrancas/novo`}>
+              <Plus />
+              Cobrança avulsa
+            </Link>
+          </Button>
+        </div>
+        <PacienteCobrancasList pacienteId={pacienteId} cobrancas={cobrancas} />
+      </div>
+    </div>
+  );
 }
 
 export default async function PacienteDetailPage({
@@ -64,17 +92,6 @@ export default async function PacienteDetailPage({
         </div>
       </div>
 
-      {(paciente.planoNome || paciente.planoValor != null) && (
-        <p className="text-sm text-muted-foreground">
-          Plano: <span className="font-medium text-foreground">
-            {paciente.planoNome ?? "—"}
-          </span>
-          {paciente.planoValor != null
-            ? ` · ${formatarMoeda(Number(paciente.planoValor))}`
-            : ""}
-        </p>
-      )}
-
       <PacienteTabs
         defaultValue="avaliacoes"
         tabs={[
@@ -109,6 +126,23 @@ export default async function PacienteDetailPage({
             content: (
               <Suspense fallback={<TableSkeleton />}>
                 <EvolucoesListLoader pacienteId={id} />
+              </Suspense>
+            ),
+          },
+          {
+            value: "financeiro",
+            label: "Financeiro",
+            action: (
+              <Button asChild size="sm">
+                <Link href={`/pacientes/${id}/planos/novo`}>
+                  <Plus />
+                  Atribuir plano
+                </Link>
+              </Button>
+            ),
+            content: (
+              <Suspense fallback={<TableSkeleton />}>
+                <FinanceiroLoader pacienteId={id} />
               </Suspense>
             ),
           },

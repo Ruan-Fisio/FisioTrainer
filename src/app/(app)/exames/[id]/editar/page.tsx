@@ -30,14 +30,17 @@ export default async function EditarExamePage({
           descricao: exame.descricao ?? "",
           tipo: exame.tipo,
           secoes: exame.secoes.map((secao) => ({
+            id: secao.id,
             nome: secao.nome,
             campos: secao.campos.map((campo) => ({
+              id: campo.id,
               nome: campo.nome,
               repetivel: campo.repetivel,
               identificarMembro: campo.identificarMembro,
               colunas: campo.colunas
                 .filter((coluna) => coluna.tipo !== "MEMBRO")
                 .map((coluna) => ({
+                  id: coluna.id,
                   titulo: coluna.titulo,
                   tipo: coluna.tipo as
                     | "NUMERO"

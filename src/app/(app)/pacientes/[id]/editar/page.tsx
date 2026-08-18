@@ -31,10 +31,6 @@ export default async function EditarPacientePage({
           dataNascimento: paciente.dataNascimento
             ? paciente.dataNascimento.toISOString().slice(0, 10)
             : null,
-          planoValor:
-            paciente.planoValor != null
-              ? Number(paciente.planoValor).toFixed(2).replace(".", ",")
-              : null,
         }}
         mode="edit"
       />

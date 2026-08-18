@@ -18,6 +18,7 @@ type ExameListItemProps = {
   descricao: string | null;
   tipo: "FISIOTERAPIA" | "EDUCACAO_FISICA";
   secoesCount: number;
+  execucoesCount: number;
 };
 
 export function ExameTableRow({
@@ -26,6 +27,7 @@ export function ExameTableRow({
   descricao,
   tipo,
   secoesCount,
+  execucoesCount,
 }: ExameListItemProps) {
   const router = useRouter();
 
@@ -48,7 +50,7 @@ export function ExameTableRow({
         </div>
       </TableCell>
       <TableCell>
-        <ExameRowActions id={id} nome={nome} />
+        <ExameRowActions id={id} nome={nome} execucoesCount={execucoesCount} />
       </TableCell>
     </TableRow>
   );
@@ -60,6 +62,7 @@ export function ExameCard({
   descricao,
   tipo,
   secoesCount,
+  execucoesCount,
 }: ExameListItemProps) {
   const router = useRouter();
 
@@ -71,7 +74,7 @@ export function ExameCard({
       <CardContent className="flex flex-col gap-3 p-4">
         <div className="flex items-start justify-between gap-2">
           <p className="font-medium">{nome}</p>
-          <ExameRowActions id={id} nome={nome} />
+          <ExameRowActions id={id} nome={nome} execucoesCount={execucoesCount} />
         </div>
         {descricao && (
           <p className="text-sm text-muted-foreground">{descricao}</p>

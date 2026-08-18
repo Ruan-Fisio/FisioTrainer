@@ -7,6 +7,7 @@ import { montarComparativo } from "@/lib/relatorio-comparativo";
 
 export async function listAllExamesCompletos() {
   return prisma.exame.findMany({
+    where: { versaoAtual: true },
     orderBy: { nome: "asc" },
     include: {
       secoes: {

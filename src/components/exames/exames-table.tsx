@@ -49,6 +49,7 @@ export async function ExamesTable({
             descricao={exame.descricao}
             tipo={exame.tipo}
             secoesCount={exame._count.secoes}
+            execucoesCount={exame._count.execucoes}
           />
         ))}
       </div>
@@ -74,6 +75,7 @@ export async function ExamesTable({
                 descricao={exame.descricao}
                 tipo={exame.tipo}
                 secoesCount={exame._count.secoes}
+                execucoesCount={exame._count.execucoes}
               />
             ))}
           </TableBody>

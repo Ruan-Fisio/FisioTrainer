@@ -2,29 +2,40 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { mensalidadeSchema } from "@/lib/validations/mensalidade";
+import { cobrancaSchema } from "@/lib/validations/cobranca";
 
-export type MensalidadeActionState = {
+export type CobrancaActionState = {
   error?: string;
   success?: boolean;
 };
 
-export async function getMensalidadesByPaciente(pacienteId: string) {
-  const mensalidades = await prisma.mensalidade.findMany({
+export async function getCobrancasByPaciente(pacienteId: string) {
+  const cobrancas = await prisma.cobranca.findMany({
     where: { pacienteId },
     orderBy: { vencimento: "desc" },
   });
 
-  return mensalidades.map((m) => ({ ...m, valor: Number(m.valor) }));
+  return cobrancas.map((c) => ({ ...c, valor: Number(c.valor) }));
 }
 
-export async function getMensalidade(id: string) {
-  const mensalidade = await prisma.mensalidade.findUnique({ where: { id } });
-  return mensalidade ? { ...mensalidade, valor: Number(mensalidade.valor) } : null;
+/** Todas as cobranças pendentes (de qualquer paciente), para a tela de Cobranças. */
+export async function listCobrancasPendentes() {
+  const cobrancas = await prisma.cobranca.findMany({
+    where: { status: "PENDENTE" },
+    orderBy: { vencimento: "asc" },
+    include: { paciente: { select: { id: true, nome: true } } },
+  });
+
+  return cobrancas.map((c) => ({ ...c, valor: Number(c.valor) }));
+}
+
+export async function getCobranca(id: string) {
+  const cobranca = await prisma.cobranca.findUnique({ where: { id } });
+  return cobranca ? { ...cobranca, valor: Number(cobranca.valor) } : null;
 }
 
 function parseForm(formData: FormData) {
-  return mensalidadeSchema.safeParse({
+  return cobrancaSchema.safeParse({
     planoNome: formData.get("planoNome"),
     valor: formData.get("valor"),
     vencimento: formData.get("vencimento"),
@@ -33,11 +44,11 @@ function parseForm(formData: FormData) {
   });
 }
 
-export async function createMensalidade(
+export async function createCobranca(
   pacienteId: string,
-  _prevState: MensalidadeActionState,
+  _prevState: CobrancaActionState,
   formData: FormData,
-): Promise<MensalidadeActionState> {
+): Promise<CobrancaActionState> {
   const parsed = parseForm(formData);
 
   if (!parsed.success) {
@@ -46,7 +57,7 @@ export async function createMensalidade(
 
   const { status, ...dados } = parsed.data;
 
-  await prisma.mensalidade.create({
+  await prisma.cobranca.create({
     data: {
       ...dados,
       status,
@@ -57,33 +68,34 @@ export async function createMensalidade(
 
   revalidatePath(`/pacientes/${pacienteId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/cobrancas");
   return { success: true };
 }
 
-export async function updateMensalidade(
+export async function updateCobranca(
   id: string,
   pacienteId: string,
-  _prevState: MensalidadeActionState,
+  _prevState: CobrancaActionState,
   formData: FormData,
-): Promise<MensalidadeActionState> {
+): Promise<CobrancaActionState> {
   const parsed = parseForm(formData);
 
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
 
-  const existing = await prisma.mensalidade.findUnique({
+  const existing = await prisma.cobranca.findUnique({
     where: { id },
     select: { pacienteId: true, pagoEm: true },
   });
 
   if (!existing || existing.pacienteId !== pacienteId) {
-    return { error: "Mensalidade não encontrada." };
+    return { error: "Cobrança não encontrada." };
   }
 
   const { status, ...dados } = parsed.data;
 
-  await prisma.mensalidade.update({
+  await prisma.cobranca.update({
     where: { id },
     data: {
       ...dados,
@@ -94,20 +106,23 @@ export async function updateMensalidade(
 
   revalidatePath(`/pacientes/${pacienteId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/cobrancas");
   return { success: true };
 }
 
-export async function marcarMensalidadePaga(id: string, pacienteId: string) {
-  await prisma.mensalidade.update({
+export async function marcarCobrancaPaga(id: string, pacienteId: string) {
+  await prisma.cobranca.update({
     where: { id },
     data: { status: "PAGO", pagoEm: new Date() },
   });
   revalidatePath(`/pacientes/${pacienteId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/cobrancas");
 }
 
-export async function deleteMensalidade(id: string, pacienteId: string) {
-  await prisma.mensalidade.delete({ where: { id } });
+export async function deleteCobranca(id: string, pacienteId: string) {
+  await prisma.cobranca.delete({ where: { id } });
   revalidatePath(`/pacientes/${pacienteId}`);
   revalidatePath("/dashboard");
+  revalidatePath("/cobrancas");
 }

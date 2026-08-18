@@ -8,20 +8,20 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect } from "@/components/ui/native-select";
 import { FormActions } from "@/components/ui/form-actions";
-import type { MensalidadeActionState } from "@/actions/mensalidades";
+import type { CobrancaActionState } from "@/actions/cobrancas";
 
-const initialState: MensalidadeActionState = {};
+const initialState: CobrancaActionState = {};
 
-export function MensalidadeForm({
+export function CobrancaForm({
   action,
   defaultValues,
   pacienteId,
   mode,
 }: {
   action: (
-    prevState: MensalidadeActionState,
+    prevState: CobrancaActionState,
     formData: FormData,
-  ) => Promise<MensalidadeActionState>;
+  ) => Promise<CobrancaActionState>;
   defaultValues?: {
     planoNome: string;
     valor: string;
@@ -39,8 +39,8 @@ export function MensalidadeForm({
     if (state.success) {
       toast.success(
         mode === "create"
-          ? "Mensalidade registrada com sucesso."
-          : "Mensalidade atualizada com sucesso.",
+          ? "Cobrança registrada com sucesso."
+          : "Cobrança atualizada com sucesso.",
       );
       router.push(`/pacientes/${pacienteId}`);
     }
@@ -108,7 +108,7 @@ export function MensalidadeForm({
 
       <FormActions
         submitLabel={
-          mode === "create" ? "Registrar mensalidade" : "Salvar alterações"
+          mode === "create" ? "Registrar cobrança" : "Salvar alterações"
         }
         onCancel={() => router.push(`/pacientes/${pacienteId}`)}
       />

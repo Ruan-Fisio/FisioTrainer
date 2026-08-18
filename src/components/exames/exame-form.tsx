@@ -37,6 +37,7 @@ type TipoColuna =
   | "GONIOMETRIA";
 type DirecaoIdeal = "MAIOR_MELHOR" | "MENOR_MELHOR" | "PROXIMO_IDEAL";
 type ColunaDraft = {
+  id?: string;
   titulo: string;
   tipo: TipoColuna;
   formatacao: string;
@@ -46,12 +47,13 @@ type ColunaDraft = {
   direcaoIdeal: DirecaoIdeal;
 };
 type CampoDraft = {
+  id?: string;
   nome: string;
   repetivel: boolean;
   identificarMembro: boolean;
   colunas: ColunaDraft[];
 };
-type SecaoDraft = { nome: string; campos: CampoDraft[] };
+type SecaoDraft = { id?: string; nome: string; campos: CampoDraft[] };
 
 const TIPO_COLUNA_LABELS: Record<TipoColuna, string> = {
   TEXTO: "Texto",
@@ -90,6 +92,24 @@ function novoCampo(): CampoDraft {
 
 function novaSecao(): SecaoDraft {
   return { nome: "", campos: [novoCampo()] };
+}
+
+/** Remove os ids de uma cópia de campo (e suas colunas), para que duplicar não reaproveite o registro original. */
+function semIdsCampo(campo: CampoDraft): CampoDraft {
+  return {
+    ...campo,
+    id: undefined,
+    colunas: campo.colunas.map((coluna) => ({ ...coluna, id: undefined })),
+  };
+}
+
+/** Remove os ids de uma cópia de seção (e seus campos/colunas), para que duplicar não reaproveite o registro original. */
+function semIds(secao: SecaoDraft): SecaoDraft {
+  return {
+    ...secao,
+    id: undefined,
+    campos: secao.campos.map(semIdsCampo),
+  };
 }
 
 function selectClassName() {
@@ -693,7 +713,7 @@ export function ExameForm({
 
   function duplicarSecao(index: number) {
     setSecoes((prev) => {
-      const copia = structuredClone(prev[index]);
+      const copia = semIds(structuredClone(prev[index]));
       return [...prev.slice(0, index + 1), copia, ...prev.slice(index + 1)];
     });
     const next = new Set<number>();
@@ -768,7 +788,7 @@ export function ExameForm({
     setSecoes((prev) =>
       prev.map((secao, si) => {
         if (si !== secaoIndex) return secao;
-        const copia = structuredClone(secao.campos[campoIndex]);
+        const copia = semIdsCampo(structuredClone(secao.campos[campoIndex]));
         return {
           ...secao,
           campos: [
@@ -866,7 +886,7 @@ export function ExameForm({
               ...secao,
               campos: secao.campos.map((campo, ci) => {
                 if (ci !== campoIndex) return campo;
-                const copia = structuredClone(campo.colunas[colunaIndex]);
+                const copia = { ...structuredClone(campo.colunas[colunaIndex]), id: undefined };
                 return {
                   ...campo,
                   colunas: [
