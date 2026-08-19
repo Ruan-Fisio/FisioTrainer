@@ -1,11 +1,22 @@
 import { Suspense } from "react";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { listCobrancasPendentes } from "@/actions/cobrancas";
 import { CobrancasList } from "@/components/cobrancas/cobrancas-list";
 import { TableSkeleton } from "@/components/skeletons/table-skeleton";
 
 async function CobrancasListLoader() {
-  const cobrancas = await listCobrancasPendentes();
-  return <CobrancasList cobrancas={cobrancas} />;
+  const session = await auth();
+  const [cobrancas, profissional] = await Promise.all([
+    listCobrancasPendentes(),
+    session?.user?.id
+      ? prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { cpfCnpj: true },
+        })
+      : null,
+  ]);
+  return <CobrancasList cobrancas={cobrancas} cnpjPix={profissional?.cpfCnpj ?? null} />;
 }
 
 export default function CobrancasPage() {

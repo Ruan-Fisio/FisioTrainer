@@ -28,10 +28,11 @@ export default async function EditarCobrancaPage({
         action={updateCobrancaComId}
         defaultValues={{
           planoNome: cobranca.planoNome,
-          valor: cobranca.valor.toFixed(2).replace(".", ","),
+          valor: (cobranca.valorBase ?? cobranca.valor).toFixed(2).replace(".", ","),
           vencimento: toDateInputValue(cobranca.vencimento),
           status: cobranca.status,
           observacao: cobranca.observacao ?? "",
+          notaFiscal: cobranca.notaFiscal,
         }}
         pacienteId={id}
         mode="edit"

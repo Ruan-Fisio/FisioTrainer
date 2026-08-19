@@ -2,6 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CobrancaRowActions } from "@/components/cobrancas/cobranca-row-actions";
 import { formatarData, formatarMoeda } from "@/lib/format";
+import { montarMensagemCobranca } from "@/lib/whatsapp";
 import type { getCobrancasByPaciente } from "@/actions/cobrancas";
 
 type Cobranca = Awaited<ReturnType<typeof getCobrancasByPaciente>>[number];
@@ -20,10 +21,16 @@ export function statusCobranca(cobranca: { status: string; vencimento: Date }) {
 
 export function PacienteCobrancasList({
   pacienteId,
+  pacienteNome,
+  pacienteContato,
   cobrancas,
+  cnpjPix,
 }: {
   pacienteId: string;
+  pacienteNome: string;
+  pacienteContato: string | null;
   cobrancas: Cobranca[];
+  cnpjPix?: string | null;
 }) {
   if (cobrancas.length === 0) {
     return (
@@ -46,6 +53,7 @@ export function PacienteCobrancasList({
                 <div className="flex flex-col gap-1">
                   <p className="font-medium">
                     {cobranca.planoNome} · {formatarMoeda(cobranca.valor)}
+                    {cobranca.notaFiscal ? " · NF inclusa" : ""}
                   </p>
                   <p className="text-xs text-muted-foreground">
                     Vence em {formatarData(cobranca.vencimento)}
@@ -68,6 +76,16 @@ export function PacienteCobrancasList({
                   id={cobranca.id}
                   pacienteId={pacienteId}
                   pago={cobranca.status === "PAGO"}
+                  mensagemCobranca={montarMensagemCobranca({
+                    pacienteNome,
+                    planoNome: cobranca.planoNome,
+                    valor: cobranca.valor,
+                    vencimento: cobranca.vencimento,
+                    numeroParcela: cobranca.numeroParcela,
+                    totalParcelas: cobranca.totalParcelas,
+                    cnpjPix,
+                  })}
+                  telefonePaciente={pacienteContato}
                 />
               </div>
             </CardContent>

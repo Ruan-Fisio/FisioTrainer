@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Pencil, Ban } from "lucide-react";
+import { Pencil, Ban, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -40,6 +40,12 @@ export function PlanoAtribuicaoRowActions({
 
   return (
     <div className="flex items-center gap-1">
+      <Button variant="outline" size="icon" asChild>
+        <a href={`/api/plano-atribuicoes/${id}/comprovante`} target="_blank" rel="noopener noreferrer">
+          <FileText className="size-4" />
+          <span className="sr-only">Gerar comprovante para nota fiscal</span>
+        </a>
+      </Button>
       <Button variant="outline" size="icon" asChild>
         <Link href={`/pacientes/${pacienteId}/planos/${id}/editar`}>
           <Pencil className="size-4" />

@@ -47,7 +47,10 @@ export default async function EditarAtribuicaoPlanoPage({
         defaultValues={{
           planoOpcaoId: atribuicao.planoOpcaoId ?? "",
           cartao: atribuicao.cartao,
+          notaFiscal: atribuicao.notaFiscal,
           vencimentos,
+          descontoTipo: atribuicao.desconto > 0 ? "VALOR" : "NENHUM",
+          descontoValor: atribuicao.desconto > 0 ? atribuicao.desconto : undefined,
         }}
         pacienteId={id}
         mode="edit"

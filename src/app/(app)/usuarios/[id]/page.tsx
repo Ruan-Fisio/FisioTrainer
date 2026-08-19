@@ -12,7 +12,17 @@ export default async function EditarUsuarioPage({
 
   const usuario = await prisma.user.findUnique({
     where: { id },
-    select: { name: true, email: true, cref: true, crefito: true },
+    select: {
+      name: true,
+      email: true,
+      cref: true,
+      crefito: true,
+      cpfCnpj: true,
+      razaoSocial: true,
+      inscricaoMunicipal: true,
+      telefone: true,
+      endereco: true,
+    },
   });
 
   if (!usuario) notFound();

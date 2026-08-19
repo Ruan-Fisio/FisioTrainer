@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Check, Pencil, Trash2 } from "lucide-react";
+import { Check, Pencil, Share2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -15,19 +15,34 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { deleteCobranca, marcarCobrancaPaga } from "@/actions/cobrancas";
+import { montarLinkWhatsapp } from "@/lib/whatsapp";
 
 export function CobrancaRowActions({
   id,
   pacienteId,
   pago,
+  mensagemCobranca,
+  telefonePaciente,
 }: {
   id: string;
   pacienteId: string;
   pago: boolean;
+  mensagemCobranca?: string;
+  telefonePaciente?: string | null;
 }) {
   const [openExcluir, setOpenExcluir] = useState(false);
   const [openPagar, setOpenPagar] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  const linkWhatsapp = mensagemCobranca
+    ? montarLinkWhatsapp(telefonePaciente, mensagemCobranca)
+    : null;
+
+  async function handleCopiarMensagem() {
+    if (!mensagemCobranca) return;
+    await navigator.clipboard.writeText(mensagemCobranca);
+    toast.success("Mensagem copiada. Cole no WhatsApp para enviar ao paciente.");
+  }
 
   function handleDelete() {
     startTransition(async () => {
@@ -55,6 +70,25 @@ export function CobrancaRowActions({
 
   return (
     <div className="flex items-center justify-end gap-1">
+      {mensagemCobranca &&
+        (linkWhatsapp ? (
+          <Button variant="outline" size="icon" asChild title="Compartilhar cobrança via WhatsApp">
+            <a href={linkWhatsapp} target="_blank" rel="noopener noreferrer">
+              <Share2 className="size-4 text-emerald-600" />
+              <span className="sr-only">Compartilhar cobrança via WhatsApp</span>
+            </a>
+          </Button>
+        ) : (
+          <Button
+            variant="outline"
+            size="icon"
+            title="Copiar mensagem de cobrança"
+            onClick={handleCopiarMensagem}
+          >
+            <Share2 className="size-4" />
+            <span className="sr-only">Copiar mensagem de cobrança</span>
+          </Button>
+        ))}
       {!pago && (
         <Dialog open={openPagar} onOpenChange={setOpenPagar}>
           <DialogTrigger asChild>

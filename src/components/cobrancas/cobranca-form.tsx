@@ -1,13 +1,16 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect } from "@/components/ui/native-select";
 import { FormActions } from "@/components/ui/form-actions";
+import { aplicarTaxaNotaFiscal, TAXA_NOTA_FISCAL } from "@/lib/planos";
+import { formatarMoeda } from "@/lib/format";
 import type { CobrancaActionState } from "@/actions/cobrancas";
 
 const initialState: CobrancaActionState = {};
@@ -28,12 +31,21 @@ export function CobrancaForm({
     vencimento: string;
     status: string;
     observacao: string;
+    notaFiscal?: boolean;
   };
   pacienteId: string;
   mode: "create" | "edit";
 }) {
   const router = useRouter();
   const [state, formAction] = useActionState(action, initialState);
+  const [valor, setValor] = useState(defaultValues?.valor ?? "");
+  const [notaFiscal, setNotaFiscal] = useState(defaultValues?.notaFiscal ?? false);
+
+  const valorFinal = useMemo(() => {
+    const numero = Number(valor.replace(/\./g, "").replace(",", "."));
+    if (Number.isNaN(numero)) return 0;
+    return aplicarTaxaNotaFiscal(numero, notaFiscal);
+  }, [valor, notaFiscal]);
 
   useEffect(() => {
     if (state.success) {
@@ -67,7 +79,8 @@ export function CobrancaForm({
             name="valor"
             inputMode="decimal"
             placeholder="250,00"
-            defaultValue={defaultValues?.valor}
+            value={valor}
+            onChange={(e) => setValor(e.target.value)}
             required
           />
         </div>
@@ -93,6 +106,23 @@ export function CobrancaForm({
           </NativeSelect>
         </div>
       </div>
+
+      <input type="hidden" name="notaFiscal" value={String(notaFiscal)} />
+      <label
+        onClick={(e) => {
+          e.preventDefault();
+          setNotaFiscal((v) => !v);
+        }}
+        className="flex min-h-8 cursor-pointer items-center gap-2 text-sm select-none"
+      >
+        <Checkbox checked={notaFiscal} tabIndex={-1} className="pointer-events-none" />
+        Nota fiscal inclusa (aplica taxa de {TAXA_NOTA_FISCAL}%)
+      </label>
+      {notaFiscal && valorFinal > 0 && (
+        <p className="text-sm text-muted-foreground">
+          Valor com nota fiscal: <span className="font-medium text-foreground">{formatarMoeda(valorFinal)}</span>
+        </p>
+      )}
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="observacao">Observação</Label>

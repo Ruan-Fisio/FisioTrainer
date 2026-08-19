@@ -34,11 +34,19 @@ function AtribuicaoCard({
               {atribuicao.atendimentos ? `${atribuicao.atendimentos}x atendimentos · ` : ""}
               {formatarMoeda(atribuicao.valor)} em {atribuicao.numeroParcelas}x
               {atribuicao.cartao ? ` · Cartão (+${atribuicao.taxaCartao}%)` : ""}
+              {atribuicao.notaFiscal ? " · NF inclusa" : ""}
             </p>
             <p className="text-xs text-muted-foreground">
               Início em {formatarData(atribuicao.dataInicio)} · {pagas}/
               {atribuicao.cobrancas.length} parcelas pagas
             </p>
+            {atribuicao.desconto > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Valor original {formatarMoeda(atribuicao.valorOriginal)} · Desconto de{" "}
+                {formatarMoeda(atribuicao.desconto)} (
+                {((atribuicao.desconto / atribuicao.valorOriginal) * 100).toFixed(1)}%) aplicado
+              </p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <Badge variant={atribuicao.status === "ATIVO" ? "secondary" : "outline"}>

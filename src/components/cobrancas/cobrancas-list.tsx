@@ -12,11 +12,30 @@ import {
 import { CobrancaRowActions } from "@/components/cobrancas/cobranca-row-actions";
 import { statusCobranca } from "@/components/cobrancas/paciente-cobrancas-list";
 import { formatarData, formatarMoeda } from "@/lib/format";
+import { montarMensagemCobranca } from "@/lib/whatsapp";
 import type { listCobrancasPendentes } from "@/actions/cobrancas";
 
 type Cobranca = Awaited<ReturnType<typeof listCobrancasPendentes>>[number];
 
-export function CobrancasList({ cobrancas }: { cobrancas: Cobranca[] }) {
+function mensagemDaCobranca(cobranca: Cobranca, cnpjPix?: string | null) {
+  return montarMensagemCobranca({
+    pacienteNome: cobranca.paciente.nome,
+    planoNome: cobranca.planoNome,
+    valor: cobranca.valor,
+    vencimento: cobranca.vencimento,
+    numeroParcela: cobranca.numeroParcela,
+    totalParcelas: cobranca.totalParcelas,
+    cnpjPix,
+  });
+}
+
+export function CobrancasList({
+  cobrancas,
+  cnpjPix,
+}: {
+  cobrancas: Cobranca[];
+  cnpjPix?: string | null;
+}) {
   if (cobrancas.length === 0) {
     return (
       <Card>
@@ -64,6 +83,8 @@ export function CobrancasList({ cobrancas }: { cobrancas: Cobranca[] }) {
                     id={cobranca.id}
                     pacienteId={cobranca.pacienteId}
                     pago={false}
+                    mensagemCobranca={mensagemDaCobranca(cobranca, cnpjPix)}
+                    telefonePaciente={cobranca.paciente.contato}
                   />
                 </div>
               </CardContent>
@@ -114,6 +135,8 @@ export function CobrancasList({ cobrancas }: { cobrancas: Cobranca[] }) {
                       id={cobranca.id}
                       pacienteId={cobranca.pacienteId}
                       pago={false}
+                      mensagemCobranca={mensagemDaCobranca(cobranca, cnpjPix)}
+                      telefonePaciente={cobranca.paciente.contato}
                     />
                   </TableCell>
                 </TableRow>

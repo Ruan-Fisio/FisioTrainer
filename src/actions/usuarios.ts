@@ -51,6 +51,11 @@ export async function createUsuario(
     password: formData.get("password"),
     cref: formData.get("cref"),
     crefito: formData.get("crefito"),
+    cpfCnpj: formData.get("cpfCnpj"),
+    razaoSocial: formData.get("razaoSocial"),
+    inscricaoMunicipal: formData.get("inscricaoMunicipal"),
+    telefone: formData.get("telefone"),
+    endereco: formData.get("endereco"),
   });
 
   if (!parsed.success) {
@@ -73,6 +78,11 @@ export async function createUsuario(
       password,
       cref: parsed.data.cref || null,
       crefito: parsed.data.crefito || null,
+      cpfCnpj: parsed.data.cpfCnpj || null,
+      razaoSocial: parsed.data.razaoSocial || null,
+      inscricaoMunicipal: parsed.data.inscricaoMunicipal || null,
+      telefone: parsed.data.telefone || null,
+      endereco: parsed.data.endereco || null,
     },
   });
 
@@ -91,6 +101,11 @@ export async function updateUsuario(
     password: formData.get("password"),
     cref: formData.get("cref"),
     crefito: formData.get("crefito"),
+    cpfCnpj: formData.get("cpfCnpj"),
+    razaoSocial: formData.get("razaoSocial"),
+    inscricaoMunicipal: formData.get("inscricaoMunicipal"),
+    telefone: formData.get("telefone"),
+    endereco: formData.get("endereco"),
   });
 
   if (!parsed.success) {
@@ -111,11 +126,21 @@ export async function updateUsuario(
     password?: string;
     cref: string | null;
     crefito: string | null;
+    cpfCnpj: string | null;
+    razaoSocial: string | null;
+    inscricaoMunicipal: string | null;
+    telefone: string | null;
+    endereco: string | null;
   } = {
     name: parsed.data.name,
     email: parsed.data.email,
     cref: parsed.data.cref || null,
     crefito: parsed.data.crefito || null,
+    cpfCnpj: parsed.data.cpfCnpj || null,
+    razaoSocial: parsed.data.razaoSocial || null,
+    inscricaoMunicipal: parsed.data.inscricaoMunicipal || null,
+    telefone: parsed.data.telefone || null,
+    endereco: parsed.data.endereco || null,
   };
 
   if (parsed.data.password) {

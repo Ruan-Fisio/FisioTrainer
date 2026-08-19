@@ -26,6 +26,7 @@ export function PacienteForm({
     idade: number | null;
     dataNascimento: string | null;
     cpf: string | null;
+    email: string | null;
     contato: string | null;
     endereco: string | null;
     historicoClinico: string | null;
@@ -105,14 +106,29 @@ export function PacienteForm({
               />
             </div>
           </div>
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="endereco">Endereço</Label>
-            <Input
-              id="endereco"
-              name="endereco"
-              defaultValue={defaultValues?.endereco ?? undefined}
-            />
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="email">E-mail</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                defaultValue={defaultValues?.email ?? undefined}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="endereco">Endereço</Label>
+              <Input
+                id="endereco"
+                name="endereco"
+                defaultValue={defaultValues?.endereco ?? undefined}
+              />
+            </div>
           </div>
+          <p className="text-xs text-muted-foreground">
+            CPF, e-mail e endereço são usados para preencher o comprovante
+            gerado ao emitir nota fiscal de uma cobrança.
+          </p>
         </CardContent>
       </Card>
 

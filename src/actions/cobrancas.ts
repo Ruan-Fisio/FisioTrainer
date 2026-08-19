@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { cobrancaSchema } from "@/lib/validations/cobranca";
+import { aplicarTaxaNotaFiscal } from "@/lib/planos";
 
 export type CobrancaActionState = {
   error?: string;
@@ -15,7 +16,11 @@ export async function getCobrancasByPaciente(pacienteId: string) {
     orderBy: { vencimento: "desc" },
   });
 
-  return cobrancas.map((c) => ({ ...c, valor: Number(c.valor) }));
+  return cobrancas.map((c) => ({
+    ...c,
+    valor: Number(c.valor),
+    valorBase: c.valorBase !== null ? Number(c.valorBase) : null,
+  }));
 }
 
 /** Todas as cobranças pendentes (de qualquer paciente), para a tela de Cobranças. */
@@ -23,15 +28,24 @@ export async function listCobrancasPendentes() {
   const cobrancas = await prisma.cobranca.findMany({
     where: { status: "PENDENTE" },
     orderBy: { vencimento: "asc" },
-    include: { paciente: { select: { id: true, nome: true } } },
+    include: { paciente: { select: { id: true, nome: true, contato: true } } },
   });
 
-  return cobrancas.map((c) => ({ ...c, valor: Number(c.valor) }));
+  return cobrancas.map((c) => ({
+    ...c,
+    valor: Number(c.valor),
+    valorBase: c.valorBase !== null ? Number(c.valorBase) : null,
+  }));
 }
 
 export async function getCobranca(id: string) {
   const cobranca = await prisma.cobranca.findUnique({ where: { id } });
-  return cobranca ? { ...cobranca, valor: Number(cobranca.valor) } : null;
+  if (!cobranca) return null;
+  return {
+    ...cobranca,
+    valor: Number(cobranca.valor),
+    valorBase: cobranca.valorBase !== null ? Number(cobranca.valorBase) : null,
+  };
 }
 
 function parseForm(formData: FormData) {
@@ -41,6 +55,7 @@ function parseForm(formData: FormData) {
     vencimento: formData.get("vencimento"),
     status: formData.get("status"),
     observacao: formData.get("observacao") ?? "",
+    notaFiscal: formData.get("notaFiscal") ?? "false",
   });
 }
 
@@ -55,11 +70,15 @@ export async function createCobranca(
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
 
-  const { status, ...dados } = parsed.data;
+  const { status, valor: valorBase, notaFiscal, ...dados } = parsed.data;
+  const valor = aplicarTaxaNotaFiscal(valorBase, notaFiscal);
 
   await prisma.cobranca.create({
     data: {
       ...dados,
+      valorBase,
+      valor,
+      notaFiscal,
       status,
       pagoEm: status === "PAGO" ? new Date() : null,
       pacienteId,
@@ -93,12 +112,16 @@ export async function updateCobranca(
     return { error: "Cobrança não encontrada." };
   }
 
-  const { status, ...dados } = parsed.data;
+  const { status, valor: valorBase, notaFiscal, ...dados } = parsed.data;
+  const valor = aplicarTaxaNotaFiscal(valorBase, notaFiscal);
 
   await prisma.cobranca.update({
     where: { id },
     data: {
       ...dados,
+      valorBase,
+      valor,
+      notaFiscal,
       status,
       pagoEm: status === "PAGO" ? (existing.pagoEm ?? new Date()) : null,
     },

@@ -6,6 +6,11 @@ export const usuarioSchema = z.object({
   password: z.string().min(4, "Senha deve ter ao menos 4 caracteres"),
   cref: z.string().trim().optional().or(z.literal("")),
   crefito: z.string().trim().optional().or(z.literal("")),
+  cpfCnpj: z.string().trim().optional().or(z.literal("")),
+  razaoSocial: z.string().trim().optional().or(z.literal("")),
+  inscricaoMunicipal: z.string().trim().optional().or(z.literal("")),
+  telefone: z.string().trim().optional().or(z.literal("")),
+  endereco: z.string().trim().optional().or(z.literal("")),
 });
 
 export const usuarioUpdateSchema = z.object({
@@ -18,6 +23,11 @@ export const usuarioUpdateSchema = z.object({
     .or(z.literal("")),
   cref: z.string().trim().optional().or(z.literal("")),
   crefito: z.string().trim().optional().or(z.literal("")),
+  cpfCnpj: z.string().trim().optional().or(z.literal("")),
+  razaoSocial: z.string().trim().optional().or(z.literal("")),
+  inscricaoMunicipal: z.string().trim().optional().or(z.literal("")),
+  telefone: z.string().trim().optional().or(z.literal("")),
+  endereco: z.string().trim().optional().or(z.literal("")),
 });
 
 export const loginSchema = z.object({

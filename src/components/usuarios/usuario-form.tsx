@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormActions } from "@/components/ui/form-actions";
 import type { UsuarioActionState } from "@/actions/usuarios";
 
@@ -19,7 +20,17 @@ export function UsuarioForm({
     prevState: UsuarioActionState,
     formData: FormData,
   ) => Promise<UsuarioActionState>;
-  defaultValues?: { name: string; email: string; cref?: string | null; crefito?: string | null };
+  defaultValues?: {
+    name: string;
+    email: string;
+    cref?: string | null;
+    crefito?: string | null;
+    cpfCnpj?: string | null;
+    razaoSocial?: string | null;
+    inscricaoMunicipal?: string | null;
+    telefone?: string | null;
+    endereco?: string | null;
+  };
   mode: "create" | "edit";
 }) {
   const router = useRouter();
@@ -80,6 +91,61 @@ export function UsuarioForm({
           defaultValue={defaultValues?.crefito ?? ""}
         />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Dados para nota fiscal</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <p className="text-xs text-muted-foreground">
+            Usados para preencher o comprovante gerado ao emitir nota fiscal
+            de uma cobrança.
+          </p>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="razaoSocial">Razão social / Nome completo</Label>
+            <Input
+              id="razaoSocial"
+              name="razaoSocial"
+              defaultValue={defaultValues?.razaoSocial ?? ""}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="cpfCnpj">CPF ou CNPJ</Label>
+            <Input
+              id="cpfCnpj"
+              name="cpfCnpj"
+              defaultValue={defaultValues?.cpfCnpj ?? ""}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="inscricaoMunicipal">
+              Inscrição municipal (opcional)
+            </Label>
+            <Input
+              id="inscricaoMunicipal"
+              name="inscricaoMunicipal"
+              defaultValue={defaultValues?.inscricaoMunicipal ?? ""}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="telefone">Telefone</Label>
+            <Input
+              id="telefone"
+              name="telefone"
+              defaultValue={defaultValues?.telefone ?? ""}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="endereco">Endereço</Label>
+            <Input
+              id="endereco"
+              name="endereco"
+              defaultValue={defaultValues?.endereco ?? ""}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
       {state.error && (
         <p className="text-sm text-destructive">{state.error}</p>
       )}

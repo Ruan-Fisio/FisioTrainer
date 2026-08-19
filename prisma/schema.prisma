@@ -13,15 +13,20 @@ datasource db {
 }
 
 model User {
-  id        String     @id @default(cuid())
-  name      String
-  email     String     @unique
-  password  String
-  cref      String?
-  crefito   String?
-  evolucoes Evolucao[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
+  id                 String     @id @default(cuid())
+  name               String
+  email              String     @unique
+  password           String
+  cref               String?
+  crefito            String?
+  cpfCnpj            String?
+  razaoSocial        String?
+  inscricaoMunicipal String?
+  telefone           String?
+  endereco           String?
+  evolucoes          Evolucao[]
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
 }
 
 model Movimento {
@@ -141,6 +146,7 @@ model Paciente {
   idade                 Int?
   dataNascimento        DateTime?
   cpf                   String?         @unique
+  email                 String?
   contato               String?
   endereco              String?
   historicoClinico      String?
@@ -190,6 +196,7 @@ model Cobranca {
   pacienteId        String
   paciente          Paciente         @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
   planoNome         String
+  valorBase         Decimal?         @db.Decimal(10, 2)
   valor             Decimal          @db.Decimal(10, 2)
   vencimento        DateTime
   status            StatusCobranca   @default(PENDENTE)
@@ -199,6 +206,7 @@ model Cobranca {
   planoAtribuicao   PlanoAtribuicao? @relation(fields: [planoAtribuicaoId], references: [id], onDelete: SetNull)
   numeroParcela     Int?
   totalParcelas     Int?
+  notaFiscal        Boolean          @default(false)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
@@ -252,9 +260,12 @@ model PlanoAtribuicao {
   planoOpcao     PlanoOpcao?           @relation(fields: [planoOpcaoId], references: [id], onDelete: SetNull)
   planoNome      String
   atendimentos   Int?
+  valorOriginal  Decimal               @db.Decimal(10, 2)
+  desconto       Decimal               @default(0) @db.Decimal(10, 2)
   valor          Decimal               @db.Decimal(10, 2)
   cartao         Boolean               @default(false)
   taxaCartao     Decimal               @default(0) @db.Decimal(5, 2)
+  notaFiscal     Boolean               @default(false)
   numeroParcelas Int
   dataInicio     DateTime
   status         StatusPlanoAtribuicao @default(ATIVO)

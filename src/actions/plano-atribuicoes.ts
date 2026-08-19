@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { planoAtribuicaoSchema } from "@/lib/validations/plano-atribuicao";
-import { aplicarTaxaCartao, gerarValoresParcelas } from "@/lib/planos";
+import {
+  aplicarTaxaCartao,
+  aplicarTaxaNotaFiscal,
+  calcularDesconto,
+  gerarValoresParcelas,
+} from "@/lib/planos";
 
 export async function listPlanoAtribuicoesByPaciente(pacienteId: string) {
   const atribuicoes = await prisma.planoAtribuicao.findMany({
@@ -14,6 +19,8 @@ export async function listPlanoAtribuicoesByPaciente(pacienteId: string) {
 
   return atribuicoes.map((a) => ({
     ...a,
+    valorOriginal: Number(a.valorOriginal),
+    desconto: Number(a.desconto),
     valor: Number(a.valor),
     taxaCartao: Number(a.taxaCartao),
     cobrancas: a.cobrancas.map((m) => ({ ...m, valor: Number(m.valor) })),
@@ -28,6 +35,8 @@ export async function getPlanoAtribuicao(id: string) {
   if (!atribuicao) return null;
   return {
     ...atribuicao,
+    valorOriginal: Number(atribuicao.valorOriginal),
+    desconto: Number(atribuicao.desconto),
     valor: Number(atribuicao.valor),
     taxaCartao: Number(atribuicao.taxaCartao),
     cobrancas: atribuicao.cobrancas.map((m) => ({
@@ -46,7 +55,11 @@ function parseForm(formData: FormData) {
   return planoAtribuicaoSchema.safeParse({
     planoOpcaoId: formData.get("planoOpcaoId"),
     cartao: formData.get("cartao") ?? "false",
+    notaFiscal: formData.get("notaFiscal") ?? "false",
     vencimentos: formData.getAll("vencimentos"),
+    descontoTipo: formData.get("descontoTipo") ?? "NENHUM",
+    descontoValor: formData.get("descontoValor"),
+    valorAlvoParcela: formData.get("valorAlvoParcela"),
   });
 }
 
@@ -63,6 +76,7 @@ function gerarParcelasData(
   planoNome: string,
   valorTotal: number,
   vencimentos: Date[],
+  notaFiscal: boolean,
 ) {
   const datasOrdenadas = [...vencimentos].sort((a, b) => a.getTime() - b.getTime());
   const valores = gerarValoresParcelas(valorTotal, datasOrdenadas.length);
@@ -76,6 +90,7 @@ function gerarParcelasData(
     status: "PENDENTE" as const,
     numeroParcela: i + 1,
     totalParcelas: datasOrdenadas.length,
+    notaFiscal,
   }));
 }
 
@@ -98,9 +113,17 @@ export async function createPlanoAtribuicao(
 
   const plano = opcao.plano;
   const taxaCartao = Number(plano.taxaCartao);
-  const valor = aplicarTaxaCartao(Number(opcao.valor), taxaCartao, parsed.data.cartao);
+  const valorComCartao = aplicarTaxaCartao(Number(opcao.valor), taxaCartao, parsed.data.cartao);
+  const valorOriginal = aplicarTaxaNotaFiscal(valorComCartao, parsed.data.notaFiscal);
   const vencimentosOrdenados = [...parsed.data.vencimentos].sort(
     (a, b) => a.getTime() - b.getTime(),
+  );
+  const { valor, desconto } = calcularDesconto(
+    valorOriginal,
+    parsed.data.descontoTipo,
+    parsed.data.descontoValor,
+    parsed.data.valorAlvoParcela,
+    vencimentosOrdenados.length,
   );
 
   await prisma.$transaction(async (tx) => {
@@ -111,9 +134,12 @@ export async function createPlanoAtribuicao(
         planoOpcaoId: opcao.id,
         planoNome: plano.nome,
         atendimentos: opcao.atendimentos,
+        valorOriginal,
+        desconto,
         valor,
         cartao: parsed.data.cartao,
         taxaCartao: parsed.data.cartao ? taxaCartao : 0,
+        notaFiscal: parsed.data.notaFiscal,
         numeroParcelas: vencimentosOrdenados.length,
         dataInicio: vencimentosOrdenados[0],
       },
@@ -125,6 +151,7 @@ export async function createPlanoAtribuicao(
       plano.nome,
       valor,
       vencimentosOrdenados,
+      parsed.data.notaFiscal,
     );
 
     await tx.cobranca.createMany({ data: parcelas });
@@ -162,9 +189,17 @@ export async function updatePlanoAtribuicao(
 
   const plano = opcao.plano;
   const taxaCartao = Number(plano.taxaCartao);
-  const valor = aplicarTaxaCartao(Number(opcao.valor), taxaCartao, parsed.data.cartao);
+  const valorComCartao = aplicarTaxaCartao(Number(opcao.valor), taxaCartao, parsed.data.cartao);
+  const valorOriginal = aplicarTaxaNotaFiscal(valorComCartao, parsed.data.notaFiscal);
   const vencimentosOrdenados = [...parsed.data.vencimentos].sort(
     (a, b) => a.getTime() - b.getTime(),
+  );
+  const { valor, desconto } = calcularDesconto(
+    valorOriginal,
+    parsed.data.descontoTipo,
+    parsed.data.descontoValor,
+    parsed.data.valorAlvoParcela,
+    vencimentosOrdenados.length,
   );
 
   await prisma.$transaction(async (tx) => {
@@ -179,9 +214,12 @@ export async function updatePlanoAtribuicao(
         planoOpcaoId: opcao.id,
         planoNome: plano.nome,
         atendimentos: opcao.atendimentos,
+        valorOriginal,
+        desconto,
         valor,
         cartao: parsed.data.cartao,
         taxaCartao: parsed.data.cartao ? taxaCartao : 0,
+        notaFiscal: parsed.data.notaFiscal,
         numeroParcelas: vencimentosOrdenados.length,
         dataInicio: vencimentosOrdenados[0],
         status: "ATIVO",
@@ -194,6 +232,7 @@ export async function updatePlanoAtribuicao(
       plano.nome,
       valor,
       vencimentosOrdenados,
+      parsed.data.notaFiscal,
     );
 
     await tx.cobranca.createMany({ data: parcelas });

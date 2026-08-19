@@ -18,4 +18,5 @@ export const cobrancaSchema = z.object({
     .transform((v) => new Date(`${v}T12:00:00`)),
   status: z.enum(["PENDENTE", "PAGO"]),
   observacao: z.string().trim().optional(),
+  notaFiscal: z.enum(["true", "false"]).transform((v) => v === "true"),
 });

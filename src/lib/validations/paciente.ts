@@ -5,6 +5,7 @@ export const pacienteSchema = z.object({
   idade: z.coerce.number().int().positive().optional(),
   dataNascimento: z.string().trim().optional(),
   cpf: z.string().trim().optional(),
+  email: z.string().trim().email("E-mail inválido").optional().or(z.literal("")),
   contato: z.string().trim().optional(),
   endereco: z.string().trim().optional(),
   historicoClinico: z.string().trim().optional(),

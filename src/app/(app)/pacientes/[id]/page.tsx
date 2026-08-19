@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Pencil, Plus } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { AvaliacoesList } from "@/components/exame-execucoes/avaliacoes-list";
 import { EvolucoesList } from "@/components/evolucoes/evolucoes-list";
@@ -26,10 +27,25 @@ async function EvolucoesListLoader({ pacienteId }: { pacienteId: string }) {
   return <EvolucoesList pacienteId={pacienteId} evolucoes={evolucoes} />;
 }
 
-async function FinanceiroLoader({ pacienteId }: { pacienteId: string }) {
-  const [atribuicoes, cobrancas] = await Promise.all([
+async function FinanceiroLoader({
+  pacienteId,
+  pacienteNome,
+  pacienteContato,
+}: {
+  pacienteId: string;
+  pacienteNome: string;
+  pacienteContato: string | null;
+}) {
+  const session = await auth();
+  const [atribuicoes, cobrancas, profissional] = await Promise.all([
     listPlanoAtribuicoesByPaciente(pacienteId),
     getCobrancasByPaciente(pacienteId),
+    session?.user?.id
+      ? prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { cpfCnpj: true },
+        })
+      : null,
   ]);
 
   return (
@@ -45,7 +61,13 @@ async function FinanceiroLoader({ pacienteId }: { pacienteId: string }) {
             </Link>
           </Button>
         </div>
-        <PacienteCobrancasList pacienteId={pacienteId} cobrancas={cobrancas} />
+        <PacienteCobrancasList
+          pacienteId={pacienteId}
+          pacienteNome={pacienteNome}
+          pacienteContato={pacienteContato}
+          cobrancas={cobrancas}
+          cnpjPix={profissional?.cpfCnpj ?? null}
+        />
       </div>
     </div>
   );
@@ -142,7 +164,11 @@ export default async function PacienteDetailPage({
             ),
             content: (
               <Suspense fallback={<TableSkeleton />}>
-                <FinanceiroLoader pacienteId={id} />
+                <FinanceiroLoader
+                  pacienteId={id}
+                  pacienteNome={paciente.nome}
+                  pacienteContato={paciente.contato}
+                />
               </Suspense>
             ),
           },
