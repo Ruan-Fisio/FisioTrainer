@@ -35,6 +35,13 @@ export async function listPacientes(filters: { q?: string }, page: number) {
   };
 }
 
+export async function listAllPacientes() {
+  return prisma.paciente.findMany({
+    orderBy: { nome: "asc" },
+    select: { id: true, nome: true },
+  });
+}
+
 export type PacienteActionState = {
   error?: string;
   success?: boolean;

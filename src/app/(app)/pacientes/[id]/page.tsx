@@ -16,6 +16,14 @@ import { getCobrancasByPaciente } from "@/actions/cobrancas";
 import { listPlanoAtribuicoesByPaciente } from "@/actions/plano-atribuicoes";
 import { HistoricoClinicoDialog } from "@/components/pacientes/historico-clinico-dialog";
 import { PacienteTabs } from "@/components/pacientes/paciente-tabs";
+import { listTreinosPaciente } from "@/actions/treinos-paciente";
+import { TreinosPacienteList } from "@/components/treinos/treinos-paciente-list";
+import { AtribuirTreinoButton } from "@/components/treinos/atribuir-treino-button";
+
+async function TreinosListLoader({ pacienteId }: { pacienteId: string }) {
+  const treinos = await listTreinosPaciente(pacienteId);
+  return <TreinosPacienteList treinos={treinos} pacienteId={pacienteId} />;
+}
 
 async function AvaliacoesListLoader({ pacienteId }: { pacienteId: string }) {
   const avaliacoes = await getAvaliacoesByPaciente(pacienteId);
@@ -148,6 +156,16 @@ export default async function PacienteDetailPage({
             content: (
               <Suspense fallback={<TableSkeleton />}>
                 <EvolucoesListLoader pacienteId={id} />
+              </Suspense>
+            ),
+          },
+          {
+            value: "treinos",
+            label: "Treinos",
+            action: <AtribuirTreinoButton pacienteId={id} />,
+            content: (
+              <Suspense fallback={<TableSkeleton />}>
+                <TreinosListLoader pacienteId={id} />
               </Suspense>
             ),
           },

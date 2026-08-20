@@ -46,12 +46,13 @@ model Categoria {
 }
 
 model Exercicio {
-  id         String          @id @default(cuid())
-  name       String
-  categorias Categoria[]
-  links      ExercicioLink[]
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
+  id                  String               @id @default(cuid())
+  name                String
+  categorias          Categoria[]
+  links               ExercicioLink[]
+  treinoDiaExercicios TreinoDiaExercicio[]
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
 }
 
 model ExercicioLink {
@@ -161,6 +162,7 @@ model Paciente {
   cobrancas             Cobranca[]
   agendamentos          Agendamento[]
   planoAtribuicoes      PlanoAtribuicao[]
+  treinos               Treino[]
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
 }
@@ -332,4 +334,64 @@ model ExameExecucaoValor {
   execucao    ExameExecucao @relation(fields: [execucaoId], references: [id], onDelete: Cascade)
   colunaId    String
   coluna      ExameCampoColuna @relation(fields: [colunaId], references: [id], onDelete: Cascade)
+}
+
+enum DiaSemana {
+  SEGUNDA
+  TERCA
+  QUARTA
+  QUINTA
+  SEXTA
+  SABADO
+  DOMINGO
+}
+
+model Treino {
+  id             String      @id @default(cuid())
+  nome           String
+  descricao      String?
+  pacienteId     String?
+  paciente       Paciente?   @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  treinoOrigemId String?
+  origem         Treino?     @relation("TreinoOrigem", fields: [treinoOrigemId], references: [id], onDelete: SetNull)
+  copias         Treino[]    @relation("TreinoOrigem")
+  dataInicio     DateTime?
+  dataFim        DateTime?
+  ativo          Boolean     @default(true)
+  dias           TreinoDia[]
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([pacienteId])
+}
+
+model TreinoDia {
+  id         String               @id @default(cuid())
+  treinoId   String
+  treino     Treino               @relation(fields: [treinoId], references: [id], onDelete: Cascade)
+  diaSemana  DiaSemana
+  ordem      Int                  @default(0)
+  exercicios TreinoDiaExercicio[]
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  @@index([treinoId])
+}
+
+model TreinoDiaExercicio {
+  id          String    @id @default(cuid())
+  treinoDiaId String
+  treinoDia   TreinoDia @relation(fields: [treinoDiaId], references: [id], onDelete: Cascade)
+  exercicioId String
+  exercicio   Exercicio @relation(fields: [exercicioId], references: [id])
+  ordem       Int       @default(0)
+  series      Int?
+  repeticoes  String?
+  carga       Decimal? @db.Decimal(6, 2)
+  descanso    Int?
+  instrucoes  String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([treinoDiaId])
 }

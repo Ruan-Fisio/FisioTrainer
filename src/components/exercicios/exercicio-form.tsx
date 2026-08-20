@@ -106,7 +106,11 @@ export function ExercicioForm({
           {links.map((url, index) => (
             <div key={index} className="flex flex-col gap-2">
               <div className="flex gap-2">
+                <Label htmlFor={`link-${index}`} className="sr-only">
+                  Link {index + 1}
+                </Label>
                 <Input
+                  id={`link-${index}`}
                   placeholder="https://..."
                   value={url}
                   onChange={(event) => updateLink(index, event.target.value)}
