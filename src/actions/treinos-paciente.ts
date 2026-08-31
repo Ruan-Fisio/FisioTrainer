@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { treinoSchema } from "@/lib/validations/treino";
+import { updateTreinoInPlace } from "@/lib/treino-persistence";
 
 export async function listTreinosPaciente(pacienteId: string) {
   return prisma.treino.findMany({
@@ -68,8 +69,6 @@ function parseTreinoForm(formData: FormData) {
   return treinoSchema.safeParse({ nome, descricao, dias });
 }
 
-type TreinoFormData = ReturnType<typeof treinoSchema.parse>;
-
 export async function updateTreinoPaciente(
   id: string,
   pacienteId: string,
@@ -89,92 +88,11 @@ export async function updateTreinoPaciente(
     };
   }
 
-  await updateTreinoPacienteInPlace(id, parsed.data);
+  await updateTreinoInPlace(id, parsed.data);
 
   revalidatePath(`/pacientes/${pacienteId}/treinos`);
   revalidatePath(`/pacientes/${pacienteId}`);
   return { success: true };
-}
-
-async function updateTreinoPacienteInPlace(id: string, data: TreinoFormData) {
-  await prisma.$transaction(async (tx) => {
-    const existente = await tx.treino.findUniqueOrThrow({
-      where: { id },
-      include: { dias: { include: { exercicios: true } } },
-    });
-
-    await tx.treino.update({
-      where: { id },
-      data: {
-        nome: data.nome,
-        descricao: data.descricao || null,
-      },
-    });
-
-    const diaIdsRecebidos = new Set(data.dias.map((d) => d.id).filter(Boolean));
-    for (const diaExistente of existente.dias) {
-      if (!diaIdsRecebidos.has(diaExistente.id)) {
-        await tx.treinoDia.delete({ where: { id: diaExistente.id } });
-      }
-    }
-
-    for (const [diaIndex, diaInput] of data.dias.entries()) {
-      const diaExistente = existente.dias.find((d) => d.id === diaInput.id);
-
-      const diaId = diaExistente
-        ? diaExistente.id
-        : (
-            await tx.treinoDia.create({
-              data: { diaSemana: diaInput.diaSemana, ordem: diaIndex, treinoId: id },
-            })
-          ).id;
-
-      if (diaExistente) {
-        await tx.treinoDia.update({
-          where: { id: diaId },
-          data: { diaSemana: diaInput.diaSemana, ordem: diaIndex },
-        });
-      }
-
-      const exerciciosExistentes = diaExistente?.exercicios ?? [];
-      const exercicioIdsRecebidos = new Set(
-        diaInput.exercicios.map((e) => e.id).filter(Boolean),
-      );
-      for (const exercicioExistente of exerciciosExistentes) {
-        if (!exercicioIdsRecebidos.has(exercicioExistente.id)) {
-          await tx.treinoDiaExercicio.delete({
-            where: { id: exercicioExistente.id },
-          });
-        }
-      }
-
-      for (const [exercicioIndex, exercicioInput] of diaInput.exercicios.entries()) {
-        const exercicioExistente = exerciciosExistentes.find(
-          (e) => e.id === exercicioInput.id,
-        );
-        const exercicioData = {
-          exercicioId: exercicioInput.exercicioId,
-          ordem: exercicioIndex,
-          series: exercicioInput.series ?? null,
-          repeticoes: exercicioInput.repeticoes || null,
-          carga: exercicioInput.carga ?? null,
-          descanso: exercicioInput.descanso ?? null,
-          instrucoes: exercicioInput.instrucoes || null,
-        };
-
-        if (exercicioExistente) {
-          await tx.treinoDiaExercicio.update({
-            where: { id: exercicioExistente.id },
-            data: exercicioData,
-          });
-        } else {
-          await tx.treinoDiaExercicio.create({
-            data: { ...exercicioData, treinoDiaId: diaId },
-          });
-        }
-      }
-    }
-  });
 }
 
 export async function desativarTreinoPaciente(id: string, pacienteId: string) {

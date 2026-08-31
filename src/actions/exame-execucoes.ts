@@ -176,11 +176,13 @@ export async function createAvaliacao(
       pacienteId,
       exameId: parsed.data.exameId,
       valores: {
-        create: parsed.data.valores.map((v) => ({
-          colunaId: v.colunaId,
-          valor: v.valor,
-          linha: v.linha,
-        })),
+        createMany: {
+          data: parsed.data.valores.map((v) => ({
+            colunaId: v.colunaId,
+            valor: v.valor,
+            linha: v.linha,
+          })),
+        },
       },
     },
   });
@@ -217,11 +219,13 @@ export async function createRetorno(
       exameId: avaliacao.exameId,
       avaliacaoId,
       valores: {
-        create: parsed.data.valores.map((v) => ({
-          colunaId: v.colunaId,
-          valor: v.valor,
-          linha: v.linha,
-        })),
+        createMany: {
+          data: parsed.data.valores.map((v) => ({
+            colunaId: v.colunaId,
+            valor: v.valor,
+            linha: v.linha,
+          })),
+        },
       },
     },
   });
@@ -257,11 +261,13 @@ export async function updateExecucao(
       where: { id: execucaoId },
       data: {
         valores: {
-          create: parsed.data.valores.map((v) => ({
-            colunaId: v.colunaId,
-            valor: v.valor,
-            linha: v.linha,
-          })),
+          createMany: {
+            data: parsed.data.valores.map((v) => ({
+              colunaId: v.colunaId,
+              valor: v.valor,
+              linha: v.linha,
+            })),
+          },
         },
       },
     }),
