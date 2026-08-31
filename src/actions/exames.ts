@@ -82,60 +82,96 @@ function parseExameForm(formData: FormData) {
 
 const OPCOES_MEMBRO = ["Esquerdo", "Direito", "Bilateral"];
 
-function secoesCreateData(secoes: ReturnType<typeof exameSchema.parse>["secoes"]) {
-  return secoes.map((secao, secaoIndex) => ({
-    nome: secao.nome,
-    ordem: secaoIndex,
-    campos: {
-      create: secao.campos.map((campo, campoIndex) => {
-        const temGoniometria = campo.colunas.some(
-          (coluna) => coluna.tipo === "GONIOMETRIA",
-        );
-        const colunasData = campo.colunas.map((coluna) => ({
-          titulo: coluna.titulo,
-          tipo: coluna.tipo,
-          formatacao: coluna.formatacao || null,
-          opcoes: coluna.tipo === "MULTIPLA_ESCOLHA" ? coluna.opcoes : [],
-          multiplaSelecao:
-            coluna.tipo === "MULTIPLA_ESCOLHA"
-              ? coluna.multiplaSelecao
-              : false,
-          valorIdeal:
-            coluna.tipo === "NUMERO" && coluna.valorIdeal
-              ? coluna.valorIdeal
-              : null,
-          direcaoIdeal:
-            coluna.tipo === "NUMERO" ? coluna.direcaoIdeal || null : null,
-        }));
+type ExameFormData = ReturnType<typeof exameSchema.parse>;
+type SecaoInput = ExameFormData["secoes"][number];
+type CampoInput = SecaoInput["campos"][number];
+type ColunaInput = CampoInput["colunas"][number];
 
-        if (campo.repetivel && campo.identificarMembro && !temGoniometria) {
-          colunasData.unshift({
-            titulo: "Membro",
-            tipo: "MEMBRO",
-            formatacao: null,
-            opcoes: OPCOES_MEMBRO,
-            multiplaSelecao: false,
-            valorIdeal: null,
-            direcaoIdeal: null,
-          });
-        }
+/**
+ * Monta o payload de uma coluna, tanto para `create` quanto para `update`
+ * (nenhum dos dois precisa de `campoId`/`id`, que vêm do aninhamento).
+ */
+function colunaData(coluna: ColunaInput, ordem: number) {
+  return {
+    titulo: coluna.titulo,
+    ordem,
+    tipo: coluna.tipo,
+    formatacao: coluna.formatacao || null,
+    opcoes:
+      coluna.tipo === "MULTIPLA_ESCOLHA" || coluna.tipo === "MEMBRO"
+        ? coluna.opcoes
+        : [],
+    multiplaSelecao:
+      coluna.tipo === "MULTIPLA_ESCOLHA" ? coluna.multiplaSelecao : false,
+    valorIdeal:
+      coluna.tipo === "NUMERO" && coluna.valorIdeal ? coluna.valorIdeal : null,
+    direcaoIdeal: coluna.tipo === "NUMERO" ? coluna.direcaoIdeal || null : null,
+  };
+}
 
-        return {
-          nome: campo.nome,
-          ordem: campoIndex,
-          repetivel: campo.repetivel,
-          identificarMembro:
-            (campo.repetivel || temGoniometria) && campo.identificarMembro,
-          colunas: {
-            create: colunasData.map((coluna, colunaIndex) => ({
-              ...coluna,
-              ordem: colunaIndex,
-            })),
-          },
-        };
-      }),
+function temGoniometria(campo: CampoInput) {
+  return campo.colunas.some((c) => c.tipo === "GONIOMETRIA");
+}
+
+/**
+ * A coluna "Membro" é injetada automaticamente em campos repetíveis que
+ * identificam o membro avaliado — ela não passa pelo formulário.
+ */
+function precisaColunaMembro(campo: CampoInput) {
+  return campo.repetivel && campo.identificarMembro && !temGoniometria(campo);
+}
+
+function colunaMembroInput(id?: string): ColunaInput & { id?: string } {
+  return {
+    id,
+    titulo: "Membro",
+    tipo: "MEMBRO" as ColunaInput["tipo"],
+    formatacao: "",
+    opcoes: OPCOES_MEMBRO,
+    multiplaSelecao: false,
+    valorIdeal: "",
+    direcaoIdeal: undefined,
+  };
+}
+
+/** Colunas de um campo já com a "Membro" injetada quando necessário. */
+function colunasComMembro(
+  campo: CampoInput,
+  membroId?: string,
+): (ColunaInput & { id?: string })[] {
+  return precisaColunaMembro(campo)
+    ? [colunaMembroInput(membroId), ...campo.colunas]
+    : campo.colunas;
+}
+
+function campoIdentificaMembro(campo: CampoInput) {
+  return (campo.repetivel || temGoniometria(campo)) && campo.identificarMembro;
+}
+
+function campoCreateData(campo: CampoInput, ordem: number) {
+  return {
+    nome: campo.nome,
+    ordem,
+    repetivel: campo.repetivel,
+    identificarMembro: campoIdentificaMembro(campo),
+    colunas: {
+      create: colunasComMembro(campo).map((coluna, i) => colunaData(coluna, i)),
     },
-  }));
+  };
+}
+
+function secaoCreateData(secao: SecaoInput, ordem: number) {
+  return {
+    nome: secao.nome,
+    ordem,
+    campos: {
+      create: secao.campos.map((campo, i) => campoCreateData(campo, i)),
+    },
+  };
+}
+
+function secoesCreateData(secoes: ExameFormData["secoes"]) {
+  return secoes.map((secao, i) => secaoCreateData(secao, i));
 }
 
 export async function createExame(
@@ -163,28 +199,6 @@ export async function createExame(
   return { success: true };
 }
 
-type ColunaInput = ReturnType<typeof exameSchema.parse>["secoes"][number]["campos"][number]["colunas"][number];
-
-function colunaUpdateData(coluna: ColunaInput, ordem: number) {
-  return {
-    titulo: coluna.titulo,
-    ordem,
-    tipo: coluna.tipo,
-    formatacao: coluna.formatacao || null,
-    opcoes:
-      coluna.tipo === "MULTIPLA_ESCOLHA" || coluna.tipo === "MEMBRO"
-        ? coluna.opcoes
-        : [],
-    multiplaSelecao:
-      coluna.tipo === "MULTIPLA_ESCOLHA" ? coluna.multiplaSelecao : false,
-    valorIdeal:
-      coluna.tipo === "NUMERO" && coluna.valorIdeal ? coluna.valorIdeal : null,
-    direcaoIdeal: coluna.tipo === "NUMERO" ? coluna.direcaoIdeal || null : null,
-  };
-}
-
-type ExameFormData = ReturnType<typeof exameSchema.parse>;
-
 /**
  * Atualiza um exame preservando os registros existentes de seção/campo/coluna
  * sempre que possível (fazendo update em vez de apagar e recriar), para não
@@ -194,154 +208,116 @@ type ExameFormData = ReturnType<typeof exameSchema.parse>;
  * Usada apenas quando o exame ainda não tem nenhuma avaliação registrada —
  * nesse caso não há histórico a proteger, então editar em cima do mesmo
  * registro é seguro e evita acumular versões de um modelo que nunca foi usado.
+ *
+ * Tudo é enviado como um único nested write do Prisma (`exame.update` com
+ * `deleteMany`/`update`/`create` aninhados). Isso é atômico e evita a
+ * transação interativa com dezenas de round-trips sequenciais, que estourava
+ * o timeout de 5s no pooler do Neon em produção para exames com muitas
+ * colunas (erro P2028).
  */
 async function updateExameInPlace(id: string, data: ExameFormData) {
-  await prisma.$transaction(async (tx) => {
-    const existente = await tx.exame.findUniqueOrThrow({
-      where: { id },
-      include: {
-        secoes: { include: { campos: { include: { colunas: true } } } },
-      },
-    });
+  const existente = await prisma.exame.findUniqueOrThrow({
+    where: { id },
+    include: {
+      secoes: { include: { campos: { include: { colunas: true } } } },
+    },
+  });
 
-    await tx.exame.update({
-      where: { id },
-      data: {
-        nome: data.nome,
-        descricao: data.descricao || null,
-        tipo: data.tipo,
-      },
-    });
+  type SecaoExistente = (typeof existente.secoes)[number];
+  type CampoExistente = SecaoExistente["campos"][number];
 
-    const secaoIdsRecebidos = new Set(
-      data.secoes.map((s) => s.id).filter(Boolean),
+  const idsMantidos = <T extends { id?: string }>(itens: T[]) =>
+    itens.map((i) => i.id).filter((v): v is string => Boolean(v));
+
+  const colunasNested = (campo: CampoInput, campoExistente: CampoExistente) => {
+    const membroExistente = campoExistente.colunas.find(
+      (c) => c.tipo === "MEMBRO",
     );
-    for (const secaoExistente of existente.secoes) {
-      if (!secaoIdsRecebidos.has(secaoExistente.id)) {
-        await tx.exameSecao.delete({ where: { id: secaoExistente.id } });
-      }
-    }
+    const colunasInput = colunasComMembro(campo, membroExistente?.id);
+    const mantidos = idsMantidos(colunasInput);
 
-    for (const [secaoIndex, secaoInput] of data.secoes.entries()) {
-      const secaoExistente = existente.secoes.find(
-        (s) => s.id === secaoInput.id,
-      );
+    return {
+      deleteMany: mantidos.length > 0 ? { id: { notIn: mantidos } } : {},
+      update: colunasInput.flatMap((coluna, i) => {
+        const atual = campoExistente.colunas.find((c) => c.id === coluna.id);
+        return atual
+          ? [{ where: { id: atual.id }, data: colunaData(coluna, i) }]
+          : [];
+      }),
+      create: colunasInput.flatMap((coluna, i) => {
+        const atual = campoExistente.colunas.find((c) => c.id === coluna.id);
+        return atual ? [] : [colunaData(coluna, i)];
+      }),
+    };
+  };
 
-      const secaoId = secaoExistente
-        ? secaoExistente.id
-        : (
-            await tx.exameSecao.create({
-              data: { nome: secaoInput.nome, ordem: secaoIndex, exameId: id },
-            })
-          ).id;
+  const camposNested = (secao: SecaoInput, secaoExistente: SecaoExistente) => {
+    const mantidos = idsMantidos(secao.campos);
 
-      if (secaoExistente) {
-        await tx.exameSecao.update({
-          where: { id: secaoId },
-          data: { nome: secaoInput.nome, ordem: secaoIndex },
-        });
-      }
-
-      const camposExistentes = secaoExistente?.campos ?? [];
-      const campoIdsRecebidos = new Set(
-        secaoInput.campos.map((c) => c.id).filter(Boolean),
-      );
-      for (const campoExistente of camposExistentes) {
-        if (!campoIdsRecebidos.has(campoExistente.id)) {
-          await tx.exameCampo.delete({ where: { id: campoExistente.id } });
-        }
-      }
-
-      for (const [campoIndex, campoInput] of secaoInput.campos.entries()) {
-        const campoExistente = camposExistentes.find(
-          (c) => c.id === campoInput.id,
+    return {
+      deleteMany: mantidos.length > 0 ? { id: { notIn: mantidos } } : {},
+      update: secao.campos.flatMap((campo, i) => {
+        const campoExistente = secaoExistente.campos.find(
+          (c) => c.id === campo.id,
         );
-        const temGoniometria = campoInput.colunas.some(
-          (c) => c.tipo === "GONIOMETRIA",
+        if (!campoExistente) return [];
+        return [
+          {
+            where: { id: campoExistente.id },
+            data: {
+              nome: campo.nome,
+              ordem: i,
+              repetivel: campo.repetivel,
+              identificarMembro: campoIdentificaMembro(campo),
+              colunas: colunasNested(campo, campoExistente),
+            },
+          },
+        ];
+      }),
+      create: secao.campos.flatMap((campo, i) => {
+        const campoExistente = secaoExistente.campos.find(
+          (c) => c.id === campo.id,
         );
-        const identificarMembro =
-          (campoInput.repetivel || temGoniometria) &&
-          campoInput.identificarMembro;
+        return campoExistente ? [] : [campoCreateData(campo, i)];
+      }),
+    };
+  };
 
-        const campoData = {
-          nome: campoInput.nome,
-          ordem: campoIndex,
-          repetivel: campoInput.repetivel,
-          identificarMembro,
-        };
+  const secoesMantidas = idsMantidos(data.secoes);
 
-        const campoId = campoExistente
-          ? campoExistente.id
-          : (
-              await tx.exameCampo.create({
-                data: { ...campoData, secaoId },
-              })
-            ).id;
-
-        if (campoExistente) {
-          await tx.exameCampo.update({
-            where: { id: campoId },
-            data: campoData,
-          });
-        }
-
-        const colunasExistentes = campoExistente?.colunas ?? [];
-
-        // A coluna "Membro" é injetada automaticamente (não passa pelo
-        // formulário) — reaproveita a que já existir nesse campo para manter
-        // os valores já registrados vinculados a ela.
-        const membroExistente = colunasExistentes.find(
-          (c) => c.tipo === "MEMBRO",
-        );
-        const precisaMembro =
-          campoInput.repetivel && campoInput.identificarMembro && !temGoniometria;
-
-        const colunasInput: (ColunaInput & { id?: string })[] = precisaMembro
-          ? [
-              {
-                id: membroExistente?.id,
-                titulo: "Membro",
-                tipo: "MEMBRO" as ColunaInput["tipo"],
-                formatacao: "",
-                opcoes: OPCOES_MEMBRO,
-                multiplaSelecao: false,
-                valorIdeal: "",
-                direcaoIdeal: undefined,
-              },
-              ...campoInput.colunas,
-            ]
-          : campoInput.colunas;
-
-        const colunaIdsRecebidos = new Set(
-          colunasInput.map((c) => c.id).filter(Boolean),
-        );
-        for (const colunaExistente of colunasExistentes) {
-          if (!colunaIdsRecebidos.has(colunaExistente.id)) {
-            await tx.exameCampoColuna.delete({
-              where: { id: colunaExistente.id },
-            });
-          }
-        }
-
-        for (const [colunaIndex, colunaInput] of colunasInput.entries()) {
-          const colunaExistente = colunasExistentes.find(
-            (c) => c.id === colunaInput.id,
+  await prisma.exame.update({
+    where: { id },
+    data: {
+      nome: data.nome,
+      descricao: data.descricao || null,
+      tipo: data.tipo,
+      secoes: {
+        deleteMany:
+          secoesMantidas.length > 0 ? { id: { notIn: secoesMantidas } } : {},
+        update: data.secoes.flatMap((secao, i) => {
+          const secaoExistente = existente.secoes.find(
+            (s) => s.id === secao.id,
           );
-          const colunaData = colunaUpdateData(colunaInput, colunaIndex);
-
-          if (colunaExistente) {
-            await tx.exameCampoColuna.update({
-              where: { id: colunaExistente.id },
-              data: colunaData,
-            });
-          } else {
-            await tx.exameCampoColuna.create({
-              data: { ...colunaData, campoId },
-            });
-          }
-        }
-      }
-    }
+          if (!secaoExistente) return [];
+          return [
+            {
+              where: { id: secaoExistente.id },
+              data: {
+                nome: secao.nome,
+                ordem: i,
+                campos: camposNested(secao, secaoExistente),
+              },
+            },
+          ];
+        }),
+        create: data.secoes.flatMap((secao, i) => {
+          const secaoExistente = existente.secoes.find(
+            (s) => s.id === secao.id,
+          );
+          return secaoExistente ? [] : [secaoCreateData(secao, i)];
+        }),
+      },
+    },
   });
 }
 
@@ -381,7 +357,8 @@ export async function updateExame(
     };
   }
 
-  const emUso = (await prisma.exameExecucao.count({ where: { exameId: id } })) > 0;
+  const emUso =
+    (await prisma.exameExecucao.count({ where: { exameId: id } })) > 0;
 
   if (emUso) {
     await criarNovaVersaoExame(id, parsed.data);
