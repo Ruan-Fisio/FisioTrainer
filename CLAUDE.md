@@ -165,14 +165,35 @@ Pelo portal, cada slot preenchido `AGENDADO` tem botão **"Desmarcar"** (`Desmar
 - Desmarcar a tempo = `desmarcarAgendamentoPeloPaciente(agendamentoId, pacienteId)` seta `status: "CANCELADO"` (+ nota em `observacao`). Não há tabela/contador/cron de "crédito": a vaga do plano no mês reabre sozinha porque `contarAgendamentosNoMes` / `getConsumoPlanoPaciente` ignoram `CANCELADO`, e a janela mês-calendário faz o crédito não usado expirar na virada do mês. O paciente reagenda pelo botão "Agendar" que já existe.
 - O lado da clínica **não** passa por essa regra — cancela/exclui/remarca livremente pelos fluxos existentes.
 
-## Fuso horário — tudo em horário de Brasília
+## Fuso horário — tudo em horário de Brasília (LEIA ANTES DE MEXER EM QUALQUER DATA)
 
-A clínica opera em `America/Sao_Paulo` e o sistema assume esse fuso em todo lugar (o Brasil não tem horário de verão desde 2019, offset fixo `-03:00`).
+A clínica opera em `America/Sao_Paulo` (UTC-3 fixo, sem horário de verão desde 2019). **Não confie no fuso do processo** — a Vercel roda as server functions em UTC e o `next.config.ts` seta `process.env.TZ` mas isso não é 100% garantido em todo runtime. O navegador de um usuário pode estar em qualquer fuso. **Toda lógica de data tem que ser explícita sobre o fuso**, no servidor e no cliente.
 
-- **Entrada**: `combinarDataHora(data, hora)` (`src/lib/validations/agendamento.ts`) sempre anexa `-03:00` — o instante gravado não depende do fuso do processo (a Vercel roda em UTC).
-- **Colunas de data/hora com hora relevante** usam `@db.Timestamptz(3)` (ex. `Agendamento.dataInicio/dataFim`) — guardam instante real, não timestamp naïve.
-- **Runtime**: `next.config.ts` faz `process.env.TZ = process.env.APP_TIMEZONE ?? process.env.TZ ?? "America/Sao_Paulo"` (afeta RSC/server actions/date-fns). `TZ` é nome reservado na Vercel — não dá pra setar lá; o fallback hardcoded já cobre produção. Para trocar o fuso, use a env var `APP_TIMEZONE`.
-- **Exibição**: `src/lib/format.ts` formata com `timeZone: "America/Sao_Paulo"` explícito (`formatarData`, `formatarDataHora`, `toDateInputValue`, `toTimeInputValue`, `horaDoDia`). Componentes client de calendário/dashboard também passam `timeZone` explícito nos `toLocale*`. Para agrupar evento por faixa horária use `horaDoDia(date)`, nunca `date.getHours()`.
+### Bug recorrente
+
+Todo problema de "evento com hora errada / evento sumindo do calendário / contador da semana zerado" teve a mesma raiz: algum código montou uma data ou uma borda de intervalo usando o fuso do processo/navegador em vez de Brasília, e servidor e cliente discordaram por 3h.
+
+### PROIBIDO (essas APIs usam o fuso do processo/navegador)
+
+- `new Date("2026-09-03T13:10:00")` sem offset → use `combinarDataHora(data, hora)` (anexa `-03:00`)
+- `date.getHours()` / `getDate()` / `getDay()` / `getMonth()` / `setHours(...)` para lógica → use os helpers de `src/lib/format.ts` / `src/lib/datas-brasilia.ts`
+- `date-fns` `startOfDay` / `endOfDay` / `startOfWeek` / `endOfWeek` / `startOfMonth` / `endOfMonth` com `new Date()` → use `src/lib/datas-brasilia.ts`
+- `date.toLocaleString/toLocaleDateString/toLocaleTimeString(...)` **sem** `timeZone: "America/Sao_Paulo"`
+- `date-fns` `format(...)` para hora do dia (não aceita timeZone) → use `toTimeInputValue` / `formatarDataHora`
+- comparar dois `Date` "do mesmo dia" via `d.getFullYear()===... && getMonth()===...` → compare `toDateInputValue(a) === toDateInputValue(b)`
+
+### OBRIGATÓRIO
+
+- **Entrada (form → banco)**: `combinarDataHora(data, hora)` (`src/lib/validations/agendamento.ts`) — interpreta como Brasília, resultado independe do fuso do processo.
+- **Colunas com hora relevante**: `@db.Timestamptz(3)` (ex. `Agendamento.dataInicio/dataFim`) — instante real, não timestamp naïve.
+- **Exibição**: helpers de `src/lib/format.ts`, todos ancorados em `America/Sao_Paulo`: `formatarData`, `formatarDataHora`, `toDateInputValue` (YYYY-MM-DD), `toTimeInputValue` (HH:mm), `horaDoDia` (0-23, para agrupar por faixa horária). Componente client que precisa de `toLocale*` passa `timeZone: "America/Sao_Paulo"` explícito.
+- **Bordas de intervalo (dia/semana/mês) em server action / query**: `src/lib/datas-brasilia.ts` — `inicioDoDia`, `fimDoDia`, `fimDaSemana` (semana começa domingo), `fimDoMes`. Calculam a borda no dia-calendário de Brasília sem depender do `TZ` do processo. É o que `getContagensAgenda` / `getProximosAgendamentos` (`src/actions/dashboard.ts`) usam.
+- **Casar evento com célula de calendário** (`calendario-mes.tsx`, `grade-horaria.tsx`): comparar `toDateInputValue(dia) === toDateInputValue(evento.dataInicio)`, nunca comparar instantes ou usar `getDate()`.
+- **Runtime (defesa extra, não fonte da verdade)**: `next.config.ts` faz `process.env.TZ = process.env.APP_TIMEZONE ?? "America/Sao_Paulo"`. `TZ` é nome reservado na Vercel; para trocar o fuso use a env var `APP_TIMEZONE`.
+
+### Testes de regressão
+
+`src/lib/datas-brasilia.test.ts` e `src/lib/validations/agendamento.test.ts` cobrem os limites e o `combinarDataHora` — rodam com `TZ` qualquer (o CI/local pode estar em Brasília, então os testes forçam cenários de virada de dia). Rodar `npm test` ao mexer em data.
 
 ## Seed
 

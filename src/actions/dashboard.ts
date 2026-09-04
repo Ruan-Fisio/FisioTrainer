@@ -1,30 +1,31 @@
 "use server";
 
-import { endOfDay, endOfMonth, endOfWeek, startOfDay } from "date-fns";
 import { prisma } from "@/lib/prisma";
+import {
+  fimDaSemana,
+  fimDoDia,
+  fimDoMes,
+  inicioDoDia,
+  inicioDoMes,
+  inicioDoProximoMes,
+} from "@/lib/datas-brasilia";
 
 export type PeriodoProximos = "dia" | "semana" | "mes";
 
 /** Contagem de compromissos ainda por acontecer em cada janela, para o resumo do dashboard. */
 export async function getContagensAgenda() {
-  const agora = new Date();
-  const base = {
-    status: "AGENDADO" as const,
-    dataInicio: { gte: startOfDay(agora) },
-  };
+  const inicio = inicioDoDia();
+  const base = { status: "AGENDADO" as const };
 
   const [dia, semana, mes] = await Promise.all([
     prisma.agendamento.count({
-      where: { ...base, dataInicio: { gte: startOfDay(agora), lte: endOfDay(agora) } },
+      where: { ...base, dataInicio: { gte: inicio, lte: fimDoDia() } },
     }),
     prisma.agendamento.count({
-      where: {
-        ...base,
-        dataInicio: { gte: startOfDay(agora), lte: endOfWeek(agora, { weekStartsOn: 0 }) },
-      },
+      where: { ...base, dataInicio: { gte: inicio, lte: fimDaSemana() } },
     }),
     prisma.agendamento.count({
-      where: { ...base, dataInicio: { gte: startOfDay(agora), lte: endOfMonth(agora) } },
+      where: { ...base, dataInicio: { gte: inicio, lte: fimDoMes() } },
     }),
   ]);
 
@@ -43,14 +44,9 @@ export async function getDashboardStats() {
 
 /** Agendamentos futuros (retornos/reavaliações) ainda não realizados, dentro do período escolhido. */
 export async function getProximosAgendamentos(periodo: PeriodoProximos = "dia") {
-  const agora = new Date();
-  const inicio = startOfDay(agora);
+  const inicio = inicioDoDia();
   const fim =
-    periodo === "dia"
-      ? endOfDay(agora)
-      : periodo === "semana"
-        ? endOfWeek(agora, { weekStartsOn: 0 })
-        : endOfMonth(agora);
+    periodo === "dia" ? fimDoDia() : periodo === "semana" ? fimDaSemana() : fimDoMes();
 
   return prisma.agendamento.findMany({
     where: { dataInicio: { gte: inicio, lte: fim }, status: { not: "CANCELADO" } },
@@ -64,10 +60,9 @@ export async function getProximosAgendamentos(periodo: PeriodoProximos = "dia") 
 }
 
 export async function getResumoFinanceiro() {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const inicioMes = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-  const inicioProximoMes = new Date(hoje.getFullYear(), hoje.getMonth() + 1, 1);
+  const hoje = inicioDoDia();
+  const inicioMes = inicioDoMes();
+  const inicioProximoMes = inicioDoProximoMes();
 
   const [recebidoMes, aReceberMes, atrasadas] = await Promise.all([
     prisma.cobranca.aggregate({
