@@ -7,6 +7,10 @@ import {
   ComprovantePdfDocument,
   type LinhaInfo,
 } from "@/lib/pdf/comprovante-documento";
+import {
+  formaPagamentoPlanoLabels,
+  periodicidadePlanoLabels,
+} from "@/lib/validations/plano";
 
 const STATUS_LABEL: Record<string, string> = {
   PENDENTE: "Pendente",
@@ -76,12 +80,8 @@ export async function GET(
       : []),
     { label: "Início", valor: formatarData(atribuicao.dataInicio) },
     { label: "Parcelamento", valor: `${atribuicao.numeroParcelas}x` },
-    {
-      label: "Forma de pagamento",
-      valor: atribuicao.cartao
-        ? `Cartão (taxa de ${Number(atribuicao.taxaCartao)}%)`
-        : "Outra (dinheiro, PIX, transferência etc.)",
-    },
+    { label: "Forma de pagamento", valor: formaPagamentoPlanoLabels[atribuicao.formaPagamento] },
+    { label: "Periodicidade", valor: periodicidadePlanoLabels[atribuicao.periodicidade] },
   ];
 
   const valorOriginal = Number(atribuicao.valorOriginal);

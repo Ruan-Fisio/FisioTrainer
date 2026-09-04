@@ -11,6 +11,8 @@ import {
   Wallet,
   Receipt,
   ListChecks,
+  ScrollText,
+  Settings,
 } from "lucide-react";
 
 export type NavLeaf = {
@@ -27,7 +29,14 @@ export const navItems: NavItem[] = [
   { title: "Pacientes", href: "/pacientes", icon: UserRound },
   { title: "Planos", href: "/planos", icon: Wallet },
   { title: "Cobranças", href: "/cobrancas", icon: Receipt },
-  { title: "Agenda", href: "/agenda", icon: CalendarClock },
+  {
+    title: "Agenda",
+    icon: CalendarClock,
+    items: [
+      { title: "Calendário", href: "/agenda" },
+      { title: "Grupos de pacientes", href: "/agenda/grupos" },
+    ],
+  },
   { title: "Exames", href: "/exames", icon: ClipboardList },
   { title: "Evoluções", href: "/evolucoes", icon: NotebookPen },
   { title: "Treinos", href: "/treinos", icon: ListChecks },
@@ -50,4 +59,6 @@ export const navItems: NavItem[] = [
     ],
   },
   { title: "Usuários", href: "/usuarios", icon: Users },
+  { title: "Configurações", href: "/configuracoes", icon: Settings },
+  { title: "Logs", href: "/logs", icon: ScrollText },
 ];

@@ -25,6 +25,7 @@ model User {
   telefone           String?
   endereco           String?
   evolucoes          Evolucao[]
+  agendamentos       Agendamento[]
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 }
@@ -161,10 +162,36 @@ model Paciente {
   evolucoes             Evolucao[]
   cobrancas             Cobranca[]
   agendamentos          Agendamento[]
+  grupos                GrupoPaciente[]
   planoAtribuicoes      PlanoAtribuicao[]
   treinos               Treino[]
+  acessosCompartilhados AcessoCompartilhadoPaciente[]
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
+}
+
+/// Link público (sem login) para o paciente ver suas avaliações, evoluções, treinos,
+/// planos e financeiro e fazer agendamentos pelo plano ativo. O token na URL é o segredo;
+/// `ativo`/`expiraEm` permitem revogar/expirar. Rota: /compartilhado/paciente/<token>.
+model AcessoCompartilhadoPaciente {
+  id             String    @id @default(cuid())
+  token          String    @unique @default(cuid())
+  pacienteId     String
+  paciente       Paciente  @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  ativo          Boolean   @default(true)
+  expiraEm       DateTime?
+  ultimoAcessoEm DateTime?
+  criadoEm       DateTime  @default(now())
+
+  @@index([pacienteId])
+}
+
+model GrupoPaciente {
+  id        String     @id @default(cuid())
+  nome      String
+  pacientes Paciente[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
 }
 
 model Evolucao {
@@ -228,28 +255,35 @@ enum TipoPlano {
   EDUCACAO_FISICA
 }
 
-model Plano {
-  id             String            @id @default(cuid())
-  nome           String            @unique
-  descricao      String?
-  tipos          TipoPlano[]
-  taxaCartao     Decimal           @default(0) @db.Decimal(5, 2)
-  opcoes         PlanoOpcao[]
-  atribuicoes    PlanoAtribuicao[]
-  createdAt      DateTime          @default(now())
-  updatedAt      DateTime          @updatedAt
+enum FormaPagamentoPlano {
+  A_VISTA
+  A_VISTA_NF
+  ATE_3X_CARTAO
+  ATE_3X_NF
 }
 
-model PlanoOpcao {
-  id            String            @id @default(cuid())
-  planoId       String
-  plano         Plano             @relation(fields: [planoId], references: [id], onDelete: Cascade)
-  atendimentos  Int
-  valor         Decimal           @db.Decimal(10, 2)
-  ordem         Int               @default(0)
-  atribuicoes   PlanoAtribuicao[]
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+enum PeriodicidadePlano {
+  MENSAL
+  TRIMESTRAL
+}
+
+model Plano {
+  id                         String              @id @default(cuid())
+  nome                       String              @unique
+  descricao                  String?
+  tipos                      TipoPlano[]
+  atendimentos               Int
+  valorAVistaMensal          Decimal             @db.Decimal(10, 2)
+  valorAVistaTrimestral      Decimal             @db.Decimal(10, 2)
+  valorAVistaNfMensal        Decimal             @db.Decimal(10, 2)
+  valorAVistaNfTrimestral    Decimal             @db.Decimal(10, 2)
+  valorAte3xCartaoMensal     Decimal             @db.Decimal(10, 2)
+  valorAte3xCartaoTrimestral Decimal             @db.Decimal(10, 2)
+  valorAte3xNfMensal         Decimal             @db.Decimal(10, 2)
+  valorAte3xNfTrimestral     Decimal             @db.Decimal(10, 2)
+  atribuicoes                PlanoAtribuicao[]
+  createdAt                  DateTime            @default(now())
+  updatedAt                  DateTime            @updatedAt
 }
 
 model PlanoAtribuicao {
@@ -258,30 +292,31 @@ model PlanoAtribuicao {
   paciente       Paciente              @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
   planoId        String?
   plano          Plano?                @relation(fields: [planoId], references: [id], onDelete: SetNull)
-  planoOpcaoId   String?
-  planoOpcao     PlanoOpcao?           @relation(fields: [planoOpcaoId], references: [id], onDelete: SetNull)
   planoNome      String
   atendimentos   Int?
+  formaPagamento FormaPagamentoPlano
+  periodicidade  PeriodicidadePlano    @default(MENSAL)
   valorOriginal  Decimal               @db.Decimal(10, 2)
   desconto       Decimal               @default(0) @db.Decimal(10, 2)
   valor          Decimal               @db.Decimal(10, 2)
   cartao         Boolean               @default(false)
-  taxaCartao     Decimal               @default(0) @db.Decimal(5, 2)
   notaFiscal     Boolean               @default(false)
   numeroParcelas Int
   dataInicio     DateTime
   status         StatusPlanoAtribuicao @default(ATIVO)
   cobrancas      Cobranca[]
+  agendamentos   Agendamento[]
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt
 
   @@index([pacienteId])
 }
 
-enum TipoAgendamento {
+enum ModalidadeAgendamento {
+  EDUCACAO_FISICA
+  FISIOTERAPIA
   AVALIACAO
-  RETORNO
-  SESSAO
+  TERAPIA_MANUAL
 }
 
 enum StatusAgendamento {
@@ -292,18 +327,44 @@ enum StatusAgendamento {
 }
 
 model Agendamento {
-  id         String            @id @default(cuid())
-  pacienteId String
-  paciente   Paciente          @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
-  dataHora   DateTime
-  tipo       TipoAgendamento   @default(RETORNO)
-  status     StatusAgendamento @default(AGENDADO)
-  observacao String?
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
+  id             String                @id @default(cuid())
+  titulo         String
+  pacientes      Paciente[]
+  profissionalId String?
+  profissional   User?                 @relation(fields: [profissionalId], references: [id], onDelete: SetNull)
+  dataInicio     DateTime
+  dataFim        DateTime
+  diaInteiro     Boolean               @default(false)
+  modalidade     ModalidadeAgendamento @default(FISIOTERAPIA)
+  status         StatusAgendamento     @default(AGENDADO)
+  observacao     String?
+  serieId        String?
+  planoAtribuicaoId String?
+  planoAtribuicao   PlanoAtribuicao? @relation(fields: [planoAtribuicaoId], references: [id], onDelete: SetNull)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
 
-  @@index([dataHora])
+  @@index([dataInicio])
   @@index([status])
+  @@index([serieId])
+  @@index([modalidade])
+  @@index([planoAtribuicaoId])
+}
+
+/// Horários de atendimento pré-configurados por modalidade (usados para Educação Física e
+/// Fisioterapia, que têm grade fixa de horários; Avaliação e Terapia Manual usam horário livre).
+model HorarioAtendimento {
+  id         String                @id @default(cuid())
+  modalidade ModalidadeAgendamento
+  horario    String
+  duracaoMin Int                   @default(50)
+  ativo      Boolean               @default(true)
+  ordem      Int                   @default(0)
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  @@unique([modalidade, horario])
+  @@index([modalidade])
 }
 
 enum TipoExecucaoExame {
@@ -394,4 +455,24 @@ model TreinoDiaExercicio {
   updatedAt   DateTime  @updatedAt
 
   @@index([treinoDiaId])
+}
+
+/// Registro de auditoria: toda operação de escrita (create/update/delete) em qualquer
+/// model é gravada aqui automaticamente pela extensão do Prisma Client (src/lib/prisma.ts).
+/// Visível na tela /logs. Nunca é lido/escrito manualmente pelas server actions.
+model AuditLog {
+  id          String   @id @default(cuid())
+  criadoEm    DateTime @default(now())
+  usuarioId   String?
+  usuarioNome String?
+  modulo      String
+  acao        String
+  registroId  String?
+  resumo      String
+  dados       Json?
+
+  @@index([criadoEm])
+  @@index([modulo])
+  @@index([acao])
+  @@index([usuarioId])
 }

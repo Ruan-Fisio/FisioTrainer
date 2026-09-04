@@ -4,10 +4,11 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { planoAtribuicaoSchema } from "@/lib/validations/plano-atribuicao";
 import {
-  aplicarTaxaCartao,
-  aplicarTaxaNotaFiscal,
   calcularDesconto,
+  cartaoDaForma,
   gerarValoresParcelas,
+  notaFiscalDaForma,
+  valorPlano,
 } from "@/lib/planos";
 
 export async function listPlanoAtribuicoesByPaciente(pacienteId: string) {
@@ -22,7 +23,6 @@ export async function listPlanoAtribuicoesByPaciente(pacienteId: string) {
     valorOriginal: Number(a.valorOriginal),
     desconto: Number(a.desconto),
     valor: Number(a.valor),
-    taxaCartao: Number(a.taxaCartao),
     cobrancas: a.cobrancas.map((m) => ({ ...m, valor: Number(m.valor) })),
   }));
 }
@@ -38,7 +38,6 @@ export async function getPlanoAtribuicao(id: string) {
     valorOriginal: Number(atribuicao.valorOriginal),
     desconto: Number(atribuicao.desconto),
     valor: Number(atribuicao.valor),
-    taxaCartao: Number(atribuicao.taxaCartao),
     cobrancas: atribuicao.cobrancas.map((m) => ({
       ...m,
       valor: Number(m.valor),
@@ -53,20 +52,13 @@ export type PlanoAtribuicaoActionState = {
 
 function parseForm(formData: FormData) {
   return planoAtribuicaoSchema.safeParse({
-    planoOpcaoId: formData.get("planoOpcaoId"),
-    cartao: formData.get("cartao") ?? "false",
-    notaFiscal: formData.get("notaFiscal") ?? "false",
+    planoId: formData.get("planoId"),
+    formaPagamento: formData.get("formaPagamento"),
+    periodicidade: formData.get("periodicidade") ?? "MENSAL",
     vencimentos: formData.getAll("vencimentos"),
     descontoTipo: formData.get("descontoTipo") ?? "NENHUM",
     descontoValor: formData.get("descontoValor"),
     valorAlvoParcela: formData.get("valorAlvoParcela"),
-  });
-}
-
-async function buscarOpcao(planoOpcaoId: string) {
-  return prisma.planoOpcao.findUnique({
-    where: { id: planoOpcaoId },
-    include: { plano: true },
   });
 }
 
@@ -105,16 +97,19 @@ export async function createPlanoAtribuicao(
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
 
-  const opcao = await buscarOpcao(parsed.data.planoOpcaoId);
+  const plano = await prisma.plano.findUnique({ where: { id: parsed.data.planoId } });
 
-  if (!opcao) {
-    return { error: "Opção de plano não encontrada." };
+  if (!plano) {
+    return { error: "Plano não encontrado." };
   }
 
-  const plano = opcao.plano;
-  const taxaCartao = Number(plano.taxaCartao);
-  const valorComCartao = aplicarTaxaCartao(Number(opcao.valor), taxaCartao, parsed.data.cartao);
-  const valorOriginal = aplicarTaxaNotaFiscal(valorComCartao, parsed.data.notaFiscal);
+  const cartao = cartaoDaForma(parsed.data.formaPagamento);
+  const notaFiscal = notaFiscalDaForma(parsed.data.formaPagamento);
+  const valorOriginal = valorPlano(
+    plano,
+    parsed.data.formaPagamento,
+    parsed.data.periodicidade,
+  );
   const vencimentosOrdenados = [...parsed.data.vencimentos].sort(
     (a, b) => a.getTime() - b.getTime(),
   );
@@ -131,15 +126,15 @@ export async function createPlanoAtribuicao(
       data: {
         pacienteId,
         planoId: plano.id,
-        planoOpcaoId: opcao.id,
         planoNome: plano.nome,
-        atendimentos: opcao.atendimentos,
+        atendimentos: plano.atendimentos,
+        formaPagamento: parsed.data.formaPagamento,
+        periodicidade: parsed.data.periodicidade,
         valorOriginal,
         desconto,
         valor,
-        cartao: parsed.data.cartao,
-        taxaCartao: parsed.data.cartao ? taxaCartao : 0,
-        notaFiscal: parsed.data.notaFiscal,
+        cartao,
+        notaFiscal,
         numeroParcelas: vencimentosOrdenados.length,
         dataInicio: vencimentosOrdenados[0],
       },
@@ -151,7 +146,7 @@ export async function createPlanoAtribuicao(
       plano.nome,
       valor,
       vencimentosOrdenados,
-      parsed.data.notaFiscal,
+      notaFiscal,
     );
 
     await tx.cobranca.createMany({ data: parcelas });
@@ -181,16 +176,19 @@ export async function updatePlanoAtribuicao(
     return { error: "Atribuição não encontrada." };
   }
 
-  const opcao = await buscarOpcao(parsed.data.planoOpcaoId);
+  const plano = await prisma.plano.findUnique({ where: { id: parsed.data.planoId } });
 
-  if (!opcao) {
-    return { error: "Opção de plano não encontrada." };
+  if (!plano) {
+    return { error: "Plano não encontrado." };
   }
 
-  const plano = opcao.plano;
-  const taxaCartao = Number(plano.taxaCartao);
-  const valorComCartao = aplicarTaxaCartao(Number(opcao.valor), taxaCartao, parsed.data.cartao);
-  const valorOriginal = aplicarTaxaNotaFiscal(valorComCartao, parsed.data.notaFiscal);
+  const cartao = cartaoDaForma(parsed.data.formaPagamento);
+  const notaFiscal = notaFiscalDaForma(parsed.data.formaPagamento);
+  const valorOriginal = valorPlano(
+    plano,
+    parsed.data.formaPagamento,
+    parsed.data.periodicidade,
+  );
   const vencimentosOrdenados = [...parsed.data.vencimentos].sort(
     (a, b) => a.getTime() - b.getTime(),
   );
@@ -211,15 +209,15 @@ export async function updatePlanoAtribuicao(
       where: { id },
       data: {
         planoId: plano.id,
-        planoOpcaoId: opcao.id,
         planoNome: plano.nome,
-        atendimentos: opcao.atendimentos,
+        atendimentos: plano.atendimentos,
+        formaPagamento: parsed.data.formaPagamento,
+        periodicidade: parsed.data.periodicidade,
         valorOriginal,
         desconto,
         valor,
-        cartao: parsed.data.cartao,
-        taxaCartao: parsed.data.cartao ? taxaCartao : 0,
-        notaFiscal: parsed.data.notaFiscal,
+        cartao,
+        notaFiscal,
         numeroParcelas: vencimentosOrdenados.length,
         dataInicio: vencimentosOrdenados[0],
         status: "ATIVO",
@@ -232,7 +230,7 @@ export async function updatePlanoAtribuicao(
       plano.nome,
       valor,
       vencimentosOrdenados,
-      parsed.data.notaFiscal,
+      notaFiscal,
     );
 
     await tx.cobranca.createMany({ data: parcelas });

@@ -1,7 +1,18 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Pencil, Plus } from "lucide-react";
+import {
+  Calendar,
+  ClipboardList,
+  ClipboardPlus,
+  Dumbbell,
+  NotebookPen,
+  Package,
+  Pencil,
+  Receipt,
+  Stethoscope,
+  Wallet,
+} from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
@@ -14,7 +25,11 @@ import { getAvaliacoesByPaciente } from "@/actions/exame-execucoes";
 import { getEvolucoesByPaciente } from "@/actions/evolucoes";
 import { getCobrancasByPaciente } from "@/actions/cobrancas";
 import { listPlanoAtribuicoesByPaciente } from "@/actions/plano-atribuicoes";
+import { getConsumoPlanoPaciente } from "@/actions/agendamentos";
+import { PacienteAgendamentosTab } from "@/components/pacientes/paciente-agendamentos-tab";
 import { HistoricoClinicoDialog } from "@/components/pacientes/historico-clinico-dialog";
+import { AgendamentoAssistidoDialog } from "@/components/pacientes/agendamento-assistido-dialog";
+import { CompartilharAcessoDialog } from "@/components/pacientes/compartilhar-acesso-dialog";
 import { PacienteTabs } from "@/components/pacientes/paciente-tabs";
 import { listTreinosPaciente } from "@/actions/treinos-paciente";
 import { TreinosPacienteList } from "@/components/treinos/treinos-paciente-list";
@@ -33,6 +48,26 @@ async function AvaliacoesListLoader({ pacienteId }: { pacienteId: string }) {
 async function EvolucoesListLoader({ pacienteId }: { pacienteId: string }) {
   const evolucoes = await getEvolucoesByPaciente(pacienteId);
   return <EvolucoesList pacienteId={pacienteId} evolucoes={evolucoes} />;
+}
+
+async function AgendamentosTabLoader({ pacienteId }: { pacienteId: string }) {
+  const agora = new Date();
+  const ano = agora.getFullYear();
+  const mes = agora.getMonth() + 1;
+  const resumo = await getConsumoPlanoPaciente(pacienteId, ano, mes);
+  return (
+    <PacienteAgendamentosTab
+      pacienteId={pacienteId}
+      resumoInicial={resumo}
+      anoInicial={ano}
+      mesInicial={mes}
+    />
+  );
+}
+
+async function PlanosLoader({ pacienteId }: { pacienteId: string }) {
+  const atribuicoes = await listPlanoAtribuicoesByPaciente(pacienteId);
+  return <PlanoAtribuicoesList atribuicoes={atribuicoes} pacienteId={pacienteId} />;
 }
 
 async function FinanceiroLoader({
@@ -57,27 +92,14 @@ async function FinanceiroLoader({
   ]);
 
   return (
-    <div className="flex flex-col gap-6">
-      <PlanoAtribuicoesList atribuicoes={atribuicoes} pacienteId={pacienteId} />
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Cobranças</h2>
-          <Button asChild size="sm" variant="outline">
-            <Link href={`/pacientes/${pacienteId}/cobrancas/novo`}>
-              <Plus />
-              Cobrança avulsa
-            </Link>
-          </Button>
-        </div>
-        <PacienteCobrancasList
-          pacienteId={pacienteId}
-          pacienteNome={pacienteNome}
-          pacienteContato={pacienteContato}
-          cobrancas={cobrancas}
-          cnpjPix={profissional?.cpfCnpj ?? null}
-        />
-      </div>
-    </div>
+    <PacienteCobrancasList
+      pacienteId={pacienteId}
+      pacienteNome={pacienteNome}
+      pacienteContato={pacienteContato}
+      cobrancas={cobrancas}
+      atribuicoes={atribuicoes}
+      cnpjPix={profissional?.cpfCnpj ?? null}
+    />
   );
 }
 
@@ -111,7 +133,8 @@ export default async function PacienteDetailPage({
               .join(" · ") || "Sem dados de contato cadastrados"}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <CompartilharAcessoDialog pacienteId={id} />
           <HistoricoClinicoDialog paciente={paciente} />
           <Button asChild variant="outline">
             <Link href={`/pacientes/${id}/editar`}>
@@ -128,10 +151,11 @@ export default async function PacienteDetailPage({
           {
             value: "avaliacoes",
             label: "Avaliações",
+            icon: <ClipboardList />,
             action: (
               <Button asChild size="sm">
                 <Link href={`/pacientes/${id}/exames/novo`}>
-                  <Plus />
+                  <ClipboardPlus />
                   Nova avaliação
                 </Link>
               </Button>
@@ -145,10 +169,11 @@ export default async function PacienteDetailPage({
           {
             value: "evolucoes",
             label: "Evoluções",
+            icon: <Stethoscope />,
             action: (
               <Button asChild size="sm">
                 <Link href={`/pacientes/${id}/evolucoes/novo`}>
-                  <Plus />
+                  <NotebookPen />
                   Nova evolução
                 </Link>
               </Button>
@@ -162,6 +187,7 @@ export default async function PacienteDetailPage({
           {
             value: "treinos",
             label: "Treinos",
+            icon: <Dumbbell />,
             action: <AtribuirTreinoButton pacienteId={id} />,
             content: (
               <Suspense fallback={<TableSkeleton />}>
@@ -170,13 +196,43 @@ export default async function PacienteDetailPage({
             ),
           },
           {
-            value: "financeiro",
-            label: "Financeiro",
+            value: "planos",
+            label: "Planos",
+            icon: <Package />,
             action: (
               <Button asChild size="sm">
                 <Link href={`/pacientes/${id}/planos/novo`}>
-                  <Plus />
+                  <Package />
                   Atribuir plano
+                </Link>
+              </Button>
+            ),
+            content: (
+              <Suspense fallback={<TableSkeleton />}>
+                <PlanosLoader pacienteId={id} />
+              </Suspense>
+            ),
+          },
+          {
+            value: "agendamentos",
+            label: "Agendamentos",
+            icon: <Calendar />,
+            action: <AgendamentoAssistidoDialog pacienteId={id} />,
+            content: (
+              <Suspense fallback={<TableSkeleton />}>
+                <AgendamentosTabLoader pacienteId={id} />
+              </Suspense>
+            ),
+          },
+          {
+            value: "financeiro",
+            label: "Financeiro",
+            icon: <Wallet />,
+            action: (
+              <Button asChild size="sm" variant="outline">
+                <Link href={`/pacientes/${id}/cobrancas/novo`}>
+                  <Receipt />
+                  Cobrança avulsa
                 </Link>
               </Button>
             ),

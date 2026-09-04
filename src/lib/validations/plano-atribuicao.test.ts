@@ -3,10 +3,10 @@ import { planoAtribuicaoSchema } from "./plano-atribuicao";
 
 function baseInput(overrides: Record<string, unknown> = {}) {
   return {
-    planoOpcaoId: "opcao-1",
-    cartao: "false",
-    notaFiscal: "false",
-    vencimentos: ["2026-09-01", "2026-10-01"],
+    planoId: "plano-1",
+    formaPagamento: "A_VISTA",
+    periodicidade: "MENSAL",
+    vencimentos: ["2026-09-01"],
     ...overrides,
   };
 }
@@ -16,26 +16,22 @@ describe("planoAtribuicaoSchema", () => {
     const parsed = planoAtribuicaoSchema.safeParse(baseInput());
     expect(parsed.success).toBe(true);
     if (parsed.success) {
-      expect(parsed.data.vencimentos).toHaveLength(2);
+      expect(parsed.data.vencimentos).toHaveLength(1);
       expect(parsed.data.vencimentos[0]).toBeInstanceOf(Date);
-      expect(parsed.data.cartao).toBe(false);
+      expect(parsed.data.formaPagamento).toBe("A_VISTA");
     }
   });
 
-  it("converte cartao 'true' para booleano true", () => {
-    const parsed = planoAtribuicaoSchema.safeParse(baseInput({ cartao: "true" }));
-    expect(parsed.success).toBe(true);
-    if (parsed.success) {
-      expect(parsed.data.cartao).toBe(true);
-    }
+  it("exige planoId", () => {
+    const parsed = planoAtribuicaoSchema.safeParse(baseInput({ planoId: "" }));
+    expect(parsed.success).toBe(false);
   });
 
-  it("converte notaFiscal 'true' para booleano true", () => {
-    const parsed = planoAtribuicaoSchema.safeParse(baseInput({ notaFiscal: "true" }));
-    expect(parsed.success).toBe(true);
-    if (parsed.success) {
-      expect(parsed.data.notaFiscal).toBe(true);
-    }
+  it("exige formaPagamento válido", () => {
+    const parsed = planoAtribuicaoSchema.safeParse(
+      baseInput({ formaPagamento: "OUTRA" }),
+    );
+    expect(parsed.success).toBe(false);
   });
 
   it("exige ao menos uma data de vencimento", () => {
@@ -43,15 +39,33 @@ describe("planoAtribuicaoSchema", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("aceita uma única parcela", () => {
+  it("aceita até 3 parcelas para formas 'até 3x'", () => {
     const parsed = planoAtribuicaoSchema.safeParse(
-      baseInput({ vencimentos: ["2026-09-01"] }),
+      baseInput({
+        formaPagamento: "ATE_3X_CARTAO",
+        vencimentos: ["2026-09-01", "2026-10-01", "2026-11-01"],
+      }),
     );
     expect(parsed.success).toBe(true);
   });
 
-  it("exige planoOpcaoId", () => {
-    const parsed = planoAtribuicaoSchema.safeParse(baseInput({ planoOpcaoId: "" }));
+  it("rejeita mais de 3 parcelas para formas 'até 3x'", () => {
+    const parsed = planoAtribuicaoSchema.safeParse(
+      baseInput({
+        formaPagamento: "ATE_3X_NF",
+        vencimentos: ["2026-09-01", "2026-10-01", "2026-11-01", "2026-12-01"],
+      }),
+    );
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejeita mais de 1 parcela para formas 'à vista'", () => {
+    const parsed = planoAtribuicaoSchema.safeParse(
+      baseInput({
+        formaPagamento: "A_VISTA_NF",
+        vencimentos: ["2026-09-01", "2026-10-01"],
+      }),
+    );
     expect(parsed.success).toBe(false);
   });
 

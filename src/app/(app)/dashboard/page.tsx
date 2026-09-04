@@ -1,23 +1,15 @@
 import Link from "next/link";
-import {
-  Users,
-  ClipboardCheck,
-  NotebookPen,
-  CalendarClock,
-  Wallet,
-  AlertTriangle,
-} from "lucide-react";
+import { Users, Wallet, AlertTriangle, CalendarDays } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { PacienteTabs as PageTabs } from "@/components/pacientes/paciente-tabs";
+import { AgendaResumoCard } from "@/components/dashboard/agenda-resumo-card";
 import {
-  getDashboardStats,
+  getContagensAgenda,
   getProximosAgendamentos,
   getResumoFinanceiro,
 } from "@/actions/dashboard";
-import { TIPO_AGENDAMENTO_LABEL } from "@/components/agendamentos/agendamento-labels";
-import { formatarData, formatarDataHora, formatarMoeda } from "@/lib/format";
+import { formatarData, formatarMoeda } from "@/lib/format";
 
 function KpiGrid({
   kpis,
@@ -44,25 +36,11 @@ function KpiGrid({
 }
 
 export default async function DashboardPage() {
-  const [stats, proximos, financeiro] = await Promise.all([
-    getDashboardStats(),
+  const [proximos, contagens, financeiro] = await Promise.all([
     getProximosAgendamentos(),
+    getContagensAgenda(),
     getResumoFinanceiro(),
   ]);
-
-  const kpisAgenda = [
-    { label: "Pacientes Cadastrados", value: String(stats.pacientes), icon: Users },
-    {
-      label: "Avaliações Realizadas",
-      value: String(stats.avaliacoes),
-      icon: ClipboardCheck,
-    },
-    {
-      label: "Evoluções Cadastradas",
-      value: String(stats.evolucoes),
-      icon: NotebookPen,
-    },
-  ];
 
   const kpisFinanceiro = [
     {
@@ -97,53 +75,21 @@ export default async function DashboardPage() {
           {
             value: "agenda",
             label: "Agenda",
+            icon: <CalendarDays />,
             content: (
-              <>
-                <KpiGrid kpis={kpisAgenda} />
-                <Card>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0">
-                    <CardTitle className="flex items-center gap-2 text-base">
-                      <CalendarClock className="size-4 text-muted-foreground" />
-                      Próximos retornos e reavaliações
-                    </CardTitle>
-                    <Button asChild variant="outline" size="sm">
-                      <Link href="/agenda">Ver agenda</Link>
-                    </Button>
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-3">
-                    {proximos.length === 0 ? (
-                      <p className="py-6 text-center text-sm text-muted-foreground">
-                        Nenhum retorno agendado.
-                      </p>
-                    ) : (
-                      proximos.map((agendamento) => (
-                        <Link
-                          key={agendamento.id}
-                          href={`/pacientes/${agendamento.pacienteId}`}
-                          className="flex items-center justify-between gap-2 rounded-lg px-2 py-2 transition-colors hover:bg-primary/5"
-                        >
-                          <div className="flex flex-col">
-                            <span className="text-sm font-medium">
-                              {agendamento.paciente.nome}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {TIPO_AGENDAMENTO_LABEL[agendamento.tipo]}
-                            </span>
-                          </div>
-                          <span className="text-sm text-muted-foreground">
-                            {formatarDataHora(agendamento.dataHora)}
-                          </span>
-                        </Link>
-                      ))
-                    )}
-                  </CardContent>
-                </Card>
-              </>
+              <AgendaResumoCard
+                key={proximos
+                  .map((a) => `${a.id}:${a.status}:${a.dataInicio.getTime()}`)
+                  .join("|")}
+                agendamentosIniciais={proximos}
+                contagens={contagens}
+              />
             ),
           },
           {
             value: "financeiro",
             label: "Financeiro",
+            icon: <Wallet />,
             content: (
               <>
                 <KpiGrid kpis={kpisFinanceiro} />

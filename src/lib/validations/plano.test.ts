@@ -6,36 +6,32 @@ function baseInput(overrides: Record<string, unknown> = {}) {
     nome: "Mensal Fisioterapia",
     descricao: "",
     tipos: ["FISIOTERAPIA"],
-    opcoes: [{ atendimentos: "4", valor: "400,00" }],
-    taxaCartao: "3,5",
+    atendimentos: "4",
+    valorAVistaMensal: "400,00",
+    valorAVistaTrimestral: "1.080,00",
+    valorAVistaNfMensal: "428,00",
+    valorAVistaNfTrimestral: "1.155,60",
+    valorAte3xCartaoMensal: "440,00",
+    valorAte3xCartaoTrimestral: "1.188,00",
+    valorAte3xNfMensal: "428,00",
+    valorAte3xNfTrimestral: "1.155,60",
     ...overrides,
   };
 }
 
 describe("planoSchema", () => {
-  it("aceita um input válido e converte taxaCartao para número", () => {
+  it("aceita um input válido e converte os valores para número", () => {
     const parsed = planoSchema.safeParse(baseInput());
     expect(parsed.success).toBe(true);
     if (parsed.success) {
-      expect(parsed.data.taxaCartao).toBe(3.5);
+      expect(parsed.data.atendimentos).toBe(4);
+      expect(parsed.data.valorAVistaMensal).toBe(400);
+      expect(parsed.data.valorAte3xCartaoTrimestral).toBe(1188);
     }
   });
 
-  it("trata taxaCartao vazia como 0", () => {
-    const parsed = planoSchema.safeParse(baseInput({ taxaCartao: "" }));
-    expect(parsed.success).toBe(true);
-    if (parsed.success) {
-      expect(parsed.data.taxaCartao).toBe(0);
-    }
-  });
-
-  it("rejeita taxaCartao negativa", () => {
-    const parsed = planoSchema.safeParse(baseInput({ taxaCartao: "-1" }));
-    expect(parsed.success).toBe(false);
-  });
-
-  it("rejeita taxaCartao acima de 100", () => {
-    const parsed = planoSchema.safeParse(baseInput({ taxaCartao: "101" }));
+  it("exige número de atendimentos válido", () => {
+    const parsed = planoSchema.safeParse(baseInput({ atendimentos: "0" }));
     expect(parsed.success).toBe(false);
   });
 
@@ -51,26 +47,27 @@ describe("planoSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("exige ao menos uma opção", () => {
-    const parsed = planoSchema.safeParse(baseInput({ opcoes: [] }));
+  it("exige todos os 8 valores de forma de pagamento", () => {
+    const parsed = planoSchema.safeParse(baseInput({ valorAte3xCartaoMensal: "" }));
     expect(parsed.success).toBe(false);
   });
 
-  it("rejeita opção com número de atendimentos inválido", () => {
-    const parsed = planoSchema.safeParse(
-      baseInput({ opcoes: [{ atendimentos: "0", valor: "100,00" }] }),
-    );
+  it("rejeita valor inválido", () => {
+    const parsed = planoSchema.safeParse(baseInput({ valorAVistaMensal: "abc" }));
     expect(parsed.success).toBe(false);
   });
 
-  it("não tem mais os campos formaPagamento/periodicidade/numeroParcelas/ativo", () => {
+  it("rejeita valor zero ou negativo", () => {
+    const parsed = planoSchema.safeParse(baseInput({ valorAVistaMensal: "0" }));
+    expect(parsed.success).toBe(false);
+  });
+
+  it("não tem mais os campos taxaCartao/opcoes", () => {
     const parsed = planoSchema.safeParse(baseInput());
     expect(parsed.success).toBe(true);
     if (parsed.success) {
-      expect(parsed.data).not.toHaveProperty("formaPagamento");
-      expect(parsed.data).not.toHaveProperty("periodicidade");
-      expect(parsed.data).not.toHaveProperty("numeroParcelas");
-      expect(parsed.data).not.toHaveProperty("ativo");
+      expect(parsed.data).not.toHaveProperty("taxaCartao");
+      expect(parsed.data).not.toHaveProperty("opcoes");
     }
   });
 });

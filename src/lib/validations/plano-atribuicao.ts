@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { formaPagamentoPlanoValues, periodicidadePlanoValues } from "./plano";
+import { maxParcelasDaForma } from "../planos";
 
 const dataSchema = z
   .string()
@@ -15,9 +17,11 @@ function numeroOpcionalSchema() {
 
 export const planoAtribuicaoSchema = z
   .object({
-    planoOpcaoId: z.string().trim().min(1, "Selecione uma opção do plano"),
-    cartao: z.enum(["true", "false"]).transform((v) => v === "true"),
-    notaFiscal: z.enum(["true", "false"]).transform((v) => v === "true"),
+    planoId: z.string().trim().min(1, "Selecione um plano"),
+    formaPagamento: z.enum(formaPagamentoPlanoValues, {
+      error: "Selecione a forma de pagamento",
+    }),
+    periodicidade: z.enum(periodicidadePlanoValues).default("MENSAL"),
     vencimentos: z
       .array(dataSchema)
       .min(1, "Adicione ao menos uma parcela com data de vencimento"),
@@ -46,4 +50,18 @@ export const planoAtribuicaoSchema = z
       message: "Informe o valor alvo por parcela",
       path: ["valorAlvoParcela"],
     },
-  );
+  )
+  .superRefine((data, ctx) => {
+    const max = maxParcelasDaForma(data.formaPagamento);
+    if (data.vencimentos.length > max) {
+      ctx.addIssue({
+        code: "custom",
+        message: `${formaPagamentoLabelParaErro(data.formaPagamento)} permite no máximo ${max} parcela(s)`,
+        path: ["vencimentos"],
+      });
+    }
+  });
+
+function formaPagamentoLabelParaErro(formaPagamento: string) {
+  return formaPagamento.startsWith("ATE_3X") ? "Até 3x" : "À vista";
+}

@@ -1,3 +1,63 @@
+export type FormaPagamentoPlano = "A_VISTA" | "A_VISTA_NF" | "ATE_3X_CARTAO" | "ATE_3X_NF";
+export type PeriodicidadePlano = "MENSAL" | "TRIMESTRAL";
+
+/** Nome do campo de valor do Plano para cada combinação forma de pagamento x periodicidade. */
+export const campoValorPlano: Record<FormaPagamentoPlano, Record<PeriodicidadePlano, string>> = {
+  A_VISTA: { MENSAL: "valorAVistaMensal", TRIMESTRAL: "valorAVistaTrimestral" },
+  A_VISTA_NF: { MENSAL: "valorAVistaNfMensal", TRIMESTRAL: "valorAVistaNfTrimestral" },
+  ATE_3X_CARTAO: { MENSAL: "valorAte3xCartaoMensal", TRIMESTRAL: "valorAte3xCartaoTrimestral" },
+  ATE_3X_NF: { MENSAL: "valorAte3xNfMensal", TRIMESTRAL: "valorAte3xNfTrimestral" },
+};
+
+/** Os 8 campos de valor do Plano (4 formas de pagamento x 2 periodicidades). */
+export const CAMPOS_VALOR_PLANO = [
+  "valorAVistaMensal",
+  "valorAVistaTrimestral",
+  "valorAVistaNfMensal",
+  "valorAVistaNfTrimestral",
+  "valorAte3xCartaoMensal",
+  "valorAte3xCartaoTrimestral",
+  "valorAte3xNfMensal",
+  "valorAte3xNfTrimestral",
+] as const;
+
+export type CampoValorPlano = (typeof CAMPOS_VALOR_PLANO)[number];
+
+/** Converte os 8 campos de valor (Prisma `Decimal` ou string) para `number`. */
+export function planoValoresParaNumero<T extends Record<string, unknown>>(
+  plano: T,
+): Omit<T, CampoValorPlano> & Record<CampoValorPlano, number> {
+  const valores = Object.fromEntries(
+    CAMPOS_VALOR_PLANO.map((campo) => [campo, Number(plano[campo] ?? 0)]),
+  ) as Record<CampoValorPlano, number>;
+  return { ...plano, ...valores };
+}
+
+/** Lê, no Plano, o valor correspondente à forma de pagamento e periodicidade escolhidas. */
+export function valorPlano(
+  plano: Record<string, unknown>,
+  formaPagamento: FormaPagamentoPlano,
+  periodicidade: PeriodicidadePlano,
+): number {
+  const raw = plano[campoValorPlano[formaPagamento][periodicidade]];
+  return raw == null ? 0 : Number(raw);
+}
+
+/** Só "Até 3x Cartão" é pagamento no cartão — as outras 3 formas não são. */
+export function cartaoDaForma(formaPagamento: FormaPagamentoPlano): boolean {
+  return formaPagamento === "ATE_3X_CARTAO";
+}
+
+/** Formas "+ NF" já incluem nota fiscal no valor cadastrado no plano. */
+export function notaFiscalDaForma(formaPagamento: FormaPagamentoPlano): boolean {
+  return formaPagamento === "A_VISTA_NF" || formaPagamento === "ATE_3X_NF";
+}
+
+/** "À vista" permite só 1 parcela; "Até 3x" permite até 3. */
+export function maxParcelasDaForma(formaPagamento: FormaPagamentoPlano): number {
+  return formaPagamento === "ATE_3X_CARTAO" || formaPagamento === "ATE_3X_NF" ? 3 : 1;
+}
+
 /** Divide o valor total em N parcelas, ajustando centavos de arredondamento na última parcela. */
 export function gerarValoresParcelas(
   valorTotal: number,
@@ -9,16 +69,6 @@ export function gerarValoresParcelas(
   const restoCentavos = centavosTotal - centavosParcela * numeroParcelas;
   valores[numeroParcelas - 1] += restoCentavos / 100;
   return valores;
-}
-
-/** Aplica a taxa percentual do cartão sobre o valor, se o pagamento for no cartão. */
-export function aplicarTaxaCartao(
-  valor: number,
-  taxaCartao: number,
-  cartao: boolean,
-): number {
-  if (!cartao || taxaCartao <= 0) return valor;
-  return Math.round(valor * (1 + taxaCartao / 100) * 100) / 100;
 }
 
 /**

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getAgendamento, updateAgendamento } from "@/actions/agendamentos";
+import { listGruposPacientesOptions } from "@/actions/grupos-pacientes";
 import { AgendamentoForm } from "@/components/agendamentos/agendamento-form";
 import { toDateInputValue, toTimeInputValue } from "@/lib/format";
 
@@ -11,12 +12,11 @@ export default async function EditarAgendamentoPage({
 }) {
   const { id } = await params;
 
-  const [agendamento, pacientes] = await Promise.all([
+  const [agendamento, pacientes, grupos, profissionais] = await Promise.all([
     getAgendamento(id),
-    prisma.paciente.findMany({
-      orderBy: { nome: "asc" },
-      select: { id: true, nome: true },
-    }),
+    prisma.paciente.findMany({ orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
+    listGruposPacientesOptions(),
+    prisma.user.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
 
   if (!agendamento) notFound();
@@ -26,24 +26,33 @@ export default async function EditarAgendamentoPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold">Editar agendamento</h1>
+        <h1 className="text-2xl font-semibold">Editar evento</h1>
         <p className="text-sm text-muted-foreground">
-          Atualize a data, o horário ou o status deste agendamento.
+          {agendamento.serieId
+            ? "Esta alteração afeta apenas esta ocorrência da série."
+            : "Atualize os dados deste evento."}
         </p>
       </div>
       <AgendamentoForm
         action={updateAgendamentoWithId}
         pacientes={pacientes}
+        grupos={grupos}
+        profissionais={profissionais}
         defaultValues={{
-          pacienteId: agendamento.pacienteId,
-          data: toDateInputValue(agendamento.dataHora),
-          hora: toTimeInputValue(agendamento.dataHora),
-          tipo: agendamento.tipo,
+          titulo: agendamento.titulo,
+          pacienteIds: agendamento.pacientes.map((p) => p.id),
+          profissionalId: agendamento.profissionalId ?? "",
+          data: toDateInputValue(agendamento.dataInicio),
+          horaInicio: toTimeInputValue(agendamento.dataInicio),
+          horaFim: toTimeInputValue(agendamento.dataFim),
+          diaInteiro: agendamento.diaInteiro,
+          modalidade: agendamento.modalidade,
           status: agendamento.status,
           observacao: agendamento.observacao ?? "",
         }}
         cancelHref="/agenda"
         mode="edit"
+        agendamentoId={id}
       />
     </div>
   );

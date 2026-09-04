@@ -3,12 +3,10 @@
 import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Button } from "@/components/ui/button";
 import {
   InputGroup,
   InputGroupAddon,
@@ -16,15 +14,40 @@ import {
   InputGroupText,
 } from "@/components/ui/input-group";
 import { FormActions } from "@/components/ui/form-actions";
-import { tipoPlanoLabels, tipoPlanoValues } from "@/lib/validations/plano";
+import { cn } from "@/lib/utils";
+import {
+  formaPagamentoPlanoLabels,
+  formaPagamentoPlanoValues,
+  periodicidadePlanoLabels,
+  periodicidadePlanoValues,
+  tipoPlanoLabels,
+  tipoPlanoValues,
+} from "@/lib/validations/plano";
 import type { PlanoActionState } from "@/actions/planos";
 
 const initialState: PlanoActionState = {};
 
-type OpcaoDraft = { atendimentos: string; valor: string };
+type Forma = (typeof formaPagamentoPlanoValues)[number];
+type Periodicidade = (typeof periodicidadePlanoValues)[number];
+type Valores = Record<Forma, Record<Periodicidade, string>>;
 
-function novaOpcao(): OpcaoDraft {
-  return { atendimentos: "", valor: "" };
+const CAMPO_NOME: Record<Forma, Record<Periodicidade, string>> = {
+  A_VISTA: { MENSAL: "valorAVistaMensal", TRIMESTRAL: "valorAVistaTrimestral" },
+  A_VISTA_NF: { MENSAL: "valorAVistaNfMensal", TRIMESTRAL: "valorAVistaNfTrimestral" },
+  ATE_3X_CARTAO: {
+    MENSAL: "valorAte3xCartaoMensal",
+    TRIMESTRAL: "valorAte3xCartaoTrimestral",
+  },
+  ATE_3X_NF: { MENSAL: "valorAte3xNfMensal", TRIMESTRAL: "valorAte3xNfTrimestral" },
+};
+
+function valoresVazios(): Valores {
+  return Object.fromEntries(
+    formaPagamentoPlanoValues.map((forma) => [
+      forma,
+      { MENSAL: "", TRIMESTRAL: "" },
+    ]),
+  ) as Valores;
 }
 
 export function PlanoForm({
@@ -40,8 +63,8 @@ export function PlanoForm({
     nome: string;
     descricao: string;
     tipos: string[];
-    opcoes: OpcaoDraft[];
-    taxaCartao: string;
+    atendimentos: string;
+    valores: Valores;
   };
   mode: "create" | "edit";
 }) {
@@ -50,10 +73,8 @@ export function PlanoForm({
   const [tipos, setTipos] = useState<string[]>(
     defaultValues?.tipos ?? ["FISIOTERAPIA"],
   );
-  const [opcoes, setOpcoes] = useState<OpcaoDraft[]>(
-    defaultValues?.opcoes && defaultValues.opcoes.length > 0
-      ? defaultValues.opcoes
-      : [novaOpcao()],
+  const [valores, setValores] = useState<Valores>(
+    defaultValues?.valores ?? valoresVazios(),
   );
 
   useEffect(() => {
@@ -71,10 +92,11 @@ export function PlanoForm({
     );
   }
 
-  function updateOpcao(index: number, patch: Partial<OpcaoDraft>) {
-    setOpcoes((prev) =>
-      prev.map((o, i) => (i === index ? { ...o, ...patch } : o)),
-    );
+  function updateValor(forma: Forma, periodicidade: Periodicidade, value: string) {
+    setValores((prev) => ({
+      ...prev,
+      [forma]: { ...prev[forma], [periodicidade]: value },
+    }));
   }
 
   return (
@@ -82,7 +104,6 @@ export function PlanoForm({
       {tipos.map((tipo) => (
         <input key={tipo} type="hidden" name="tipos" value={tipo} />
       ))}
-      <input type="hidden" name="opcoes" value={JSON.stringify(opcoes)} />
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="nome">Nome</Label>
@@ -131,81 +152,66 @@ export function PlanoForm({
         />
       </div>
 
-      <div className="flex flex-col gap-2">
-        <div className="flex items-center justify-between">
-          <Label>Opções (pacotes de atendimentos)</Label>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => setOpcoes((prev) => [...prev, novaOpcao()])}
-          >
-            <Plus className="size-3.5" />
-            Adicionar opção
-          </Button>
-        </div>
-        {opcoes.map((opcao, index) => (
-          <div
-            key={index}
-            className="flex flex-col gap-2 rounded-lg border border-input bg-background p-2 sm:flex-row sm:items-end"
-          >
-            <div className="flex flex-1 flex-col gap-1.5">
-              <Label className="text-xs text-muted-foreground">
-                Número de atendimentos
-              </Label>
-              <Input
-                type="number"
-                min={1}
-                step={1}
-                value={opcao.atendimentos}
-                onChange={(e) =>
-                  updateOpcao(index, { atendimentos: e.target.value })
-                }
-                placeholder="Ex: 4"
-                required
-              />
-            </div>
-            <div className="flex flex-1 flex-col gap-1.5">
-              <Label className="text-xs text-muted-foreground">Valor</Label>
-              <InputGroup>
-                <InputGroupAddon>
-                  <InputGroupText>R$</InputGroupText>
-                </InputGroupAddon>
-                <InputGroupInput
-                  inputMode="decimal"
-                  value={opcao.valor}
-                  onChange={(e) => updateOpcao(index, { valor: e.target.value })}
-                  placeholder="0,00"
-                  required
-                />
-              </InputGroup>
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="shrink-0"
-              onClick={() =>
-                setOpcoes((prev) => prev.filter((_, i) => i !== index))
-              }
-              disabled={opcoes.length === 1}
-            >
-              <Trash2 className="size-4 text-destructive" />
-              <span className="sr-only">Remover opção</span>
-            </Button>
-          </div>
-        ))}
+      <div className="flex flex-col gap-2 sm:max-w-[calc(50%-0.5rem)]">
+        <Label htmlFor="atendimentos">Número de atendimentos</Label>
+        <Input
+          id="atendimentos"
+          name="atendimentos"
+          type="number"
+          min={1}
+          step={1}
+          defaultValue={defaultValues?.atendimentos}
+          placeholder="Ex: 4"
+          required
+        />
       </div>
 
-      <div className="flex flex-col gap-2 sm:max-w-[calc(50%-0.5rem)]">
-        <Label htmlFor="taxaCartao">Taxa do cartão (%)</Label>
-        <Input
-          id="taxaCartao"
-          name="taxaCartao"
-          inputMode="decimal"
-          placeholder="0,00"
-          defaultValue={defaultValues?.taxaCartao ?? "0"}
-        />
+      <div className="flex flex-col gap-2">
+        <Label>Valores por forma de pagamento</Label>
+        <div className="overflow-hidden rounded-lg border border-input">
+          <div className="hidden grid-cols-[1.4fr_1fr_1fr] gap-2 border-b bg-muted/40 p-2 text-xs font-medium text-muted-foreground sm:grid">
+            <span>Forma de pagamento</span>
+            <span>Mensal</span>
+            <span>Trimestral</span>
+          </div>
+          {formaPagamentoPlanoValues.map((forma, i) => (
+            <div
+              key={forma}
+              className={cn(
+                "grid grid-cols-1 gap-2 p-2 sm:grid-cols-[1.4fr_1fr_1fr] sm:items-center",
+                i > 0 && "border-t border-input",
+              )}
+            >
+              <p className="text-sm font-medium">{formaPagamentoPlanoLabels[forma]}</p>
+              {periodicidadePlanoValues.map((periodicidade) => (
+                <div key={periodicidade} className="flex flex-col gap-1">
+                  <Label
+                    htmlFor={`valor-${forma}-${periodicidade}`}
+                    className="text-xs text-muted-foreground sm:sr-only"
+                  >
+                    {periodicidadePlanoLabels[periodicidade]}
+                  </Label>
+                  <InputGroup>
+                    <InputGroupAddon>
+                      <InputGroupText>R$</InputGroupText>
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      id={`valor-${forma}-${periodicidade}`}
+                      name={CAMPO_NOME[forma][periodicidade]}
+                      inputMode="decimal"
+                      value={valores[forma][periodicidade]}
+                      onChange={(e) =>
+                        updateValor(forma, periodicidade, e.target.value)
+                      }
+                      placeholder="0,00"
+                      required
+                    />
+                  </InputGroup>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
 
       {state.error && <p className="text-sm text-destructive">{state.error}</p>}

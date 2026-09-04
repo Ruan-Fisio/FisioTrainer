@@ -29,11 +29,25 @@ export default async function EditarPlanoPage({
           nome: plano.nome,
           descricao: plano.descricao ?? "",
           tipos: plano.tipos,
-          opcoes: plano.opcoes.map((o) => ({
-            atendimentos: String(o.atendimentos),
-            valor: o.valor.toFixed(2).replace(".", ","),
-          })),
-          taxaCartao: plano.taxaCartao.toFixed(2).replace(".", ","),
+          atendimentos: String(plano.atendimentos),
+          valores: {
+            A_VISTA: {
+              MENSAL: plano.valorAVistaMensal.toFixed(2).replace(".", ","),
+              TRIMESTRAL: plano.valorAVistaTrimestral.toFixed(2).replace(".", ","),
+            },
+            A_VISTA_NF: {
+              MENSAL: plano.valorAVistaNfMensal.toFixed(2).replace(".", ","),
+              TRIMESTRAL: plano.valorAVistaNfTrimestral.toFixed(2).replace(".", ","),
+            },
+            ATE_3X_CARTAO: {
+              MENSAL: plano.valorAte3xCartaoMensal.toFixed(2).replace(".", ","),
+              TRIMESTRAL: plano.valorAte3xCartaoTrimestral.toFixed(2).replace(".", ","),
+            },
+            ATE_3X_NF: {
+              MENSAL: plano.valorAte3xNfMensal.toFixed(2).replace(".", ","),
+              TRIMESTRAL: plano.valorAte3xNfTrimestral.toFixed(2).replace(".", ","),
+            },
+          },
         }}
         mode="edit"
       />

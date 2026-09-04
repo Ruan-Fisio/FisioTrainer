@@ -54,15 +54,12 @@ export async function PlanosTable({
                   ))}
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {plano.opcoes
-                    .map((o) => `${o.atendimentos}x ${formatarMoeda(o.valor)}`)
-                    .join(" · ")}
+                  {plano.atendimentos}x atendimentos
                 </p>
-                {plano.taxaCartao > 0 && (
-                  <p className="text-xs text-muted-foreground">
-                    Taxa cartão {plano.taxaCartao}%
-                  </p>
-                )}
+                <p className="text-xs text-muted-foreground">
+                  À vista: {formatarMoeda(plano.valorAVistaMensal)}/mês ·{" "}
+                  {formatarMoeda(plano.valorAVistaTrimestral)}/trimestre
+                </p>
               </div>
               <PlanoRowActions
                 id={plano.id}
@@ -81,8 +78,8 @@ export async function PlanosTable({
             <TableRow>
               <TableHead>Nome</TableHead>
               <TableHead>Tipo</TableHead>
-              <TableHead>Opções</TableHead>
-              <TableHead>Taxa cartão</TableHead>
+              <TableHead>Atendimentos</TableHead>
+              <TableHead>À vista (mensal / trimestral)</TableHead>
               <TableHead className="w-[120px] text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -98,11 +95,12 @@ export async function PlanosTable({
                   ))}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
-                  {plano.opcoes
-                    .map((o) => `${o.atendimentos}x ${formatarMoeda(o.valor)}`)
-                    .join(" · ")}
+                  {plano.atendimentos}x
                 </TableCell>
-                <TableCell>{plano.taxaCartao}%</TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {formatarMoeda(plano.valorAVistaMensal)} /{" "}
+                  {formatarMoeda(plano.valorAVistaTrimestral)}
+                </TableCell>
                 <TableCell>
                   <PlanoRowActions
                     id={plano.id}

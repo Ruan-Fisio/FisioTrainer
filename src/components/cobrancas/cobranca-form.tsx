@@ -54,7 +54,7 @@ export function CobrancaForm({
           ? "Cobrança registrada com sucesso."
           : "Cobrança atualizada com sucesso.",
       );
-      router.push(`/pacientes/${pacienteId}`);
+      router.push(`/pacientes/${pacienteId}?tab=financeiro`);
     }
   }, [state.success, mode, pacienteId, router]);
 
@@ -140,7 +140,7 @@ export function CobrancaForm({
         submitLabel={
           mode === "create" ? "Registrar cobrança" : "Salvar alterações"
         }
-        onCancel={() => router.push(`/pacientes/${pacienteId}`)}
+        onCancel={() => router.push(`/pacientes/${pacienteId}?tab=financeiro`)}
       />
     </form>
   );

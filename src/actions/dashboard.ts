@@ -1,6 +1,35 @@
 "use server";
 
+import { endOfDay, endOfMonth, endOfWeek, startOfDay } from "date-fns";
 import { prisma } from "@/lib/prisma";
+
+export type PeriodoProximos = "dia" | "semana" | "mes";
+
+/** Contagem de compromissos ainda por acontecer em cada janela, para o resumo do dashboard. */
+export async function getContagensAgenda() {
+  const agora = new Date();
+  const base = {
+    status: "AGENDADO" as const,
+    dataInicio: { gte: startOfDay(agora) },
+  };
+
+  const [dia, semana, mes] = await Promise.all([
+    prisma.agendamento.count({
+      where: { ...base, dataInicio: { gte: startOfDay(agora), lte: endOfDay(agora) } },
+    }),
+    prisma.agendamento.count({
+      where: {
+        ...base,
+        dataInicio: { gte: startOfDay(agora), lte: endOfWeek(agora, { weekStartsOn: 0 }) },
+      },
+    }),
+    prisma.agendamento.count({
+      where: { ...base, dataInicio: { gte: startOfDay(agora), lte: endOfMonth(agora) } },
+    }),
+  ]);
+
+  return { dia, semana, mes };
+}
 
 export async function getDashboardStats() {
   const [pacientes, avaliacoes, evolucoes] = await Promise.all([
@@ -12,15 +41,25 @@ export async function getDashboardStats() {
   return { pacientes, avaliacoes, evolucoes };
 }
 
-/** Agendamentos futuros (retornos/reavaliações) ainda não realizados. */
-export async function getProximosAgendamentos(limite = 8) {
+/** Agendamentos futuros (retornos/reavaliações) ainda não realizados, dentro do período escolhido. */
+export async function getProximosAgendamentos(periodo: PeriodoProximos = "dia") {
   const agora = new Date();
+  const inicio = startOfDay(agora);
+  const fim =
+    periodo === "dia"
+      ? endOfDay(agora)
+      : periodo === "semana"
+        ? endOfWeek(agora, { weekStartsOn: 0 })
+        : endOfMonth(agora);
 
   return prisma.agendamento.findMany({
-    where: { dataHora: { gte: agora }, status: "AGENDADO" },
-    orderBy: { dataHora: "asc" },
-    take: limite,
-    include: { paciente: { select: { id: true, nome: true } } },
+    where: { dataInicio: { gte: inicio, lte: fim }, status: { not: "CANCELADO" } },
+    orderBy: { dataInicio: "asc" },
+    take: 200,
+    include: {
+      pacientes: { select: { id: true, nome: true } },
+      profissional: { select: { id: true, name: true } },
+    },
   });
 }
 

@@ -14,9 +14,9 @@ import { toast } from "sonner";
 import { Plus, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { FormActions } from "@/components/ui/form-actions";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -28,25 +28,38 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  aplicarTaxaCartao,
-  aplicarTaxaNotaFiscal,
   calcularDesconto,
   gerarDatasVencimento,
   gerarValoresParcelas,
-  TAXA_NOTA_FISCAL,
+  maxParcelasDaForma,
+  valorPlano,
   type DescontoTipo,
+  type FormaPagamentoPlano,
+  type PeriodicidadePlano,
 } from "@/lib/planos";
+import {
+  formaPagamentoPlanoLabels,
+  formaPagamentoPlanoValues,
+  periodicidadePlanoLabels,
+  periodicidadePlanoValues,
+} from "@/lib/validations/plano";
 import { formatarData, formatarMoeda } from "@/lib/format";
 import type { PlanoAtribuicaoActionState } from "@/actions/plano-atribuicoes";
 
 const initialState: PlanoAtribuicaoActionState = {};
 
-type PlanoOpcao = { id: string; atendimentos: number; valor: number };
 type PlanoAtivo = {
   id: string;
   nome: string;
-  taxaCartao: number;
-  opcoes: PlanoOpcao[];
+  atendimentos: number;
+  valorAVistaMensal: number;
+  valorAVistaTrimestral: number;
+  valorAVistaNfMensal: number;
+  valorAVistaNfTrimestral: number;
+  valorAte3xCartaoMensal: number;
+  valorAte3xCartaoTrimestral: number;
+  valorAte3xNfMensal: number;
+  valorAte3xNfTrimestral: number;
 };
 
 export function PlanoAtribuicaoForm({
@@ -62,9 +75,9 @@ export function PlanoAtribuicaoForm({
   ) => Promise<PlanoAtribuicaoActionState>;
   planosAtivos: PlanoAtivo[];
   defaultValues?: {
-    planoOpcaoId: string;
-    cartao: boolean;
-    notaFiscal?: boolean;
+    planoId: string;
+    formaPagamento: FormaPagamentoPlano;
+    periodicidade: PeriodicidadePlano;
     vencimentos: string[];
     descontoTipo?: DescontoTipo;
     descontoValor?: number;
@@ -78,11 +91,13 @@ export function PlanoAtribuicaoForm({
   const formRef = useRef<HTMLFormElement>(null);
   const confirmadoRef = useRef(false);
   const [showConfirm, setShowConfirm] = useState(false);
-  const [planoOpcaoId, setPlanoOpcaoId] = useState(
-    defaultValues?.planoOpcaoId ?? planosAtivos[0]?.opcoes[0]?.id ?? "",
+  const [planoId, setPlanoId] = useState(defaultValues?.planoId ?? planosAtivos[0]?.id ?? "");
+  const [formaPagamento, setFormaPagamento] = useState<FormaPagamentoPlano>(
+    defaultValues?.formaPagamento ?? "A_VISTA",
   );
-  const [cartao, setCartao] = useState(defaultValues?.cartao ?? false);
-  const [notaFiscal, setNotaFiscal] = useState(defaultValues?.notaFiscal ?? false);
+  const [periodicidade, setPeriodicidade] = useState<PeriodicidadePlano>(
+    defaultValues?.periodicidade ?? "MENSAL",
+  );
   const [vencimentos, setVencimentos] = useState<string[]>(
     defaultValues?.vencimentos && defaultValues.vencimentos.length > 0
       ? defaultValues.vencimentos
@@ -119,22 +134,24 @@ export function PlanoAtribuicaoForm({
           ? "Plano atribuído com sucesso."
           : "Atribuição atualizada com sucesso.",
       );
-      router.push(`/pacientes/${pacienteId}`);
+      router.push(`/pacientes/${pacienteId}?tab=planos`);
     }
   }, [state.success, mode, pacienteId, router]);
 
-  const planoSelecionado = planosAtivos.find((p) =>
-    p.opcoes.some((o) => o.id === planoOpcaoId),
-  );
-  const opcaoSelecionada = planoSelecionado?.opcoes.find(
-    (o) => o.id === planoOpcaoId,
-  );
+  const planoSelecionado = planosAtivos.find((p) => p.id === planoId);
+  const maxParcelas = maxParcelasDaForma(formaPagamento);
+
+  useEffect(() => {
+    setVencimentos((prev) =>
+      prev.length > maxParcelas ? prev.slice(0, maxParcelas) : prev,
+    );
+    setWizardQuantidade((prev) => (Number(prev) > maxParcelas ? String(maxParcelas) : prev));
+  }, [maxParcelas]);
 
   const valorOriginal = useMemo(() => {
-    if (!opcaoSelecionada || !planoSelecionado) return 0;
-    const comCartao = aplicarTaxaCartao(opcaoSelecionada.valor, planoSelecionado.taxaCartao, cartao);
-    return aplicarTaxaNotaFiscal(comCartao, notaFiscal);
-  }, [opcaoSelecionada, planoSelecionado, cartao, notaFiscal]);
+    if (!planoSelecionado) return 0;
+    return valorPlano(planoSelecionado, formaPagamento, periodicidade);
+  }, [planoSelecionado, formaPagamento, periodicidade]);
 
   const numeroParcelas = vencimentos.filter(Boolean).length;
 
@@ -179,7 +196,7 @@ export function PlanoAtribuicaoForm({
   if (planosAtivos.length === 0 && !defaultValues) {
     return (
       <p className="text-sm text-muted-foreground">
-        Nenhum plano com opções cadastradas. Cadastre um plano em{" "}
+        Nenhum plano cadastrado. Cadastre um plano em{" "}
         <Link href="/planos/novo" className="underline">
           Planos
         </Link>{" "}
@@ -202,7 +219,7 @@ export function PlanoAtribuicaoForm({
   }
 
   function handleGerarParcelas() {
-    const quantidade = Number(wizardQuantidade);
+    const quantidade = Math.min(Number(wizardQuantidade), maxParcelas);
     if (!wizardPrimeiraData || !quantidade || quantidade < 1) return;
     setVencimentos(gerarDatasVencimento(wizardPrimeiraData, quantidade));
     setParcelasGeradas(true);
@@ -215,8 +232,8 @@ export function PlanoAtribuicaoForm({
       onSubmit={handleSubmit}
       className="flex max-w-2xl flex-col gap-4 pb-24"
     >
-      <input type="hidden" name="cartao" value={String(cartao)} />
-      <input type="hidden" name="notaFiscal" value={String(notaFiscal)} />
+      <input type="hidden" name="formaPagamento" value={formaPagamento} />
+      <input type="hidden" name="periodicidade" value={periodicidade} />
       <input type="hidden" name="descontoTipo" value={descontoTipo} />
       <input type="hidden" name="descontoValor" value={descontoValor} />
       <input type="hidden" name="valorAlvoParcela" value={valorAlvoEfetivo} />
@@ -225,49 +242,66 @@ export function PlanoAtribuicaoForm({
       ))}
 
       <div className="flex flex-col gap-2">
-        <Label htmlFor="planoOpcaoId">Plano</Label>
+        <Label htmlFor="planoId">Plano</Label>
         <NativeSelect
-          id="planoOpcaoId"
-          name="planoOpcaoId"
-          value={planoOpcaoId}
-          onChange={(e) => setPlanoOpcaoId(e.target.value)}
+          id="planoId"
+          name="planoId"
+          value={planoId}
+          onChange={(e) => setPlanoId(e.target.value)}
           required
         >
           {planosAtivos.map((p) => (
-            <optgroup key={p.id} label={p.nome}>
-              {p.opcoes.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.atendimentos}x atendimentos · {formatarMoeda(o.valor)}
-                </option>
-              ))}
-            </optgroup>
+            <option key={p.id} value={p.id}>
+              {p.nome} · {p.atendimentos}x atendimentos
+            </option>
           ))}
         </NativeSelect>
       </div>
 
-      {planoSelecionado && planoSelecionado.taxaCartao > 0 && (
-        <label
-          onClick={(e) => {
-            e.preventDefault();
-            setCartao((v) => !v);
-          }}
-          className="flex min-h-8 cursor-pointer items-center gap-2 text-sm select-none"
+      <div className="flex flex-col gap-2">
+        <Label>Periodicidade</Label>
+        <RadioGroup
+          value={periodicidade}
+          onValueChange={(v) => setPeriodicidade(v as PeriodicidadePlano)}
+          className="flex flex-row flex-wrap gap-4"
         >
-          <Checkbox checked={cartao} tabIndex={-1} className="pointer-events-none" />
-          Pagamento no cartão (aplica taxa de {planoSelecionado.taxaCartao}%)
-        </label>
-      )}
+          {periodicidadePlanoValues.map((p) => (
+            <label
+              key={p}
+              className="flex min-h-8 cursor-pointer items-center gap-2 text-sm select-none"
+            >
+              <RadioGroupItem value={p} />
+              {periodicidadePlanoLabels[p]}
+            </label>
+          ))}
+        </RadioGroup>
+      </div>
 
-      <label
-        onClick={(e) => {
-          e.preventDefault();
-          setNotaFiscal((v) => !v);
-        }}
-        className="flex min-h-8 cursor-pointer items-center gap-2 text-sm select-none"
-      >
-        <Checkbox checked={notaFiscal} tabIndex={-1} className="pointer-events-none" />
-        Nota fiscal inclusa (aplica taxa de {TAXA_NOTA_FISCAL}%)
-      </label>
+      <div className="flex flex-col gap-2">
+        <Label>Forma de pagamento</Label>
+        <RadioGroup
+          value={formaPagamento}
+          onValueChange={(v) => setFormaPagamento(v as FormaPagamentoPlano)}
+          className="flex flex-col gap-2"
+        >
+          {formaPagamentoPlanoValues.map((forma) => (
+            <label
+              key={forma}
+              className="flex min-h-8 cursor-pointer items-center justify-between gap-2 rounded-lg border border-input p-2 text-sm select-none"
+            >
+              <span className="flex items-center gap-2">
+                <RadioGroupItem value={forma} />
+                {formaPagamentoPlanoLabels[forma]}
+              </span>
+              {planoSelecionado && (
+                <span className="font-medium text-muted-foreground">
+                  {formatarMoeda(valorPlano(planoSelecionado, forma, periodicidade))}
+                </span>
+              )}
+            </label>
+          ))}
+        </RadioGroup>
+      </div>
 
       {!parcelasGeradas ? (
         <Card>
@@ -285,11 +319,17 @@ export function PlanoAtribuicaoForm({
               />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="wizardQuantidade">Em quantas parcelas?</Label>
+              <Label htmlFor="wizardQuantidade">
+                Em quantas parcelas?{" "}
+                {maxParcelas === 1
+                  ? "(à vista permite só 1)"
+                  : `(até ${maxParcelas})`}
+              </Label>
               <Input
                 id="wizardQuantidade"
                 type="number"
                 min="1"
+                max={maxParcelas}
                 inputMode="numeric"
                 value={wizardQuantidade}
                 onChange={(e) => setWizardQuantidade(e.target.value)}
@@ -303,7 +343,11 @@ export function PlanoAtribuicaoForm({
             <Button
               type="button"
               onClick={handleGerarParcelas}
-              disabled={!wizardPrimeiraData || Number(wizardQuantidade) < 1}
+              disabled={
+                !wizardPrimeiraData ||
+                Number(wizardQuantidade) < 1 ||
+                Number(wizardQuantidade) > maxParcelas
+              }
               className="self-start"
             >
               Gerar parcelas
@@ -323,15 +367,17 @@ export function PlanoAtribuicaoForm({
               >
                 Gerar novamente
               </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setVencimentos((prev) => [...prev, ""])}
-              >
-                <Plus className="size-3.5" />
-                Adicionar parcela
-              </Button>
+              {vencimentos.length < maxParcelas && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setVencimentos((prev) => [...prev, ""])}
+                >
+                  <Plus className="size-3.5" />
+                  Adicionar parcela
+                </Button>
+              )}
             </div>
           </div>
           {vencimentos.map((data, index) => (
@@ -483,7 +529,7 @@ export function PlanoAtribuicaoForm({
 
       <FormActions
         submitLabel={mode === "create" ? "Atribuir plano" : "Salvar alterações"}
-        onCancel={() => router.push(`/pacientes/${pacienteId}`)}
+        onCancel={() => router.push(`/pacientes/${pacienteId}?tab=planos`)}
       />
 
       {mode === "edit" && (

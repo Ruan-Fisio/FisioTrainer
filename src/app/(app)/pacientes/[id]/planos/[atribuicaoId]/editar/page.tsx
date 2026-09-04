@@ -45,9 +45,9 @@ export default async function EditarAtribuicaoPlanoPage({
         action={updatePlanoAtribuicaoWithId}
         planosAtivos={planosAtivos}
         defaultValues={{
-          planoOpcaoId: atribuicao.planoOpcaoId ?? "",
-          cartao: atribuicao.cartao,
-          notaFiscal: atribuicao.notaFiscal,
+          planoId: atribuicao.planoId ?? "",
+          formaPagamento: atribuicao.formaPagamento,
+          periodicidade: atribuicao.periodicidade,
           vencimentos,
           descontoTipo: atribuicao.desconto > 0 ? "VALOR" : "NENHUM",
           descontoValor: atribuicao.desconto > 0 ? atribuicao.desconto : undefined,

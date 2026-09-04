@@ -3,8 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { planoSchema } from "@/lib/validations/plano";
+import { planoValoresParaNumero } from "@/lib/planos";
 
 const PAGE_SIZE = 10;
+
+const toNumbers = planoValoresParaNumero;
 
 export async function listPlanos(
   filters: { q?: string; tipo?: "FISIOTERAPIA" | "EDUCACAO_FISICA" },
@@ -24,7 +27,6 @@ export async function listPlanos(
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
       include: {
-        opcoes: { orderBy: { ordem: "asc" } },
         _count: { select: { atribuicoes: true } },
       },
     }),
@@ -32,11 +34,7 @@ export async function listPlanos(
   ]);
 
   return {
-    planos: planos.map((p) => ({
-      ...p,
-      taxaCartao: Number(p.taxaCartao),
-      opcoes: p.opcoes.map((o) => ({ ...o, valor: Number(o.valor) })),
-    })),
+    planos: planos.map(toNumbers),
     total,
     totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
     page,
@@ -44,28 +42,14 @@ export async function listPlanos(
 }
 
 export async function listPlanosDisponiveis() {
-  const planos = await prisma.plano.findMany({
-    orderBy: { nome: "asc" },
-    include: { opcoes: { orderBy: { ordem: "asc" } } },
-  });
-  return planos.map((p) => ({
-    ...p,
-    taxaCartao: Number(p.taxaCartao),
-    opcoes: p.opcoes.map((o) => ({ ...o, valor: Number(o.valor) })),
-  }));
+  const planos = await prisma.plano.findMany({ orderBy: { nome: "asc" } });
+  return planos.map(toNumbers);
 }
 
 export async function getPlano(id: string) {
-  const plano = await prisma.plano.findUnique({
-    where: { id },
-    include: { opcoes: { orderBy: { ordem: "asc" } } },
-  });
+  const plano = await prisma.plano.findUnique({ where: { id } });
   if (!plano) return null;
-  return {
-    ...plano,
-    taxaCartao: Number(plano.taxaCartao),
-    opcoes: plano.opcoes.map((o) => ({ ...o, valor: Number(o.valor) })),
-  };
+  return toNumbers(plano);
 }
 
 export type PlanoActionState = {
@@ -74,19 +58,19 @@ export type PlanoActionState = {
 };
 
 function parseForm(formData: FormData) {
-  let opcoes: unknown = [];
-  try {
-    opcoes = JSON.parse(String(formData.get("opcoes") ?? "[]"));
-  } catch {
-    return null;
-  }
-
   return planoSchema.safeParse({
     nome: formData.get("nome"),
     descricao: formData.get("descricao") ?? "",
     tipos: formData.getAll("tipos"),
-    opcoes,
-    taxaCartao: formData.get("taxaCartao") ?? "0",
+    atendimentos: formData.get("atendimentos"),
+    valorAVistaMensal: formData.get("valorAVistaMensal"),
+    valorAVistaTrimestral: formData.get("valorAVistaTrimestral"),
+    valorAVistaNfMensal: formData.get("valorAVistaNfMensal"),
+    valorAVistaNfTrimestral: formData.get("valorAVistaNfTrimestral"),
+    valorAte3xCartaoMensal: formData.get("valorAte3xCartaoMensal"),
+    valorAte3xCartaoTrimestral: formData.get("valorAte3xCartaoTrimestral"),
+    valorAte3xNfMensal: formData.get("valorAte3xNfMensal"),
+    valorAte3xNfTrimestral: formData.get("valorAte3xNfTrimestral"),
   });
 }
 
@@ -96,8 +80,8 @@ export async function createPlano(
 ): Promise<PlanoActionState> {
   const parsed = parseForm(formData);
 
-  if (!parsed || !parsed.success) {
-    return { error: parsed?.error.issues[0]?.message ?? "Dados inválidos." };
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
 
   const existing = await prisma.plano.findUnique({
@@ -108,16 +92,7 @@ export async function createPlano(
     return { error: "Já existe um plano com este nome." };
   }
 
-  const { opcoes, ...dados } = parsed.data;
-
-  await prisma.plano.create({
-    data: {
-      ...dados,
-      opcoes: {
-        create: opcoes.map((o, ordem) => ({ ...o, ordem })),
-      },
-    },
-  });
+  await prisma.plano.create({ data: parsed.data });
 
   revalidatePath("/planos");
   return { success: true };
@@ -130,8 +105,8 @@ export async function updatePlano(
 ): Promise<PlanoActionState> {
   const parsed = parseForm(formData);
 
-  if (!parsed || !parsed.success) {
-    return { error: parsed?.error.issues[0]?.message ?? "Dados inválidos." };
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
 
   const existing = await prisma.plano.findUnique({
@@ -142,20 +117,7 @@ export async function updatePlano(
     return { error: "Já existe um plano com este nome." };
   }
 
-  const { opcoes, ...dados } = parsed.data;
-
-  await prisma.$transaction([
-    prisma.planoOpcao.deleteMany({ where: { planoId: id } }),
-    prisma.plano.update({
-      where: { id },
-      data: {
-        ...dados,
-        opcoes: {
-          create: opcoes.map((o, ordem) => ({ ...o, ordem })),
-        },
-      },
-    }),
-  ]);
+  await prisma.plano.update({ where: { id }, data: parsed.data });
 
   revalidatePath("/planos");
   return { success: true };

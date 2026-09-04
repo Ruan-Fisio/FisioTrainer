@@ -1,37 +1,47 @@
 import { prisma } from "@/lib/prisma";
 import { createAgendamento } from "@/actions/agendamentos";
+import { listGruposPacientesOptions } from "@/actions/grupos-pacientes";
 import { AgendamentoForm } from "@/components/agendamentos/agendamento-form";
 
 export default async function NovoAgendamentoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ pacienteId?: string }>;
+  searchParams: Promise<{ pacienteId?: string; data?: string; horaInicio?: string }>;
 }) {
-  const { pacienteId } = await searchParams;
+  const { pacienteId, data, horaInicio } = await searchParams;
 
-  const pacientes = await prisma.paciente.findMany({
-    orderBy: { nome: "asc" },
-    select: { id: true, nome: true },
-  });
+  const [pacientes, grupos, profissionais] = await Promise.all([
+    prisma.paciente.findMany({ orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
+    listGruposPacientesOptions(),
+    prisma.user.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+  ]);
+
+  const temPrefill = Boolean(pacienteId || data || horaInicio);
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold">Novo agendamento</h1>
+        <h1 className="text-2xl font-semibold">Novo evento</h1>
         <p className="text-sm text-muted-foreground">
-          Agende o retorno, a reavaliação ou a sessão do paciente.
+          Crie um compromisso na agenda, com ou sem paciente vinculado.
         </p>
       </div>
       <AgendamentoForm
         action={createAgendamento}
         pacientes={pacientes}
+        grupos={grupos}
+        profissionais={profissionais}
         defaultValues={
-          pacienteId
+          temPrefill
             ? {
-                pacienteId,
-                data: "",
-                hora: "",
-                tipo: "RETORNO",
+                titulo: "",
+                pacienteIds: pacienteId ? [pacienteId] : [],
+                profissionalId: "",
+                data: data ?? "",
+                horaInicio: horaInicio ?? "",
+                horaFim: "",
+                diaInteiro: false,
+                modalidade: "FISIOTERAPIA",
                 status: "AGENDADO",
                 observacao: "",
               }
