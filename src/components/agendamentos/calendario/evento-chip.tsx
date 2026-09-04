@@ -28,7 +28,11 @@ type Visao = "detalhes" | "remarcar" | "excluir";
 
 function formatarIntervalo(evento: EventoCalendario) {
   if (evento.diaInteiro) return "Dia inteiro";
-  const opcoes: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit" };
+  const opcoes: Intl.DateTimeFormatOptions = {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  };
   return `${evento.dataInicio.toLocaleTimeString("pt-BR", opcoes)} – ${evento.dataFim.toLocaleTimeString("pt-BR", opcoes)}`;
 }
 
@@ -72,6 +76,7 @@ export function EventoChip({
     weekday: "long",
     day: "2-digit",
     month: "long",
+    timeZone: "America/Sao_Paulo",
   });
 
   return (
@@ -94,6 +99,7 @@ export function EventoChip({
             {evento.dataInicio.toLocaleTimeString("pt-BR", {
               hour: "2-digit",
               minute: "2-digit",
+              timeZone: "America/Sao_Paulo",
             })}
           </span>
         )}

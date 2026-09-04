@@ -332,8 +332,8 @@ model Agendamento {
   pacientes      Paciente[]
   profissionalId String?
   profissional   User?                 @relation(fields: [profissionalId], references: [id], onDelete: SetNull)
-  dataInicio     DateTime
-  dataFim        DateTime
+  dataInicio     DateTime              @db.Timestamptz(3)
+  dataFim        DateTime              @db.Timestamptz(3)
   diaInteiro     Boolean               @default(false)
   modalidade     ModalidadeAgendamento @default(FISIOTERAPIA)
   status         StatusAgendamento     @default(AGENDADO)

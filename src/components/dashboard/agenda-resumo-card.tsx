@@ -49,8 +49,15 @@ function nomeParticipante(a: Agendamento) {
   return a.pacientes[0]?.nome ?? a.titulo;
 }
 
+// A clínica opera em horário de Brasília — ancorar a exibição nesse fuso.
+const TZ = "America/Sao_Paulo";
+
 function horaCurta(d: Date) {
-  return d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  return d.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: TZ,
+  });
 }
 
 function chaveDia(d: Date) {
@@ -58,6 +65,7 @@ function chaveDia(d: Date) {
     weekday: "long",
     day: "2-digit",
     month: "long",
+    timeZone: TZ,
   });
 }
 

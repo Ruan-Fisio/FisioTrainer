@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { isToday } from "date-fns";
 import { cn } from "@/lib/utils";
-import { toDateInputValue } from "@/lib/format";
+import { horaDoDia, toDateInputValue } from "@/lib/format";
 import { HORAS_DO_DIA } from "@/lib/calendario";
 import { EventoChip } from "@/components/agendamentos/calendario/evento-chip";
 import type { EventoCalendario } from "@/components/agendamentos/calendario/types";
@@ -22,7 +22,9 @@ export function GradeHoraria({ dias, eventos }: { dias: Date[]; eventos: EventoC
   }
 
   function eventosDaHora(dia: Date, hora: number) {
-    return eventosDoDia(dia).filter((e) => !e.diaInteiro && e.dataInicio.getHours() === hora);
+    return eventosDoDia(dia).filter(
+      (e) => !e.diaInteiro && horaDoDia(e.dataInicio) === hora,
+    );
   }
 
   function abrirNovoEvento(dia: Date, hora?: number) {

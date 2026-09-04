@@ -51,7 +51,17 @@ function ordinal(n: number) {
 }
 
 function quandoLabel(data: Date) {
-  const s = format(data, "EEEE, dd/MM 'às' HH:mm", { locale: ptBR });
+  // Ancorado no horário de Brasília, não no fuso do navegador.
+  const s = data
+    .toLocaleString("pt-BR", {
+      weekday: "long",
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "America/Sao_Paulo",
+    })
+    .replace(",", "");
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
