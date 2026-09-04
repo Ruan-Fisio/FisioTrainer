@@ -162,7 +162,6 @@ model Paciente {
   evolucoes             Evolucao[]
   cobrancas             Cobranca[]
   agendamentos          Agendamento[]
-  grupos                GrupoPaciente[]
   planoAtribuicoes      PlanoAtribuicao[]
   treinos               Treino[]
   acessosCompartilhados AcessoCompartilhadoPaciente[]
@@ -184,14 +183,6 @@ model AcessoCompartilhadoPaciente {
   criadoEm       DateTime  @default(now())
 
   @@index([pacienteId])
-}
-
-model GrupoPaciente {
-  id        String     @id @default(cuid())
-  nome      String
-  pacientes Paciente[]
-  createdAt DateTime   @default(now())
-  updatedAt DateTime   @updatedAt
 }
 
 model Evolucao {

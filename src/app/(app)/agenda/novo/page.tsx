@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { createAgendamento } from "@/actions/agendamentos";
-import { listGruposPacientesOptions } from "@/actions/grupos-pacientes";
 import { AgendamentoForm } from "@/components/agendamentos/agendamento-form";
 
 export default async function NovoAgendamentoPage({
@@ -10,9 +9,8 @@ export default async function NovoAgendamentoPage({
 }) {
   const { pacienteId, data, horaInicio } = await searchParams;
 
-  const [pacientes, grupos, profissionais] = await Promise.all([
+  const [pacientes, profissionais] = await Promise.all([
     prisma.paciente.findMany({ orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
-    listGruposPacientesOptions(),
     prisma.user.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
 
@@ -29,7 +27,6 @@ export default async function NovoAgendamentoPage({
       <AgendamentoForm
         action={createAgendamento}
         pacientes={pacientes}
-        grupos={grupos}
         profissionais={profissionais}
         defaultValues={
           temPrefill

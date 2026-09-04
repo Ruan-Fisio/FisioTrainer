@@ -29,14 +29,7 @@ export const navItems: NavItem[] = [
   { title: "Pacientes", href: "/pacientes", icon: UserRound },
   { title: "Planos", href: "/planos", icon: Wallet },
   { title: "Cobranças", href: "/cobrancas", icon: Receipt },
-  {
-    title: "Agenda",
-    icon: CalendarClock,
-    items: [
-      { title: "Calendário", href: "/agenda" },
-      { title: "Grupos de pacientes", href: "/agenda/grupos" },
-    ],
-  },
+  { title: "Agenda", href: "/agenda", icon: CalendarClock },
   { title: "Exames", href: "/exames", icon: ClipboardList },
   { title: "Evoluções", href: "/evolucoes", icon: NotebookPen },
   { title: "Treinos", href: "/treinos", icon: ListChecks },

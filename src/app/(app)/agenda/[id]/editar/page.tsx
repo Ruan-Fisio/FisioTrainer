@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getAgendamento, updateAgendamento } from "@/actions/agendamentos";
-import { listGruposPacientesOptions } from "@/actions/grupos-pacientes";
 import { AgendamentoForm } from "@/components/agendamentos/agendamento-form";
 import { toDateInputValue, toTimeInputValue } from "@/lib/format";
 
@@ -12,10 +11,9 @@ export default async function EditarAgendamentoPage({
 }) {
   const { id } = await params;
 
-  const [agendamento, pacientes, grupos, profissionais] = await Promise.all([
+  const [agendamento, pacientes, profissionais] = await Promise.all([
     getAgendamento(id),
     prisma.paciente.findMany({ orderBy: { nome: "asc" }, select: { id: true, nome: true } }),
-    listGruposPacientesOptions(),
     prisma.user.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
   ]);
 
@@ -36,7 +34,6 @@ export default async function EditarAgendamentoPage({
       <AgendamentoForm
         action={updateAgendamentoWithId}
         pacientes={pacientes}
-        grupos={grupos}
         profissionais={profissionais}
         defaultValues={{
           titulo: agendamento.titulo,

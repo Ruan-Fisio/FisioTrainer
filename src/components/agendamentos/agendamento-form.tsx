@@ -62,12 +62,6 @@ const UNIDADE_OPTIONS = [
   { value: "ANO", label: "ano(s)" },
 ];
 
-type GrupoOption = {
-  id: string;
-  nome: string;
-  pacientes: { id: string }[];
-};
-
 export type AgendamentoFormDefaultValues = {
   titulo: string;
   pacienteIds: string[];
@@ -84,7 +78,6 @@ export type AgendamentoFormDefaultValues = {
 export function AgendamentoForm({
   action,
   pacientes,
-  grupos,
   profissionais,
   defaultValues,
   cancelHref,
@@ -96,7 +89,6 @@ export function AgendamentoForm({
     formData: FormData,
   ) => Promise<AgendamentoActionState>;
   pacientes: PacienteOption[];
-  grupos: GrupoOption[];
   profissionais: { id: string; name: string }[];
   defaultValues?: AgendamentoFormDefaultValues;
   cancelHref: string;
@@ -134,15 +126,6 @@ export function AgendamentoForm({
       router.push(cancelHref);
     }
   }, [state.success, mode, cancelHref, router]);
-
-  function adicionarParticipantesDoGrupo(grupoId: string) {
-    const grupo = grupos.find((g) => g.id === grupoId);
-    if (!grupo) return;
-    setPacienteIds((prev) => [
-      ...prev,
-      ...grupo.pacientes.map((p) => p.id).filter((id) => !prev.includes(id)),
-    ]);
-  }
 
   function toggleDiaSemana(dia: number) {
     setDiasSemana((prev) =>
@@ -193,30 +176,6 @@ export function AgendamentoForm({
           onChange={setPacienteIds}
           placeholder="Selecionar pacientes (opcional)"
         />
-        {mode === "create" && grupos.length > 0 && (
-          <div className="flex flex-col gap-2 sm:max-w-xs">
-            <Label htmlFor="grupoId" className="text-xs">
-              Adicionar participantes de um grupo
-            </Label>
-            <NativeSelect
-              id="grupoId"
-              onChange={(e) => {
-                adicionarParticipantesDoGrupo(e.target.value);
-                e.target.value = "";
-              }}
-              defaultValue=""
-            >
-              <option value="" disabled>
-                Selecione um grupo
-              </option>
-              {grupos.map((grupo) => (
-                <option key={grupo.id} value={grupo.id}>
-                  {grupo.nome} ({grupo.pacientes.length})
-                </option>
-              ))}
-            </NativeSelect>
-          </div>
-        )}
       </div>
 
       <div className="flex flex-col gap-2 sm:max-w-xs">
