@@ -171,7 +171,7 @@ A clínica opera em `America/Sao_Paulo` e o sistema assume esse fuso em todo lug
 
 - **Entrada**: `combinarDataHora(data, hora)` (`src/lib/validations/agendamento.ts`) sempre anexa `-03:00` — o instante gravado não depende do fuso do processo (a Vercel roda em UTC).
 - **Colunas de data/hora com hora relevante** usam `@db.Timestamptz(3)` (ex. `Agendamento.dataInicio/dataFim`) — guardam instante real, não timestamp naïve.
-- **Runtime**: `next.config.ts` faz `process.env.TZ ??= "America/Sao_Paulo"` (afeta RSC/server actions/date-fns). Em produção, definir **também** a env var `TZ=America/Sao_Paulo` no painel da Vercel.
+- **Runtime**: `next.config.ts` faz `process.env.TZ = process.env.APP_TIMEZONE ?? process.env.TZ ?? "America/Sao_Paulo"` (afeta RSC/server actions/date-fns). `TZ` é nome reservado na Vercel — não dá pra setar lá; o fallback hardcoded já cobre produção. Para trocar o fuso, use a env var `APP_TIMEZONE`.
 - **Exibição**: `src/lib/format.ts` formata com `timeZone: "America/Sao_Paulo"` explícito (`formatarData`, `formatarDataHora`, `toDateInputValue`, `toTimeInputValue`, `horaDoDia`). Componentes client de calendário/dashboard também passam `timeZone` explícito nos `toLocale*`. Para agrupar evento por faixa horária use `horaDoDia(date)`, nunca `date.getHours()`.
 
 ## Seed
