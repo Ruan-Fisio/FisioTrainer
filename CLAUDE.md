@@ -165,6 +165,15 @@ Pelo portal, cada slot preenchido `AGENDADO` tem botão **"Desmarcar"** (`Desmar
 - Desmarcar a tempo = `desmarcarAgendamentoPeloPaciente(agendamentoId, pacienteId)` seta `status: "CANCELADO"` (+ nota em `observacao`). Não há tabela/contador/cron de "crédito": a vaga do plano no mês reabre sozinha porque `contarAgendamentosNoMes` / `getConsumoPlanoPaciente` ignoram `CANCELADO`, e a janela mês-calendário faz o crédito não usado expirar na virada do mês. O paciente reagenda pelo botão "Agendar" que já existe.
 - O lado da clínica **não** passa por essa regra — cancela/exclui/remarca livremente pelos fluxos existentes.
 
+## Fuso horário — tudo em horário de Brasília
+
+A clínica opera em `America/Sao_Paulo` e o sistema assume esse fuso em todo lugar (o Brasil não tem horário de verão desde 2019, offset fixo `-03:00`).
+
+- **Entrada**: `combinarDataHora(data, hora)` (`src/lib/validations/agendamento.ts`) sempre anexa `-03:00` — o instante gravado não depende do fuso do processo (a Vercel roda em UTC).
+- **Colunas de data/hora com hora relevante** usam `@db.Timestamptz(3)` (ex. `Agendamento.dataInicio/dataFim`) — guardam instante real, não timestamp naïve.
+- **Runtime**: `next.config.ts` faz `process.env.TZ ??= "America/Sao_Paulo"` (afeta RSC/server actions/date-fns). Em produção, definir **também** a env var `TZ=America/Sao_Paulo` no painel da Vercel.
+- **Exibição**: `src/lib/format.ts` formata com `timeZone: "America/Sao_Paulo"` explícito (`formatarData`, `formatarDataHora`, `toDateInputValue`, `toTimeInputValue`, `horaDoDia`). Componentes client de calendário/dashboard também passam `timeZone` explícito nos `toLocale*`. Para agrupar evento por faixa horária use `horaDoDia(date)`, nunca `date.getHours()`.
+
 ## Seed
 
 `npm run db:seed` cria o usuário admin padrão (`admin@admin.com` / `admin`).
