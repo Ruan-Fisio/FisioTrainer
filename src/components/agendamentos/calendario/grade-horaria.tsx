@@ -14,7 +14,8 @@ export function GradeHoraria({ dias, eventos }: { dias: Date[]; eventos: EventoC
   const router = useRouter();
 
   function eventosDoDia(dia: Date) {
-    return eventos.filter((evento) => mesmoDia(evento.dataInicio, dia));
+    const alvo = toDateInputValue(dia);
+    return eventos.filter((evento) => toDateInputValue(evento.dataInicio) === alvo);
   }
 
   function eventosDiaInteiro(dia: Date) {
@@ -102,13 +103,5 @@ export function GradeHoraria({ dias, eventos }: { dias: Date[]; eventos: EventoC
         ))}
       </div>
     </div>
-  );
-}
-
-function mesmoDia(a: Date, b: Date) {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
   );
 }

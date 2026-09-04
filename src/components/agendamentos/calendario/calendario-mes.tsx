@@ -27,8 +27,15 @@ export function CalendarioMes({
   const dias = getDiasDaGrade(inicio, fim);
 
   function eventosDoDia(dia: Date) {
+    // Casa por data-calendário no fuso da clínica (não por instante), senão um
+    // evento às 13h de Brasília cai fora da célula quando o servidor está em UTC.
+    const alvo = toDateInputValue(dia);
     return eventos
-      .filter((evento) => dia >= startOfDayLocal(evento.dataInicio) && dia <= evento.dataFim)
+      .filter(
+        (evento) =>
+          toDateInputValue(evento.dataInicio) <= alvo &&
+          alvo <= toDateInputValue(evento.dataFim),
+      )
       .sort((a, b) => a.dataInicio.getTime() - b.dataInicio.getTime());
   }
 
@@ -99,10 +106,4 @@ export function CalendarioMes({
       </div>
     </div>
   );
-}
-
-function startOfDayLocal(data: Date) {
-  const copia = new Date(data);
-  copia.setHours(0, 0, 0, 0);
-  return copia;
 }
