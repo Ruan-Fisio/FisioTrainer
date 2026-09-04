@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarClock, ListChecks, Plus, User } from "lucide-react";
+import { CalendarClock, ListChecks, Plus, Stethoscope, User } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Button } from "@/components/ui/button";
 import { AgendaTabs } from "@/components/agendamentos/agenda-tabs";
@@ -29,6 +29,7 @@ type PageProps = {
     data?: string;
     page?: string;
     pacientes?: string;
+    profissionais?: string;
     modalidades?: string;
     status?: string;
     de?: string;
@@ -36,9 +37,17 @@ type PageProps = {
   }>;
 };
 
-async function CalendarioView({ visao, dataReferencia }: { visao: VisaoCalendario; dataReferencia: Date }) {
+async function CalendarioView({
+  visao,
+  dataReferencia,
+  profissionalIds,
+}: {
+  visao: VisaoCalendario;
+  dataReferencia: Date;
+  profissionalIds: string[];
+}) {
   const { inicio, fim } = getIntervaloVisivel(visao, dataReferencia);
-  const eventos = await listAgendamentosPorIntervalo({ inicio, fim });
+  const eventos = await listAgendamentosPorIntervalo({ inicio, fim, profissionalIds });
 
   const titulo =
     visao === "mes"
@@ -68,15 +77,32 @@ export default async function AgendaPage({ searchParams }: PageProps) {
 
   const page = Number(params.page ?? "1") || 1;
   const pacienteIds = parseListParam(params.pacientes);
+  const profissionalIds = parseListParam(params.profissionais);
   const modalidades = parseListParam(params.modalidades);
   const status = parseListParam(params.status);
   const de = params.de ?? "";
   const ate = params.ate ?? "";
 
-  const pacientes = await prisma.paciente.findMany({
-    orderBy: { nome: "asc" },
-    select: { id: true, nome: true },
-  });
+  const [pacientes, profissionais] = await Promise.all([
+    prisma.paciente.findMany({
+      orderBy: { nome: "asc" },
+      select: { id: true, nome: true },
+    }),
+    prisma.user.findMany({
+      orderBy: { name: "asc" },
+      select: { id: true, name: true },
+    }),
+  ]);
+
+  const profissionalFilter = (
+    <MultiSelectFilter
+      paramName="profissionais"
+      placeholder="Profissional"
+      icon={<Stethoscope className="size-4 text-muted-foreground" />}
+      options={profissionais.map((p) => ({ id: p.id, label: p.name ?? "Sem nome" }))}
+      defaultValue={profissionalIds}
+    />
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -97,7 +123,18 @@ export default async function AgendaPage({ searchParams }: PageProps) {
 
       <AgendaTabs
         tab={tab}
-        calendario={<CalendarioView visao={visao} dataReferencia={dataReferencia} />}
+        calendario={
+          <div className="flex flex-col gap-4">
+            <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0 sm:pb-0">
+              {profissionalFilter}
+            </div>
+            <CalendarioView
+              visao={visao}
+              dataReferencia={dataReferencia}
+              profissionalIds={profissionalIds}
+            />
+          </div>
+        }
         lista={
           <div className="flex flex-col gap-4">
             <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0 sm:pb-0">
@@ -108,6 +145,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
                 options={pacientes.map((p) => ({ id: p.id, label: p.nome }))}
                 defaultValue={pacienteIds}
               />
+              {profissionalFilter}
               <MultiSelectFilter
                 paramName="modalidades"
                 placeholder="Modalidade"
@@ -132,12 +170,13 @@ export default async function AgendaPage({ searchParams }: PageProps) {
             </div>
 
             <Suspense
-              key={`${page}-${pacienteIds.join(",")}-${modalidades.join(",")}-${status.join(",")}-${de}-${ate}`}
+              key={`${page}-${pacienteIds.join(",")}-${profissionalIds.join(",")}-${modalidades.join(",")}-${status.join(",")}-${de}-${ate}`}
               fallback={<TableSkeleton />}
             >
               <AgendamentosTable
                 page={page}
                 pacienteIds={pacienteIds}
+                profissionalIds={profissionalIds}
                 modalidades={modalidades}
                 status={status}
                 de={de || undefined}

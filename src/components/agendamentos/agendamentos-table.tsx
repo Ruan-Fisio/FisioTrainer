@@ -37,6 +37,7 @@ function Participantes({
 export async function AgendamentosTable({
   page,
   pacienteIds,
+  profissionalIds,
   modalidades,
   status,
   de,
@@ -44,13 +45,14 @@ export async function AgendamentosTable({
 }: {
   page: number;
   pacienteIds: string[];
+  profissionalIds: string[];
   modalidades: string[];
   status: string[];
   de?: string;
   ate?: string;
 }) {
   const { agendamentos, total, totalPages } = await listAgendamentos(
-    { pacienteIds, modalidades, status, de, ate },
+    { pacienteIds, profissionalIds, modalidades, status, de, ate },
     page,
   );
 

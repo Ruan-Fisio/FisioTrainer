@@ -20,6 +20,7 @@ const includePadrao = {
 export async function listAgendamentos(
   filters: {
     pacienteIds?: string[];
+    profissionalIds?: string[];
     modalidades?: string[];
     status?: string[];
     de?: string;
@@ -34,6 +35,9 @@ export async function listAgendamentos(
   const where = {
     ...(filters.pacienteIds && filters.pacienteIds.length > 0
       ? { pacientes: { some: { id: { in: filters.pacienteIds } } } }
+      : {}),
+    ...(filters.profissionalIds && filters.profissionalIds.length > 0
+      ? { profissionalId: { in: filters.profissionalIds } }
       : {}),
     ...(filters.modalidades && filters.modalidades.length > 0
       ? { modalidade: { in: filters.modalidades as ModalidadeAgendamento[] } }
@@ -75,11 +79,15 @@ export async function listAgendamentos(
 export async function listAgendamentosPorIntervalo(intervalo: {
   inicio: Date;
   fim: Date;
+  profissionalIds?: string[];
 }) {
   return prisma.agendamento.findMany({
     where: {
       dataInicio: { lte: intervalo.fim },
       dataFim: { gte: intervalo.inicio },
+      ...(intervalo.profissionalIds && intervalo.profissionalIds.length > 0
+        ? { profissionalId: { in: intervalo.profissionalIds } }
+        : {}),
     },
     orderBy: { dataInicio: "asc" },
     include: includePadrao,
