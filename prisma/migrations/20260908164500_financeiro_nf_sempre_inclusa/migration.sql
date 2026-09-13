@@ -17,12 +17,17 @@ ALTER TYPE "FormaPagamentoPlano_new" RENAME TO "FormaPagamentoPlano";
 DROP TYPE "FormaPagamentoPlano_old";
 COMMIT;
 
--- AlterTable
+-- AlterTable: nova coluna nullable por enquanto (backfill abaixo a partir do valor
+-- parcelado trimestral antigo, já que a NF sempre foi opcional e agora é embutida)
+ALTER TABLE "Plano" ADD COLUMN "valorAte3xTrimestral" DECIMAL(10,2);
+
+UPDATE "Plano" SET "valorAte3xTrimestral" = COALESCE("valorAte3xCartaoTrimestral", 0);
+
 ALTER TABLE "Plano"
+  ALTER COLUMN "valorAte3xTrimestral" SET NOT NULL,
   DROP COLUMN "valorAVistaNfMensal",
   DROP COLUMN "valorAVistaNfTrimestral",
   DROP COLUMN "valorAte3xCartaoMensal",
   DROP COLUMN "valorAte3xNfMensal",
   DROP COLUMN "valorAte3xNfTrimestral",
-  DROP COLUMN "valorAte3xCartaoTrimestral",
-  ADD COLUMN "valorAte3xTrimestral" DECIMAL(10,2) NOT NULL;
+  DROP COLUMN "valorAte3xCartaoTrimestral";
