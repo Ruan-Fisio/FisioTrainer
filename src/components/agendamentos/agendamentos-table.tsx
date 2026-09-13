@@ -9,7 +9,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { AgendamentoRowActions } from "@/components/agendamentos/agendamento-row-actions";
 import {
   STATUS_AGENDAMENTO_LABEL,
   MODALIDADE_AGENDAMENTO_LABEL,
@@ -77,28 +76,16 @@ export async function AgendamentosTable({
         {agendamentos.map((agendamento) => (
           <Card key={agendamento.id}>
             <CardContent className="flex flex-col gap-2 p-4">
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <p className="font-medium">{agendamento.titulo}</p>
-                  <p className="text-xs text-muted-foreground">
-                    <Participantes pacientes={agendamento.pacientes} />
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {formatarDataHora(agendamento.dataInicio)} ·{" "}
-                    {MODALIDADE_AGENDAMENTO_LABEL[agendamento.modalidade]}
-                  </p>
-                </div>
-                <AgendamentoRowActions
-                  id={agendamento.id}
-                  serieId={agendamento.serieId}
-                  remarcar={{
-                    titulo: agendamento.titulo,
-                    modalidade: agendamento.modalidade,
-                    profissionalId: agendamento.profissionalId,
-                    dataInicio: agendamento.dataInicio,
-                    dataFim: agendamento.dataFim,
-                  }}
-                />
+              <div>
+                <p className="font-medium">{agendamento.titulo}</p>
+                <p className="text-xs text-muted-foreground">
+                  <Participantes pacientes={agendamento.pacientes} />
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {formatarDataHora(agendamento.dataInicio)} ·{" "}
+                  {MODALIDADE_AGENDAMENTO_LABEL[agendamento.modalidade]}
+                  {agendamento.sala ? ` · ${agendamento.sala.nome}` : ""}
+                </p>
               </div>
               <Badge
                 variant="outline"
@@ -120,8 +107,8 @@ export async function AgendamentosTable({
               <TableHead>Participantes</TableHead>
               <TableHead>Data e horário</TableHead>
               <TableHead>Modalidade</TableHead>
+              <TableHead>Sala</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="w-[200px] text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -137,6 +124,9 @@ export async function AgendamentosTable({
                 <TableCell className="text-muted-foreground">
                   {MODALIDADE_AGENDAMENTO_LABEL[agendamento.modalidade]}
                 </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {agendamento.sala?.nome ?? "—"}
+                </TableCell>
                 <TableCell>
                   <Badge
                     variant="outline"
@@ -144,19 +134,6 @@ export async function AgendamentosTable({
                   >
                     {STATUS_AGENDAMENTO_LABEL[agendamento.status].label}
                   </Badge>
-                </TableCell>
-                <TableCell>
-                  <AgendamentoRowActions
-                  id={agendamento.id}
-                  serieId={agendamento.serieId}
-                  remarcar={{
-                    titulo: agendamento.titulo,
-                    modalidade: agendamento.modalidade,
-                    profissionalId: agendamento.profissionalId,
-                    dataInicio: agendamento.dataInicio,
-                    dataFim: agendamento.dataFim,
-                  }}
-                />
                 </TableCell>
               </TableRow>
             ))}

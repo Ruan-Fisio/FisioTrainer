@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { MODALIDADE_AGENDAMENTO_LABEL } from "@/components/agendamentos/agendamento-labels";
-import { MODALIDADE_SALA } from "@/lib/salas";
 import {
   createHorarioAtendimento,
   alternarAtivoHorarioAtendimento,
@@ -29,9 +28,13 @@ const initialState: HorarioAtendimentoActionState = {};
 export function HorariosAtendimentoCard({
   modalidade,
   horarios,
+  sala,
+  capacidade,
 }: {
   modalidade: string;
   horarios: Horario[];
+  sala: string;
+  capacidade: number;
 }) {
   const [state, formAction] = useActionState(createHorarioAtendimento, initialState);
   const [isPending, startTransition] = useTransition();
@@ -61,9 +64,7 @@ export function HorariosAtendimentoCard({
       <CardHeader>
         <CardTitle>{MODALIDADE_AGENDAMENTO_LABEL[modalidade]}</CardTitle>
         <CardDescription>
-          {MODALIDADE_SALA[modalidade as keyof typeof MODALIDADE_SALA].sala} · até{" "}
-          {MODALIDADE_SALA[modalidade as keyof typeof MODALIDADE_SALA].capacidade} pessoa(s) por
-          horário
+          {sala} · até {capacidade} pessoa(s) por horário
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

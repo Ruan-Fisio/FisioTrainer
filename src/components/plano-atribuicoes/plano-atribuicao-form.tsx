@@ -29,9 +29,10 @@ import {
 } from "@/components/ui/dialog";
 import {
   calcularDesconto,
+  formaEfetiva,
   gerarDatasVencimento,
   gerarValoresParcelas,
-  maxParcelasDaForma,
+  maxParcelasPlano,
   valorPlano,
   type DescontoTipo,
   type FormaPagamentoPlano,
@@ -44,7 +45,13 @@ import {
   periodicidadePlanoValues,
 } from "@/lib/validations/plano";
 import { formatarData, formatarMoeda } from "@/lib/format";
+import {
+  GradeSection,
+  type GradeOpcoes,
+  type ModalidadePlano,
+} from "@/components/plano-atribuicoes/grade-section";
 import type { PlanoAtribuicaoActionState } from "@/actions/plano-atribuicoes";
+import type { GradeRecorrenteLinha } from "@/lib/validations/grade-recorrente";
 
 const initialState: PlanoAtribuicaoActionState = {};
 
@@ -52,14 +59,10 @@ type PlanoAtivo = {
   id: string;
   nome: string;
   atendimentos: number;
+  tipos: string[];
   valorAVistaMensal: number;
   valorAVistaTrimestral: number;
-  valorAVistaNfMensal: number;
-  valorAVistaNfTrimestral: number;
-  valorAte3xCartaoMensal: number;
-  valorAte3xCartaoTrimestral: number;
-  valorAte3xNfMensal: number;
-  valorAte3xNfTrimestral: number;
+  valorAte3xTrimestral: number;
 };
 
 export function PlanoAtribuicaoForm({
@@ -68,6 +71,7 @@ export function PlanoAtribuicaoForm({
   defaultValues,
   pacienteId,
   mode,
+  gradeOpcoes,
 }: {
   action: (
     prevState: PlanoAtribuicaoActionState,
@@ -82,9 +86,11 @@ export function PlanoAtribuicaoForm({
     descontoTipo?: DescontoTipo;
     descontoValor?: number;
     valorAlvoParcela?: number;
+    gradeLinhas?: GradeRecorrenteLinha[];
   };
   pacienteId: string;
   mode: "create" | "edit";
+  gradeOpcoes: GradeOpcoes;
 }) {
   const router = useRouter();
   const [state, formAction] = useActionState(action, initialState);
@@ -126,6 +132,9 @@ export function PlanoAtribuicaoForm({
   const [valorAlvoTocado, setValorAlvoTocado] = useState(
     Boolean(defaultValues?.valorAlvoParcela),
   );
+  const [gradeLinhas, setGradeLinhas] = useState<GradeRecorrenteLinha[]>(
+    defaultValues?.gradeLinhas ?? [],
+  );
 
   useEffect(() => {
     if (state.success) {
@@ -139,7 +148,27 @@ export function PlanoAtribuicaoForm({
   }, [state.success, mode, pacienteId, router]);
 
   const planoSelecionado = planosAtivos.find((p) => p.id === planoId);
-  const maxParcelas = maxParcelasDaForma(formaPagamento);
+  const formaEfetivaAtual = formaEfetiva(periodicidade, formaPagamento);
+  const maxParcelas = maxParcelasPlano(periodicidade, formaEfetivaAtual);
+
+  const modalidadesGrade = useMemo<ModalidadePlano[]>(
+    () =>
+      (planoSelecionado?.tipos ?? []).filter(
+        (t): t is ModalidadePlano =>
+          t === "EDUCACAO_FISICA" || t === "FISIOTERAPIA",
+      ),
+    [planoSelecionado],
+  );
+
+  // Trocar de plano pode remover modalidades — o que é submetido/exibido ignora linhas
+  // de grade que ficaram fora das modalidades do plano atual (sem mexer no state).
+  const gradeLinhasEfetivas = useMemo(
+    () =>
+      gradeLinhas.filter((l) =>
+        modalidadesGrade.includes(l.modalidade as ModalidadePlano),
+      ),
+    [gradeLinhas, modalidadesGrade],
+  );
 
   useEffect(() => {
     setVencimentos((prev) =>
@@ -150,8 +179,8 @@ export function PlanoAtribuicaoForm({
 
   const valorOriginal = useMemo(() => {
     if (!planoSelecionado) return 0;
-    return valorPlano(planoSelecionado, formaPagamento, periodicidade);
-  }, [planoSelecionado, formaPagamento, periodicidade]);
+    return valorPlano(planoSelecionado, formaEfetivaAtual, periodicidade);
+  }, [planoSelecionado, formaEfetivaAtual, periodicidade]);
 
   const numeroParcelas = vencimentos.filter(Boolean).length;
 
@@ -232,11 +261,12 @@ export function PlanoAtribuicaoForm({
       onSubmit={handleSubmit}
       className="flex max-w-2xl flex-col gap-4 pb-24"
     >
-      <input type="hidden" name="formaPagamento" value={formaPagamento} />
+      <input type="hidden" name="formaPagamento" value={formaEfetivaAtual} />
       <input type="hidden" name="periodicidade" value={periodicidade} />
       <input type="hidden" name="descontoTipo" value={descontoTipo} />
       <input type="hidden" name="descontoValor" value={descontoValor} />
       <input type="hidden" name="valorAlvoParcela" value={valorAlvoEfetivo} />
+      <input type="hidden" name="gradeLinhas" value={JSON.stringify(gradeLinhasEfetivas)} />
       {vencimentos.filter(Boolean).map((data, i) => (
         <input key={i} type="hidden" name="vencimentos" value={data} />
       ))}
@@ -277,31 +307,41 @@ export function PlanoAtribuicaoForm({
         </RadioGroup>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <Label>Forma de pagamento</Label>
-        <RadioGroup
-          value={formaPagamento}
-          onValueChange={(v) => setFormaPagamento(v as FormaPagamentoPlano)}
-          className="flex flex-col gap-2"
-        >
-          {formaPagamentoPlanoValues.map((forma) => (
-            <label
-              key={forma}
-              className="flex min-h-8 cursor-pointer items-center justify-between gap-2 rounded-lg border border-input p-2 text-sm select-none"
-            >
-              <span className="flex items-center gap-2">
-                <RadioGroupItem value={forma} />
-                {formaPagamentoPlanoLabels[forma]}
-              </span>
-              {planoSelecionado && (
-                <span className="font-medium text-muted-foreground">
-                  {formatarMoeda(valorPlano(planoSelecionado, forma, periodicidade))}
+      {periodicidade === "TRIMESTRAL" ? (
+        <div className="flex flex-col gap-2">
+          <Label>Forma de pagamento</Label>
+          <RadioGroup
+            value={formaPagamento}
+            onValueChange={(v) => setFormaPagamento(v as FormaPagamentoPlano)}
+            className="flex flex-col gap-2"
+          >
+            {formaPagamentoPlanoValues.map((forma) => (
+              <label
+                key={forma}
+                className="flex min-h-8 cursor-pointer items-center justify-between gap-2 rounded-lg border border-input p-2 text-sm select-none"
+              >
+                <span className="flex items-center gap-2">
+                  <RadioGroupItem value={forma} />
+                  {formaPagamentoPlanoLabels[forma]}
                 </span>
-              )}
-            </label>
-          ))}
-        </RadioGroup>
-      </div>
+                {planoSelecionado && (
+                  <span className="font-medium text-muted-foreground">
+                    {formatarMoeda(valorPlano(planoSelecionado, forma, periodicidade))}
+                  </span>
+                )}
+              </label>
+            ))}
+          </RadioGroup>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground">
+          Plano mensal é sempre à vista, em parcela única
+          {planoSelecionado
+            ? ` (${formatarMoeda(valorPlano(planoSelecionado, "A_VISTA", "MENSAL"))})`
+            : ""}
+          . A nota fiscal já está inclusa no valor.
+        </p>
+      )}
 
       {!parcelasGeradas ? (
         <Card>
@@ -322,7 +362,9 @@ export function PlanoAtribuicaoForm({
               <Label htmlFor="wizardQuantidade">
                 Em quantas parcelas?{" "}
                 {maxParcelas === 1
-                  ? "(à vista permite só 1)"
+                  ? periodicidade === "MENSAL"
+                    ? "(mensal não parcela)"
+                    : "(à vista permite só 1)"
                   : `(até ${maxParcelas})`}
               </Label>
               <Input
@@ -523,6 +565,16 @@ export function PlanoAtribuicaoForm({
             </ul>
           </CardContent>
         </Card>
+      )}
+
+      {modalidadesGrade.length > 0 && (
+        <GradeSection
+          linhas={gradeLinhasEfetivas}
+          onChange={setGradeLinhas}
+          modalidades={modalidadesGrade}
+          atendimentos={planoSelecionado?.atendimentos ?? null}
+          opcoes={gradeOpcoes}
+        />
       )}
 
       {state.error && <p className="text-sm text-destructive">{state.error}</p>}

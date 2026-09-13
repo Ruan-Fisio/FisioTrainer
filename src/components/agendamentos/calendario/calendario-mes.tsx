@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { isSameMonth, isToday } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
@@ -23,7 +22,6 @@ export function CalendarioMes({
   dataReferencia: Date;
   eventos: EventoCalendario[];
 }) {
-  const router = useRouter();
   const dias = getDiasDaGrade(inicio, fim);
 
   function eventosDoDia(dia: Date) {
@@ -57,9 +55,8 @@ export function CalendarioMes({
           return (
             <div
               key={dia.toISOString()}
-              onClick={() => router.push(`/agenda/novo?data=${toDateInputValue(dia)}`)}
               className={cn(
-                "flex min-h-24 cursor-pointer flex-col gap-1 border-b border-r p-1.5 transition-colors hover:bg-muted/30 sm:min-h-28",
+                "flex min-h-24 flex-col gap-1 border-b border-r p-1.5 sm:min-h-28",
                 !isSameMonth(dia, dataReferencia) && "bg-muted/20 text-muted-foreground",
               )}
             >

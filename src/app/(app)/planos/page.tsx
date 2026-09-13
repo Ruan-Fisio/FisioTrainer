@@ -4,14 +4,17 @@ import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/filters/search-input";
 import { PlanosTable } from "@/components/planos/planos-table";
+import { PlanosTabs } from "@/components/planos/planos-tabs";
+import { RenovacoesList } from "@/components/planos/renovacoes-list";
 import { TableSkeleton } from "@/components/skeletons/table-skeleton";
 
 type PageProps = {
-  searchParams: Promise<{ page?: string; q?: string }>;
+  searchParams: Promise<{ tab?: string; page?: string; q?: string }>;
 };
 
 export default async function PlanosPage({ searchParams }: PageProps) {
   const params = await searchParams;
+  const tab = params.tab === "renovacoes" ? "renovacoes" : "catalogo";
   const page = Number(params.page ?? "1") || 1;
   const search = params.q ?? "";
 
@@ -21,8 +24,8 @@ export default async function PlanosPage({ searchParams }: PageProps) {
         <div>
           <h1 className="text-2xl font-semibold">Planos</h1>
           <p className="text-sm text-muted-foreground">
-            Cadastre os planos oferecidos e atribua a pacientes para gerar as
-            cobranças automaticamente.
+            Cadastre os planos oferecidos, atribua a pacientes e renove os que já
+            cumpriram todo o período.
           </p>
         </div>
         <Button asChild>
@@ -33,11 +36,22 @@ export default async function PlanosPage({ searchParams }: PageProps) {
         </Button>
       </div>
 
-      <SearchInput defaultValue={search} placeholder="Buscar por nome..." />
-
-      <Suspense key={`${page}-${search}`} fallback={<TableSkeleton />}>
-        <PlanosTable page={page} search={search} />
-      </Suspense>
+      <PlanosTabs
+        tab={tab}
+        catalogo={
+          <div className="flex flex-col gap-4">
+            <SearchInput defaultValue={search} placeholder="Buscar por nome..." />
+            <Suspense key={`${page}-${search}`} fallback={<TableSkeleton />}>
+              <PlanosTable page={page} search={search} />
+            </Suspense>
+          </div>
+        }
+        renovacoes={
+          <Suspense fallback={<TableSkeleton />}>
+            <RenovacoesList />
+          </Suspense>
+        }
+      />
     </div>
   );
 }

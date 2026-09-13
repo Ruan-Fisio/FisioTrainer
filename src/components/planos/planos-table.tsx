@@ -54,7 +54,9 @@ export async function PlanosTable({
                   ))}
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {plano.atendimentos}x atendimentos
+                  {plano.atendimentos}x atendimentos ·{" "}
+                  {plano.creditosRemarcacao} crédito
+                  {plano.creditosRemarcacao === 1 ? "" : "s"} de remarcação/mês
                 </p>
                 <p className="text-xs text-muted-foreground">
                   À vista: {formatarMoeda(plano.valorAVistaMensal)}/mês ·{" "}

@@ -24,8 +24,11 @@ model User {
   inscricaoMunicipal String?
   telefone           String?
   endereco           String?
+  atendeFisioterapia   Boolean  @default(false)
+  atendeEducacaoFisica Boolean  @default(false)
   evolucoes          Evolucao[]
   agendamentos       Agendamento[]
+  gradesRecorrentes  GradeRecorrenteAtendimento[] @relation("GradeRecorrenteProfissional")
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 }
@@ -248,9 +251,7 @@ enum TipoPlano {
 
 enum FormaPagamentoPlano {
   A_VISTA
-  A_VISTA_NF
   ATE_3X_CARTAO
-  ATE_3X_NF
 }
 
 enum PeriodicidadePlano {
@@ -264,17 +265,34 @@ model Plano {
   descricao                  String?
   tipos                      TipoPlano[]
   atendimentos               Int
+  creditosRemarcacao         Int                 @default(0)
   valorAVistaMensal          Decimal             @db.Decimal(10, 2)
   valorAVistaTrimestral      Decimal             @db.Decimal(10, 2)
-  valorAVistaNfMensal        Decimal             @db.Decimal(10, 2)
-  valorAVistaNfTrimestral    Decimal             @db.Decimal(10, 2)
-  valorAte3xCartaoMensal     Decimal             @db.Decimal(10, 2)
-  valorAte3xCartaoTrimestral Decimal             @db.Decimal(10, 2)
-  valorAte3xNfMensal         Decimal             @db.Decimal(10, 2)
-  valorAte3xNfTrimestral     Decimal             @db.Decimal(10, 2)
+  valorAte3xTrimestral       Decimal             @db.Decimal(10, 2)
+  salas                      PlanoSala[]
   atribuicoes                PlanoAtribuicao[]
   createdAt                  DateTime            @default(now())
   updatedAt                  DateTime            @updatedAt
+}
+
+/// Salas em que um Plano pode ser executado (Fisioterapia/Educação Física). Ao agendar
+/// pelo plano, o sistema tenta cada sala nesta lista, na ordem de `Sala.ordem`, e usa a
+/// primeira com vaga (`src/lib/sala-plano.ts` + `resolverSalaPlano` em
+/// `agendamento-checagens.ts`). `descricao` é um texto livre sobre o uso daquela sala
+/// para este plano (ex. "usa a Sala 2 para uso de equipamentos"), editável no cadastro
+/// do Plano. Um plano de Fisioterapia/Educação Física sem nenhuma sala aqui bloqueia
+/// agendamento (nunca cria sem sala) — configuração obrigatória.
+model PlanoSala {
+  id        String   @id @default(cuid())
+  planoId   String
+  plano     Plano    @relation(fields: [planoId], references: [id], onDelete: Cascade)
+  salaId    String
+  sala      Sala     @relation(fields: [salaId], references: [id], onDelete: Restrict)
+  descricao String?
+  createdAt DateTime @default(now())
+
+  @@unique([planoId, salaId])
+  @@index([salaId])
 }
 
 model PlanoAtribuicao {
@@ -285,6 +303,7 @@ model PlanoAtribuicao {
   plano          Plano?                @relation(fields: [planoId], references: [id], onDelete: SetNull)
   planoNome      String
   atendimentos   Int?
+  creditosRemarcacao Int             @default(0)
   formaPagamento FormaPagamentoPlano
   periodicidade  PeriodicidadePlano    @default(MENSAL)
   valorOriginal  Decimal               @db.Decimal(10, 2)
@@ -297,10 +316,34 @@ model PlanoAtribuicao {
   status         StatusPlanoAtribuicao @default(ATIVO)
   cobrancas      Cobranca[]
   agendamentos   Agendamento[]
+  creditosRemarcacaoUsados CreditoRemarcacao[]
+  gradeRecorrente GradeRecorrenteAtendimento[]
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt
 
   @@index([pacienteId])
+}
+
+/// Modelo semanal de atendimento de um plano atribuído: cada linha = 1 (dia da semana +
+/// horário + profissional) que se repete toda semana enquanto o plano estiver ATIVO.
+/// Um gerador (src/actions/grade-recorrente.ts) materializa `Agendamento`s a partir daqui
+/// para um horizonte rolante (mês atual + próximo), respeitando limite mensal do plano,
+/// capacidade de sala e conflito de profissional. Editável na aba "Agendamentos" do paciente.
+model GradeRecorrenteAtendimento {
+  id                String                @id @default(cuid())
+  planoAtribuicaoId String
+  planoAtribuicao   PlanoAtribuicao       @relation(fields: [planoAtribuicaoId], references: [id], onDelete: Cascade)
+  modalidade        ModalidadeAgendamento
+  diaSemana         DiaSemana
+  horario           String
+  profissionalId    String?
+  profissional      User?                 @relation("GradeRecorrenteProfissional", fields: [profissionalId], references: [id], onDelete: SetNull)
+  ativo             Boolean               @default(true)
+  agendamentos      Agendamento[]
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  @@index([planoAtribuicaoId])
 }
 
 enum ModalidadeAgendamento {
@@ -332,6 +375,17 @@ model Agendamento {
   serieId        String?
   planoAtribuicaoId String?
   planoAtribuicao   PlanoAtribuicao? @relation(fields: [planoAtribuicaoId], references: [id], onDelete: SetNull)
+  gradeRecorrenteId String?
+  gradeRecorrente   GradeRecorrenteAtendimento? @relation(fields: [gradeRecorrenteId], references: [id], onDelete: SetNull)
+  /// Data-calendário (Brasília) que a grade recorrente pretendia para este agendamento.
+  /// Chave de idempotência do gerador; permanece no dia original mesmo após remarcação.
+  slotData       DateTime?             @db.Date
+  /// Sala escolhida automaticamente entre as salas cadastradas no Plano (Fisioterapia/
+  /// Educação Física) — ver `PlanoSala`. Nula para Avaliação/Terapia Manual (sala fixa,
+  /// `MODALIDADE_SALA_PADRAO`) e para agendamentos antigos anteriores a esse recurso.
+  salaId         String?
+  sala           Sala?                 @relation(fields: [salaId], references: [id], onDelete: SetNull)
+  creditosRemarcacao CreditoRemarcacao[]
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt
 
@@ -340,6 +394,30 @@ model Agendamento {
   @@index([serieId])
   @@index([modalidade])
   @@index([planoAtribuicaoId])
+  @@index([gradeRecorrenteId])
+  @@index([salaId])
+}
+
+enum OrigemRemarcacao {
+  PACIENTE
+  CLINICA
+}
+
+/// Trilha de consumo de créditos de remarcação de um plano. Cada linha = 1 crédito
+/// consumido no mês (contado por `createdAt`, janela mês-calendário de Brasília).
+/// Criada quando o paciente desmarca pelo portal (dentro do prazo) ou a clínica
+/// remarca pelo wizard "Remarcar" um agendamento ligado a um plano.
+model CreditoRemarcacao {
+  id                String           @id @default(cuid())
+  planoAtribuicaoId String
+  planoAtribuicao   PlanoAtribuicao  @relation(fields: [planoAtribuicaoId], references: [id], onDelete: Cascade)
+  agendamentoId     String?
+  agendamento       Agendamento?     @relation(fields: [agendamentoId], references: [id], onDelete: SetNull)
+  origem            OrigemRemarcacao
+  justificativa     String
+  createdAt         DateTime         @default(now())
+
+  @@index([planoAtribuicaoId, createdAt])
 }
 
 /// Horários de atendimento pré-configurados por modalidade (usados para Educação Física e
@@ -356,6 +434,40 @@ model HorarioAtendimento {
 
   @@unique([modalidade, horario])
   @@index([modalidade])
+}
+
+/// Salas de Educação Física / Fisioterapia da clínica. Toda sala tem capacidade (pessoas
+/// por horário) para as duas modalidades. Configurável na aba Salas de /configuracoes.
+/// Avaliação e Terapia Manual não usam este model (ficam fixas em src/lib/salas.ts).
+model Sala {
+  id                       String        @id @default(cuid())
+  nome                     String        @unique
+  ordem                    Int           @default(0)
+  capacidadeEducacaoFisica Int           @default(0)
+  capacidadeFisioterapia   Int           @default(0)
+  planos                   PlanoSala[]
+  agendamentos             Agendamento[]
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
+}
+
+/// Dias da semana em que a clínica atende. Uma linha por dia (0..6 → DOMINGO..SÁBADO
+/// via `DiaSemana`). `aberto = false` bloqueia qualquer agendamento nesse dia da semana.
+/// Configurável na aba "Funcionamento" de /configuracoes.
+model DiaFuncionamento {
+  id        String    @id @default(cuid())
+  diaSemana DiaSemana @unique
+  aberto    Boolean   @default(true)
+  updatedAt DateTime  @updatedAt
+}
+
+/// Feriados / datas em que a clínica não atende (bloqueiam agendamento naquele dia).
+/// Configurável na aba "Funcionamento" de /configuracoes.
+model Feriado {
+  id        String   @id @default(cuid())
+  data      DateTime @unique @db.Date
+  descricao String
+  createdAt DateTime @default(now())
 }
 
 enum TipoExecucaoExame {

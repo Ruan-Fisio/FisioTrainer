@@ -75,17 +75,20 @@ export function PlanoAtribuicoesList({
   pacienteId: string;
   showActions?: boolean;
 }) {
-  const ativa = atribuicoes.find((a) => a.status === "ATIVO");
+  const ativas = atribuicoes.filter((a) => a.status === "ATIVO");
   const historico = atribuicoes.filter((a) => a.status !== "ATIVO");
 
   return (
     <div className="flex flex-col gap-4">
-      {ativa ? (
-        <AtribuicaoCard
-          atribuicao={ativa}
-          pacienteId={pacienteId}
-          showActions={showActions}
-        />
+      {ativas.length > 0 ? (
+        ativas.map((atribuicao) => (
+          <AtribuicaoCard
+            key={atribuicao.id}
+            atribuicao={atribuicao}
+            pacienteId={pacienteId}
+            showActions={showActions}
+          />
+        ))
       ) : (
         <Card>
           <CardContent className="py-8 text-center text-sm text-muted-foreground">

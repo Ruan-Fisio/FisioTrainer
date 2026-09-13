@@ -1,7 +1,10 @@
 import { createPlano } from "@/actions/planos";
+import { listSalas } from "@/actions/salas";
 import { PlanoForm } from "@/components/planos/plano-form";
 
-export default function NovoPlanoPage() {
+export default async function NovoPlanoPage() {
+  const salas = await listSalas();
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -10,7 +13,7 @@ export default function NovoPlanoPage() {
           Cadastre um novo plano no catálogo.
         </p>
       </div>
-      <PlanoForm action={createPlano} mode="create" />
+      <PlanoForm action={createPlano} mode="create" salas={salas} />
     </div>
   );
 }

@@ -1,12 +1,21 @@
 import { z } from "zod";
 import { formaPagamentoPlanoValues, periodicidadePlanoValues } from "./plano";
-import { maxParcelasDaForma } from "../planos";
+import { maxParcelasPlano } from "../planos";
 
 const dataSchema = z
   .string()
   .trim()
   .min(1, "Data é obrigatória")
   .transform((v) => new Date(`${v}T12:00:00`));
+
+/** Entrada do diálogo "Renovar plano" (`renovarPlanoAtribuicao`). */
+export const renovarPlanoSchema = z.object({
+  primeiraData: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Informe a data de vencimento da 1ª parcela"),
+  numeroParcelas: z.coerce.number().int().min(1, "Ao menos 1 parcela"),
+});
 
 function numeroOpcionalSchema() {
   return z
@@ -52,16 +61,15 @@ export const planoAtribuicaoSchema = z
     },
   )
   .superRefine((data, ctx) => {
-    const max = maxParcelasDaForma(data.formaPagamento);
+    const max = maxParcelasPlano(data.periodicidade, data.formaPagamento);
     if (data.vencimentos.length > max) {
       ctx.addIssue({
         code: "custom",
-        message: `${formaPagamentoLabelParaErro(data.formaPagamento)} permite no máximo ${max} parcela(s)`,
+        message:
+          data.periodicidade === "MENSAL"
+            ? "Plano mensal não pode ser parcelado (parcela única)"
+            : `Trimestral ${data.formaPagamento === "ATE_3X_CARTAO" ? "em até 3x no cartão" : "à vista"} permite no máximo ${max} parcela(s)`,
         path: ["vencimentos"],
       });
     }
   });
-
-function formaPagamentoLabelParaErro(formaPagamento: string) {
-  return formaPagamento.startsWith("ATE_3X") ? "Até 3x" : "À vista";
-}

@@ -26,6 +26,10 @@ import { getEvolucoesByPaciente } from "@/actions/evolucoes";
 import { getCobrancasByPaciente } from "@/actions/cobrancas";
 import { listPlanoAtribuicoesByPaciente } from "@/actions/plano-atribuicoes";
 import { getConsumoPlanoPaciente } from "@/actions/agendamentos";
+import {
+  getGradeRecorrenteContexto,
+  materializarGradesPaciente,
+} from "@/actions/grade-recorrente";
 import { PacienteAgendamentosTab } from "@/components/pacientes/paciente-agendamentos-tab";
 import { HistoricoClinicoDialog } from "@/components/pacientes/historico-clinico-dialog";
 import { AgendamentoAssistidoDialog } from "@/components/pacientes/agendamento-assistido-dialog";
@@ -54,13 +58,18 @@ async function AgendamentosTabLoader({ pacienteId }: { pacienteId: string }) {
   const agora = new Date();
   const ano = agora.getFullYear();
   const mes = agora.getMonth() + 1;
-  const resumo = await getConsumoPlanoPaciente(pacienteId, ano, mes);
+  await materializarGradesPaciente(pacienteId);
+  const [resumo, gradeContexto] = await Promise.all([
+    getConsumoPlanoPaciente(pacienteId, ano, mes),
+    getGradeRecorrenteContexto(pacienteId),
+  ]);
   return (
     <PacienteAgendamentosTab
       pacienteId={pacienteId}
       resumoInicial={resumo}
       anoInicial={ano}
       mesInicial={mes}
+      gradeContexto={gradeContexto}
     />
   );
 }

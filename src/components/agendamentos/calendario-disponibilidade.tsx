@@ -52,6 +52,7 @@ export function CalendarioDisponibilidade({
         <Button
           variant="outline"
           size="icon"
+          aria-label="Mês anterior"
           onClick={() => onMesChange(addMonths(mesRef, -1))}
         >
           <ChevronLeft className="size-4" />
@@ -62,6 +63,7 @@ export function CalendarioDisponibilidade({
         <Button
           variant="outline"
           size="icon"
+          aria-label="Próximo mês"
           onClick={() => onMesChange(addMonths(mesRef, 1))}
         >
           <ChevronRight className="size-4" />

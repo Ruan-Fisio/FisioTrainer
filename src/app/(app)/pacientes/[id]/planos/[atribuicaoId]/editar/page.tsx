@@ -4,6 +4,10 @@ import {
   updatePlanoAtribuicao,
 } from "@/actions/plano-atribuicoes";
 import { listPlanosDisponiveis } from "@/actions/planos";
+import {
+  getGradeRecorrenteOpcoes,
+  getLinhasGradeRecorrente,
+} from "@/actions/grade-recorrente";
 import { PlanoAtribuicaoForm } from "@/components/plano-atribuicoes/plano-atribuicao-form";
 import { toDateInputValue } from "@/lib/format";
 
@@ -18,7 +22,11 @@ export default async function EditarAtribuicaoPlanoPage({
 
   if (!atribuicao || atribuicao.pacienteId !== id) notFound();
 
-  const planosAtivos = await listPlanosDisponiveis();
+  const [planosAtivos, gradeOpcoes, gradeLinhas] = await Promise.all([
+    listPlanosDisponiveis(),
+    getGradeRecorrenteOpcoes(),
+    getLinhasGradeRecorrente(atribuicaoId),
+  ]);
 
   const cobrancasBase = atribuicao.cobrancas.filter(
     (c) => c.status === "PENDENTE",
@@ -51,9 +59,11 @@ export default async function EditarAtribuicaoPlanoPage({
           vencimentos,
           descontoTipo: atribuicao.desconto > 0 ? "VALOR" : "NENHUM",
           descontoValor: atribuicao.desconto > 0 ? atribuicao.desconto : undefined,
+          gradeLinhas,
         }}
         pacienteId={id}
         mode="edit"
+        gradeOpcoes={gradeOpcoes}
       />
     </div>
   );

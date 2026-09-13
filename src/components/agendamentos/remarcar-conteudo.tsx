@@ -5,6 +5,8 @@ import { format, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { temHorarioFixo } from "@/lib/salas";
 import {
   getAgendamentosDoDia,
@@ -41,6 +43,8 @@ export type RemarcarAlvo = {
   profissionalId: string | null;
   dataInicio: Date;
   dataFim: Date;
+  /** Preenchido quando o evento veio de um plano: exige justificativa e consome 1 crédito de remarcação. */
+  planoAtribuicaoId: string | null;
 };
 
 type SlotInterno = { horario: string; vagas: number; capacidade: number; duracaoMin: number };
@@ -48,8 +52,8 @@ type SlotInterno = { horario: string; vagas: number; capacidade: number; duracao
 /**
  * Wizard de remarcação (sem Dialog): passo 1 escolhe o dia num calendário que
  * destaca disponibilidade (azul/vermelho), passo 2 escolhe o horário livre da
- * modalidade do evento. Usado no `RemarcarDialog` (lista / dashboard) e inline
- * no diálogo de detalhes do calendário.
+ * modalidade do evento. Usado no `RemarcarDialog` (aba Agendamentos do paciente /
+ * dashboard). A agenda é só leitura e não remarca.
  */
 export function RemarcarConteudo({
   agendamento,
@@ -75,6 +79,11 @@ export function RemarcarConteudo({
   const [erro, setErro] = useState<string>();
   const [isPending, startTransition] = useTransition();
 
+  const exigeJustificativa = agendamento.planoAtribuicaoId != null;
+  const [justificativa, setJustificativa] = useState("");
+  const [confirmarSemCredito, setConfirmarSemCredito] = useState(false);
+  const justificativaValida = !exigeJustificativa || justificativa.trim().length >= 3;
+
   const duracaoMinEvento = Math.round(
     (agendamento.dataFim.getTime() - agendamento.dataInicio.getTime()) / 60000,
   );
@@ -88,17 +97,23 @@ export function RemarcarConteudo({
         ano: mesRef.getFullYear(),
         mes: mesRef.getMonth() + 1,
         excludeId: agendamento.id,
+        planoAtribuicaoId: agendamento.planoAtribuicaoId ?? undefined,
       });
       setDias(res.dias);
     });
-  }, [passo, mesRef, agendamento.modalidade, agendamento.id]);
+  }, [passo, mesRef, agendamento.modalidade, agendamento.id, agendamento.planoAtribuicaoId]);
 
   // Passo 2 — horários do dia
   useEffect(() => {
     if (passo !== "horario" || !dia) return;
     startSlots(async () => {
       if (temHorarioFixo(agendamento.modalidade)) {
-        const res = await getDisponibilidadeHorarios(dia, agendamento.modalidade, agendamento.id);
+        const res = await getDisponibilidadeHorarios(
+          dia,
+          agendamento.modalidade,
+          agendamento.id,
+          agendamento.planoAtribuicaoId ?? undefined,
+        );
         setSlots(res.map((s) => ({ ...s })));
         return;
       }
@@ -126,24 +141,43 @@ export function RemarcarConteudo({
       }
       setSlots(lista);
     });
-  }, [passo, dia, agendamento.modalidade, agendamento.id, agendamento.profissionalId, duracaoMinEvento]);
+  }, [
+    passo,
+    dia,
+    agendamento.modalidade,
+    agendamento.id,
+    agendamento.profissionalId,
+    agendamento.planoAtribuicaoId,
+    duracaoMinEvento,
+  ]);
 
   const slotSelecionado = useMemo(
     () => slots?.find((s) => s.horario === hora) ?? null,
     [slots, hora],
   );
 
-  function confirmar() {
+  function confirmar(forcar = false) {
     if (!dia || !hora || !slotSelecionado) return;
     const horaFim = minutosParaHora(horaParaMinutos(hora) + slotSelecionado.duracaoMin);
     setErro(undefined);
     startTransition(async () => {
-      const res = await remarcarAgendamento(agendamento.id, dia, hora, horaFim);
+      const res = await remarcarAgendamento(
+        agendamento.id,
+        dia,
+        hora,
+        horaFim,
+        justificativa,
+        forcar,
+      );
+      if (res.requiresConfirmacao) {
+        setConfirmarSemCredito(true);
+        return;
+      }
       if (res.error) {
         setErro(res.error);
         return;
       }
-      toast.success("Evento remarcado com sucesso.");
+      toast.success("Atendimento remarcado com sucesso.");
       onSuccess();
     });
   }
@@ -187,6 +221,43 @@ export function RemarcarConteudo({
             }}
             vazioLabel="Nenhum horário configurado para esta modalidade."
           />
+
+          {exigeJustificativa && (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="justificativa-remarcacao">
+                Justificativa da remarcação
+              </Label>
+              <Textarea
+                id="justificativa-remarcacao"
+                value={justificativa}
+                onChange={(e) => {
+                  setJustificativa(e.target.value);
+                  setConfirmarSemCredito(false);
+                }}
+                rows={3}
+                placeholder="Por que este atendimento está sendo remarcado?"
+              />
+            </div>
+          )}
+
+          {confirmarSemCredito && (
+            <div className="flex flex-col gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3">
+              <p className="text-sm text-destructive">
+                Este plano está sem créditos de remarcação neste mês. Remarcar mesmo
+                assim?
+              </p>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="self-start"
+                onClick={() => confirmar(true)}
+                disabled={isPending}
+              >
+                {isPending ? "Remarcando..." : "Remarcar assim mesmo"}
+              </Button>
+            </div>
+          )}
+
           {erro && <p className="text-sm text-destructive">{erro}</p>}
         </div>
       )}
@@ -203,8 +274,11 @@ export function RemarcarConteudo({
         >
           {passo === "dia" ? cancelLabel : "Voltar"}
         </Button>
-        {passo === "horario" && (
-          <Button onClick={confirmar} disabled={!hora || isPending}>
+        {passo === "horario" && !confirmarSemCredito && (
+          <Button
+            onClick={() => confirmar(false)}
+            disabled={!hora || isPending || !justificativaValida}
+          >
             {isPending ? "Remarcando..." : "Confirmar novo horário"}
           </Button>
         )}

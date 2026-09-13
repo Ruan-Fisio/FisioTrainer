@@ -3,10 +3,10 @@ import {
   aplicarTaxaNotaFiscal,
   calcularDesconto,
   cartaoDaForma,
+  formaEfetiva,
   gerarDatasVencimento,
   gerarValoresParcelas,
-  maxParcelasDaForma,
-  notaFiscalDaForma,
+  maxParcelasPlano,
   valorPlano,
 } from "./planos";
 
@@ -32,20 +32,18 @@ describe("gerarValoresParcelas", () => {
 const planoExemplo = {
   valorAVistaMensal: 100,
   valorAVistaTrimestral: 270,
-  valorAVistaNfMensal: 107,
-  valorAVistaNfTrimestral: 289,
-  valorAte3xCartaoMensal: 110,
-  valorAte3xCartaoTrimestral: 297,
-  valorAte3xNfMensal: 107,
-  valorAte3xNfTrimestral: 289,
+  valorAte3xTrimestral: 297,
 };
 
 describe("valorPlano", () => {
-  it("lê o valor correto para cada combinação de forma e periodicidade", () => {
+  it("mensal usa sempre o valor à vista mensal", () => {
     expect(valorPlano(planoExemplo, "A_VISTA", "MENSAL")).toBe(100);
+    expect(valorPlano(planoExemplo, "ATE_3X_CARTAO", "MENSAL")).toBe(100);
+  });
+
+  it("trimestral distingue à vista e até 3x no cartão", () => {
     expect(valorPlano(planoExemplo, "A_VISTA", "TRIMESTRAL")).toBe(270);
-    expect(valorPlano(planoExemplo, "ATE_3X_CARTAO", "MENSAL")).toBe(110);
-    expect(valorPlano(planoExemplo, "ATE_3X_NF", "TRIMESTRAL")).toBe(289);
+    expect(valorPlano(planoExemplo, "ATE_3X_CARTAO", "TRIMESTRAL")).toBe(297);
   });
 });
 
@@ -53,29 +51,30 @@ describe("cartaoDaForma", () => {
   it("só ATE_3X_CARTAO é cartão", () => {
     expect(cartaoDaForma("ATE_3X_CARTAO")).toBe(true);
     expect(cartaoDaForma("A_VISTA")).toBe(false);
-    expect(cartaoDaForma("A_VISTA_NF")).toBe(false);
-    expect(cartaoDaForma("ATE_3X_NF")).toBe(false);
   });
 });
 
-describe("notaFiscalDaForma", () => {
-  it("formas +NF incluem nota fiscal", () => {
-    expect(notaFiscalDaForma("A_VISTA_NF")).toBe(true);
-    expect(notaFiscalDaForma("ATE_3X_NF")).toBe(true);
-    expect(notaFiscalDaForma("A_VISTA")).toBe(false);
-    expect(notaFiscalDaForma("ATE_3X_CARTAO")).toBe(false);
+describe("formaEfetiva", () => {
+  it("mensal é sempre à vista", () => {
+    expect(formaEfetiva("MENSAL", "ATE_3X_CARTAO")).toBe("A_VISTA");
+    expect(formaEfetiva("MENSAL", "A_VISTA")).toBe("A_VISTA");
+  });
+
+  it("trimestral preserva a forma escolhida", () => {
+    expect(formaEfetiva("TRIMESTRAL", "ATE_3X_CARTAO")).toBe("ATE_3X_CARTAO");
+    expect(formaEfetiva("TRIMESTRAL", "A_VISTA")).toBe("A_VISTA");
   });
 });
 
-describe("maxParcelasDaForma", () => {
-  it("à vista permite só 1 parcela", () => {
-    expect(maxParcelasDaForma("A_VISTA")).toBe(1);
-    expect(maxParcelasDaForma("A_VISTA_NF")).toBe(1);
+describe("maxParcelasPlano", () => {
+  it("mensal nunca parcela", () => {
+    expect(maxParcelasPlano("MENSAL", "A_VISTA")).toBe(1);
+    expect(maxParcelasPlano("MENSAL", "ATE_3X_CARTAO")).toBe(1);
   });
 
-  it("até 3x permite até 3 parcelas", () => {
-    expect(maxParcelasDaForma("ATE_3X_CARTAO")).toBe(3);
-    expect(maxParcelasDaForma("ATE_3X_NF")).toBe(3);
+  it("trimestral à vista = 1, em até 3x no cartão = 3", () => {
+    expect(maxParcelasPlano("TRIMESTRAL", "A_VISTA")).toBe(1);
+    expect(maxParcelasPlano("TRIMESTRAL", "ATE_3X_CARTAO")).toBe(3);
   });
 });
 

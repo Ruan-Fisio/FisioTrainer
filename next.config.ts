@@ -11,6 +11,11 @@ process.env.TZ = process.env.APP_TIMEZONE ?? "America/Sao_Paulo";
 
 const nextConfig: NextConfig = {
   agentRules: false,
+  // A suíte E2E (Playwright) sobe um segundo `next dev` (porta 3100) ao lado do seu
+  // `npm run dev` normal (porta 3000) — sem isolar o `distDir`, o Next 16 recusa subir
+  // (detecta "another dev server is already running" pelo lock dentro de `.next/`,
+  // mesmo em porta diferente). `NEXT_DIST_DIR` só é setada pelo `playwright.config.ts`.
+  ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
 };
 
 export default nextConfig;

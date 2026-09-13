@@ -9,8 +9,33 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
 import { UsuarioRowActions } from "@/components/usuarios/usuario-row-actions";
 import { PaginationControls } from "@/components/filters/pagination-controls";
+
+function ModalidadesBadges({
+  atendeFisioterapia,
+  atendeEducacaoFisica,
+}: {
+  atendeFisioterapia: boolean;
+  atendeEducacaoFisica: boolean;
+}) {
+  if (!atendeFisioterapia && !atendeEducacaoFisica) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  return (
+    <div className="flex flex-wrap gap-1">
+      {atendeFisioterapia && (
+        <Badge className="bg-primary/10 text-primary">Fisioterapia</Badge>
+      )}
+      {atendeEducacaoFisica && (
+        <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400">
+          Educação Física
+        </Badge>
+      )}
+    </div>
+  );
+}
 
 function getInitials(name: string) {
   return name
@@ -65,6 +90,12 @@ export async function UsuariosTable({
                 <p className="truncate text-sm text-muted-foreground">
                   {usuario.email}
                 </p>
+                <div className="mt-1.5">
+                  <ModalidadesBadges
+                    atendeFisioterapia={usuario.atendeFisioterapia}
+                    atendeEducacaoFisica={usuario.atendeEducacaoFisica}
+                  />
+                </div>
               </div>
               <UsuarioRowActions id={usuario.id} name={usuario.name} />
             </CardContent>
@@ -79,6 +110,7 @@ export async function UsuariosTable({
             <TableRow>
               <TableHead>Nome</TableHead>
               <TableHead>E-mail</TableHead>
+              <TableHead>Atende</TableHead>
               <TableHead className="w-[120px] text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -95,6 +127,12 @@ export async function UsuariosTable({
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {usuario.email}
+                </TableCell>
+                <TableCell>
+                  <ModalidadesBadges
+                    atendeFisioterapia={usuario.atendeFisioterapia}
+                    atendeEducacaoFisica={usuario.atendeEducacaoFisica}
+                  />
                 </TableCell>
                 <TableCell>
                   <UsuarioRowActions id={usuario.id} name={usuario.name} />

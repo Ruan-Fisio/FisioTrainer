@@ -11,6 +11,8 @@ export const usuarioSchema = z.object({
   inscricaoMunicipal: z.string().trim().optional().or(z.literal("")),
   telefone: z.string().trim().optional().or(z.literal("")),
   endereco: z.string().trim().optional().or(z.literal("")),
+  atendeFisioterapia: z.boolean().default(false),
+  atendeEducacaoFisica: z.boolean().default(false),
 });
 
 export const usuarioUpdateSchema = z.object({
@@ -28,6 +30,8 @@ export const usuarioUpdateSchema = z.object({
   inscricaoMunicipal: z.string().trim().optional().or(z.literal("")),
   telefone: z.string().trim().optional().or(z.literal("")),
   endereco: z.string().trim().optional().or(z.literal("")),
+  atendeFisioterapia: z.boolean().default(false),
+  atendeEducacaoFisica: z.boolean().default(false),
 });
 
 export const loginSchema = z.object({

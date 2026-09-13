@@ -9,6 +9,8 @@ export type EventoCalendario = {
   modalidade: ModalidadeAgendamento;
   status: string;
   serieId: string | null;
+  planoAtribuicaoId: string | null;
   pacientes: { id: string; nome: string }[];
   profissional: { id: string; name: string } | null;
+  sala: { id: string; nome: string } | null;
 };

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { addMonths, format, startOfMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -19,6 +18,8 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogClose,
@@ -31,19 +32,25 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { pacientePodeDesmarcar } from "@/lib/agendamento-cancelamento";
+import { slotsVaziosNoMes } from "@/lib/consumo-plano";
 import {
   MODALIDADE_AGENDAMENTO_LABEL,
   STATUS_AGENDAMENTO_LABEL,
 } from "@/components/agendamentos/agendamento-labels";
 import { tipoPlanoLabels } from "@/lib/validations/plano";
 import { AgendamentoAssistidoDialog } from "@/components/pacientes/agendamento-assistido-dialog";
+import { GradeRecorrenteDialog } from "@/components/pacientes/grade-recorrente-dialog";
+import { RemarcarDialog } from "@/components/agendamentos/remarcar-dialog";
 import {
   atualizarStatusAgendamento,
   desmarcarAgendamentoPeloPaciente,
   getConsumoPlanoPaciente,
 } from "@/actions/agendamentos";
+import type { getGradeRecorrenteContexto } from "@/actions/grade-recorrente";
+import type { ModalidadePlano } from "@/components/plano-atribuicoes/grade-section";
 
 type Resumo = Awaited<ReturnType<typeof getConsumoPlanoPaciente>>;
+type GradeContexto = Awaited<ReturnType<typeof getGradeRecorrenteContexto>>;
 type StatusMarcado = "COMPARECEU" | "FALTOU" | "AGENDADO" | "CANCELADO";
 
 function ordinal(n: number) {
@@ -86,6 +93,7 @@ export function PacienteAgendamentosTab({
   anoInicial,
   mesInicial,
   somenteLeitura = false,
+  gradeContexto,
 }: {
   pacienteId: string;
   resumoInicial: Resumo;
@@ -93,6 +101,8 @@ export function PacienteAgendamentosTab({
   mesInicial: number;
   /** Portal público do paciente: esconde as ações Compareceu/Faltou, mantém o agendar. */
   somenteLeitura?: boolean;
+  /** Contexto p/ o diálogo "Editar grade" (só lado clínica); ausente no portal. */
+  gradeContexto?: GradeContexto;
 }) {
   const [mesRef, setMesRef] = useState(
     () => new Date(anoInicial, mesInicial - 1, 1),
@@ -119,6 +129,17 @@ export function PacienteAgendamentosTab({
     : outroMes?.chave === chaveMes
       ? outroMes.dados
       : null;
+
+  // `resumoInicial` é recalculado no servidor (nova referência) toda vez que a rota é
+  // revalidada — salvar a grade, remarcar ou desmarcar disparam `router.refresh()`/
+  // `revalidatePath` em algum componente desta aba. Isso já chega fresco pro mês inicial
+  // via prop, mas o cache do "outro mês" (`outroMes`) não tinha como saber que ficou
+  // desatualizado — ficava preso no dado antigo até um F5. Zerar aqui força o efeito
+  // abaixo a buscar de novo o mês que estiver sendo exibido no momento.
+  useEffect(() => {
+    setOutroMes(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumoInicial]);
 
   useEffect(() => {
     if (ehMesInicial || outroMes?.chave === chaveMes) return;
@@ -161,6 +182,7 @@ export function PacienteAgendamentosTab({
         <Button
           variant="outline"
           size="icon"
+          aria-label="Mês anterior"
           onClick={() => setMesRef((m) => startOfMonth(addMonths(m, -1)))}
         >
           <ChevronLeft className="size-4" />
@@ -171,6 +193,7 @@ export function PacienteAgendamentosTab({
         <Button
           variant="outline"
           size="icon"
+          aria-label="Próximo mês"
           onClick={() => setMesRef((m) => startOfMonth(addMonths(m, 1)))}
         >
           <ChevronRight className="size-4" />
@@ -190,8 +213,19 @@ export function PacienteAgendamentosTab({
         </Card>
       ) : (
         resumo.map((plano) => {
-          const total = plano.atendimentos ?? plano.usados;
-          const slots = Array.from({ length: Math.max(total, plano.usados) }, (_, i) => i);
+          const capacidadeMes = plano.atendimentos ?? plano.usados;
+          // Nunca oferecer mais slots vazios do que o plano inteiro ainda permite,
+          // para não induzir a marcar além do total (ex. MENSAL 4x já com 3+1).
+          const slotsVazios = slotsVaziosNoMes({
+            capacidadeMes: plano.atendimentos,
+            usadosNoMes: plano.usados,
+            disponivelNoPlano: plano.disponiveisTotal,
+          });
+          const slots = Array.from(
+            { length: plano.usados + slotsVazios },
+            (_, i) => i,
+          );
+          const dispBadge = plano.disponiveisTotal ?? plano.disponiveis;
 
           return (
             <Card key={plano.atribuicaoId}>
@@ -207,22 +241,67 @@ export function PacienteAgendamentosTab({
                       ))}
                     </div>
                     <p className="text-sm text-muted-foreground">
-                      {plano.usados} de {total} atendimentos usados neste mês
+                      {plano.usados} de {capacidadeMes} atendimentos neste mês
+                      {plano.total != null && plano.total !== capacidadeMes ? (
+                        <>
+                          {" · "}
+                          <span
+                            className={cn(
+                              plano.disponiveisTotal === 0 && "font-medium text-destructive",
+                            )}
+                          >
+                            {plano.usadosTotal} de {plano.total} no plano
+                          </span>
+                        </>
+                      ) : null}
                     </p>
-                  </div>
-                  <Badge
-                    variant="outline"
-                    className={cn(
-                      "gap-1",
-                      plano.disponiveis === 0 &&
-                        "border-destructive/40 bg-destructive/10 text-destructive",
+                    {!somenteLeitura && (
+                      <p className="text-xs text-muted-foreground">
+                        Remarcações:{" "}
+                        <span
+                          className={cn(
+                            "font-medium",
+                            plano.creditos.disponiveis === 0 && "text-destructive",
+                          )}
+                        >
+                          {plano.creditos.usados} de {plano.creditos.max}
+                        </span>{" "}
+                        neste mês
+                      </p>
                     )}
-                  >
-                    <CalendarCheck className="size-3.5" />
-                    {plano.disponiveis == null
-                      ? "livre"
-                      : `${plano.disponiveis} disponíve${plano.disponiveis === 1 ? "l" : "is"}`}
-                  </Badge>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "gap-1",
+                        dispBadge === 0 &&
+                          "border-destructive/40 bg-destructive/10 text-destructive",
+                      )}
+                    >
+                      <CalendarCheck className="size-3.5" />
+                      {dispBadge == null
+                        ? "livre"
+                        : `${dispBadge} disponíve${dispBadge === 1 ? "l" : "is"}`}
+                    </Badge>
+                    {!somenteLeitura && gradeContexto && (
+                      <GradeRecorrenteDialog
+                        atribuicaoId={plano.atribuicaoId}
+                        planoNome={plano.planoNome}
+                        atendimentos={plano.atendimentos}
+                        modalidades={
+                          plano.tipos.filter(
+                            (t): t is ModalidadePlano =>
+                              t === "EDUCACAO_FISICA" || t === "FISIOTERAPIA",
+                          )
+                        }
+                        linhasIniciais={
+                          gradeContexto.linhasPorAtribuicao[plano.atribuicaoId] ?? []
+                        }
+                        opcoes={gradeContexto.opcoes}
+                      />
+                    )}
+                  </div>
                 </div>
 
                 <ol className="flex flex-col gap-2">
@@ -283,7 +362,7 @@ export function PacienteAgendamentosTab({
                               </Badge>
                             ) : null
                           ) : statusAtual === "AGENDADO" ? (
-                            <div className="flex items-center gap-1.5">
+                            <div className="flex flex-wrap items-center gap-1.5">
                               <Button
                                 variant="outline"
                                 size="sm"
@@ -302,6 +381,17 @@ export function PacienteAgendamentosTab({
                                 <X className="size-4" />
                                 Faltou
                               </Button>
+                              <RemarcarDialog
+                                agendamento={{
+                                  id: ag.id,
+                                  titulo: ag.titulo,
+                                  modalidade: ag.modalidade,
+                                  profissionalId: ag.profissionalId,
+                                  dataInicio: ag.dataInicio,
+                                  dataFim: ag.dataFim,
+                                  planoAtribuicaoId: ag.planoAtribuicaoId,
+                                }}
+                              />
                             </div>
                           ) : (
                             <div className="flex items-center gap-1.5">
@@ -341,18 +431,17 @@ export function PacienteAgendamentosTab({
 
       {somenteLeitura ? (
         <p className="text-xs text-muted-foreground">
-          Cada agendamento consome 1 atendimento do plano no mês. Use o botão{" "}
-          <span className="font-medium">Agendar</span> nos horários disponíveis. Você pode{" "}
-          <span className="font-medium">desmarcar</span> um atendimento até 2 horas antes do
-          horário — a vaga volta para o mês e pode ser reagendada.
+          Cada agendamento consome 1 atendimento do plano — respeitando o limite do mês e o
+          total do período. Use <span className="font-medium">Agendar</span> nos horários
+          disponíveis; para trocar um horário já marcado, use{" "}
+          <span className="font-medium">desmarcar</span> (até 2 horas antes) e agende de novo.
         </p>
       ) : (
         <p className="text-xs text-muted-foreground">
-          Cada agendamento consome 1 atendimento do plano no mês. Marque novos pela{" "}
-          <Link href="/agenda" className="underline underline-offset-2">
-            agenda
-          </Link>{" "}
-          ou pelo botão <span className="font-medium">Agendamentos</span> no topo.
+          Cada agendamento consome 1 atendimento do plano — respeitando o limite do mês e o
+          total do período. Marque novos pelo botão{" "}
+          <span className="font-medium">Agendar</span> aqui ou{" "}
+          <span className="font-medium">Agendamentos</span> no topo.
         </p>
       )}
     </div>
@@ -372,13 +461,19 @@ function DesmarcarSlotButton({
 }) {
   const [open, setOpen] = useState(false);
   const [erro, setErro] = useState<string>();
+  const [motivo, setMotivo] = useState("");
   const [pending, startPending] = useTransition();
   const dentroDoPrazo = pacientePodeDesmarcar(new Date(dataInicio));
+  const motivoValido = motivo.trim().length >= 3;
 
   function confirmar() {
     setErro(undefined);
     startPending(async () => {
-      const res = await desmarcarAgendamentoPeloPaciente(agendamentoId, pacienteId);
+      const res = await desmarcarAgendamentoPeloPaciente(
+        agendamentoId,
+        pacienteId,
+        motivo,
+      );
       if (res.error) {
         setErro(res.error);
         return;
@@ -394,7 +489,10 @@ function DesmarcarSlotButton({
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        if (!next) setErro(undefined);
+        if (!next) {
+          setErro(undefined);
+          setMotivo("");
+        }
       }}
     >
       <DialogTrigger asChild>
@@ -417,6 +515,21 @@ function DesmarcarSlotButton({
           </DialogDescription>
         </DialogHeader>
 
+        {dentroDoPrazo && (
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={`motivo-${agendamentoId}`}>
+              Por que você precisa desmarcar?
+            </Label>
+            <Textarea
+              id={`motivo-${agendamentoId}`}
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              rows={3}
+              placeholder="Descreva o motivo da remarcação"
+            />
+          </div>
+        )}
+
         {erro && <p className="text-sm text-destructive">{erro}</p>}
 
         <DialogFooter className="flex justify-end gap-2">
@@ -427,7 +540,11 @@ function DesmarcarSlotButton({
                   Voltar
                 </Button>
               </DialogClose>
-              <Button variant="destructive" onClick={confirmar} disabled={pending}>
+              <Button
+                variant="destructive"
+                onClick={confirmar}
+                disabled={pending || !motivoValido}
+              >
                 {pending ? "Desmarcando…" : "Desmarcar atendimento"}
               </Button>
             </>

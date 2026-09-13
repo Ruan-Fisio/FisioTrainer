@@ -1,14 +1,14 @@
 import type { ModalidadeAgendamento } from "@/generated/prisma/enums";
 
+export type ConfigSala = { sala: string; capacidade: number };
+
 /**
- * Regra de negócio fixa da clínica: cada modalidade de atendimento ocorre em uma sala
- * específica com capacidade própria (Sala 1 é compartilhada entre Educação Física e
- * Fisioterapia, mas cada modalidade tem seu próprio limite de pessoas no mesmo horário).
+ * Valores padrão de sala/capacidade por modalidade. Servem de fallback quando uma
+ * modalidade ainda não tem `SalaServico` cadastrado (banco novo, seed pendente) —
+ * a configuração real vem do banco via `getConfigSalas()` (`src/lib/salas-config.ts`).
+ * Sala 1 é compartilhada entre Educação Física e Fisioterapia, cada uma com seu limite.
  */
-export const MODALIDADE_SALA: Record<
-  ModalidadeAgendamento,
-  { sala: string; capacidade: number }
-> = {
+export const MODALIDADE_SALA_PADRAO: Record<ModalidadeAgendamento, ConfigSala> = {
   EDUCACAO_FISICA: { sala: "Sala 1 - Cinesioterapia", capacidade: 5 },
   FISIOTERAPIA: { sala: "Sala 1 - Cinesioterapia", capacidade: 4 },
   AVALIACAO: { sala: "Sala 2 - Avaliação", capacidade: 1 },

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { getPlano, updatePlano } from "@/actions/planos";
+import { listSalas } from "@/actions/salas";
 import { PlanoForm } from "@/components/planos/plano-form";
 
 export default async function EditarPlanoPage({
@@ -9,7 +10,7 @@ export default async function EditarPlanoPage({
 }) {
   const { id } = await params;
 
-  const plano = await getPlano(id);
+  const [plano, salas] = await Promise.all([getPlano(id), listSalas()]);
 
   if (!plano) notFound();
 
@@ -25,29 +26,26 @@ export default async function EditarPlanoPage({
       </div>
       <PlanoForm
         action={updatePlanoWithId}
+        salas={salas}
         defaultValues={{
           nome: plano.nome,
           descricao: plano.descricao ?? "",
           tipos: plano.tipos,
           atendimentos: String(plano.atendimentos),
+          creditosRemarcacao: String(plano.creditosRemarcacao),
           valores: {
-            A_VISTA: {
-              MENSAL: plano.valorAVistaMensal.toFixed(2).replace(".", ","),
-              TRIMESTRAL: plano.valorAVistaTrimestral.toFixed(2).replace(".", ","),
-            },
-            A_VISTA_NF: {
-              MENSAL: plano.valorAVistaNfMensal.toFixed(2).replace(".", ","),
-              TRIMESTRAL: plano.valorAVistaNfTrimestral.toFixed(2).replace(".", ","),
-            },
-            ATE_3X_CARTAO: {
-              MENSAL: plano.valorAte3xCartaoMensal.toFixed(2).replace(".", ","),
-              TRIMESTRAL: plano.valorAte3xCartaoTrimestral.toFixed(2).replace(".", ","),
-            },
-            ATE_3X_NF: {
-              MENSAL: plano.valorAte3xNfMensal.toFixed(2).replace(".", ","),
-              TRIMESTRAL: plano.valorAte3xNfTrimestral.toFixed(2).replace(".", ","),
-            },
+            valorAVistaMensal: plano.valorAVistaMensal.toFixed(2).replace(".", ","),
+            valorAVistaTrimestral: plano.valorAVistaTrimestral
+              .toFixed(2)
+              .replace(".", ","),
+            valorAte3xTrimestral: plano.valorAte3xTrimestral
+              .toFixed(2)
+              .replace(".", ","),
           },
+          salas: plano.salas.map((s) => ({
+            salaId: s.salaId,
+            descricao: s.descricao ?? "",
+          })),
         }}
         mode="edit"
       />

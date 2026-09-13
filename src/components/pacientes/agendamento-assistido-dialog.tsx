@@ -35,9 +35,16 @@ type Opcao = {
   planoNome: string;
   modalidade: ModalidadeAgendamento;
   atendimentos: number | null;
+  periodicidade?: string;
+  total: number | null;
   sala: string;
 };
-type Profissional = { id: string; name: string | null };
+type Profissional = {
+  id: string;
+  name: string | null;
+  atendeFisioterapia: boolean;
+  atendeEducacaoFisica: boolean;
+};
 type Slot = { horario: string; duracaoMin: number; vagas: number; capacidade: number };
 
 export function AgendamentoAssistidoDialog({
@@ -76,6 +83,16 @@ export function AgendamentoAssistidoDialog({
 
   const opcao = opcaoIdx != null ? (opcoes?.[opcaoIdx] ?? null) : null;
 
+  // Só habilita profissionais depois que o plano (logo, a modalidade) foi escolhido —
+  // e sempre restrito a quem atende a modalidade daquele plano.
+  const profissionaisVisiveis = !opcao
+    ? []
+    : profissionais.filter((p) => {
+        if (opcao.modalidade === "FISIOTERAPIA") return p.atendeFisioterapia;
+        if (opcao.modalidade === "EDUCACAO_FISICA") return p.atendeEducacaoFisica;
+        return true;
+      });
+
   function resetar() {
     setStep(1);
     setOpcaoIdx(null);
@@ -100,6 +117,8 @@ export function AgendamentoAssistidoDialog({
       const res = await getDadosAgendamentoAssistido(pacienteId);
       setOpcoes(res.opcoes);
       setProfissionais(res.profissionais);
+      // Um único plano: já seleciona pra modalidade (e o filtro de profissional) valer de cara.
+      if (res.opcoes.length === 1) setOpcaoIdx(0);
     });
   }, [open, opcoes, pacienteId]);
 
@@ -113,6 +132,7 @@ export function AgendamentoAssistidoDialog({
         mes: mesRef.getMonth() + 1,
         planoAtribuicaoId: opcao.atribuicaoId,
         atendimentos: opcao.atendimentos,
+        periodicidade: opcao.periodicidade,
       });
       setDispMes(res);
     });
@@ -122,7 +142,12 @@ export function AgendamentoAssistidoDialog({
   useEffect(() => {
     if (step !== 3 || !diaSelecionado || !opcao) return;
     startSlots(async () => {
-      const res = await getDisponibilidadeHorarios(diaSelecionado, opcao.modalidade);
+      const res = await getDisponibilidadeHorarios(
+        diaSelecionado,
+        opcao.modalidade,
+        undefined,
+        opcao.atribuicaoId,
+      );
       setSlots(res);
     });
   }, [step, diaSelecionado, opcao]);
@@ -204,7 +229,10 @@ export function AgendamentoAssistidoDialog({
                         <button
                           key={`${o.atribuicaoId}-${o.modalidade}`}
                           type="button"
-                          onClick={() => setOpcaoIdx(i)}
+                          onClick={() => {
+                            setOpcaoIdx(i);
+                            setProfissionalId("");
+                          }}
                           className={cn(
                             "flex flex-col items-start gap-0.5 rounded-lg border px-3 py-2 text-left text-sm transition-colors",
                             ativo
@@ -216,7 +244,11 @@ export function AgendamentoAssistidoDialog({
                           <span className="text-xs text-muted-foreground">
                             {MODALIDADE_AGENDAMENTO_LABEL[o.modalidade]} · {o.sala}
                             {o.atendimentos != null
-                              ? ` · ${o.atendimentos}x/mês`
+                              ? ` · ${o.atendimentos}x/mês${
+                                  o.total != null && o.total !== o.atendimentos
+                                    ? ` (${o.total} no total)`
+                                    : ""
+                                }`
                               : ""}
                           </span>
                         </button>
@@ -231,14 +263,22 @@ export function AgendamentoAssistidoDialog({
                     id="assistido-profissional"
                     value={profissionalId}
                     onChange={(e) => setProfissionalId(e.target.value)}
+                    disabled={!opcao}
                   >
-                    <option value="">Selecione…</option>
-                    {profissionais.map((p) => (
+                    <option value="">
+                      {opcao ? "Selecione…" : "Escolha o plano primeiro"}
+                    </option>
+                    {profissionaisVisiveis.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name ?? "Sem nome"}
                       </option>
                     ))}
                   </NativeSelect>
+                  {opcao && profissionaisVisiveis.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Nenhum usuário habilitado para atender esta modalidade.
+                    </p>
+                  )}
                 </div>
               </>
             )}
@@ -248,12 +288,18 @@ export function AgendamentoAssistidoDialog({
         {/* ---------------- Passo 2 ---------------- */}
         {step === 2 && (
           <div className="flex flex-col gap-3">
-            {dispMes?.limiteAtingido && (
+            {dispMes?.limiteTotalAtingido ? (
               <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                Limite de {dispMes.limiteMes} agendamento(s) deste plano já atingido
-                neste mês ({dispMes.usadosNoMes}/{dispMes.limiteMes}).
+                Este plano permite {dispMes.limiteTotal} atendimento(s) no total e
+                todos já foram agendados ({dispMes.usadosTotal}/{dispMes.limiteTotal}).
+                Para trocar um horário, use <b>Remarcar</b> num atendimento existente.
               </p>
-            )}
+            ) : dispMes?.limiteMesAtingido ? (
+              <p className="rounded-md bg-destructive/10 px-3 py-2 text-xs text-destructive">
+                Este mês já tem {dispMes.usadosNoMes}/{dispMes.limiteMes} atendimentos
+                deste plano. Avance para outro mês do período do plano.
+              </p>
+            ) : null}
             <CalendarioDisponibilidade
               mesRef={mesRef}
               onMesChange={setMesRef}

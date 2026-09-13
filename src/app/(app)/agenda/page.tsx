@@ -1,10 +1,8 @@
 import { Suspense } from "react";
-import Link from "next/link";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CalendarClock, ListChecks, Plus, Stethoscope, User } from "lucide-react";
+import { CalendarClock, ListChecks, Stethoscope, User } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { Button } from "@/components/ui/button";
 import { AgendaTabs } from "@/components/agendamentos/agenda-tabs";
 import { AgendamentosTable } from "@/components/agendamentos/agendamentos-table";
 import { CalendarioNav } from "@/components/agendamentos/calendario/calendario-nav";
@@ -16,6 +14,7 @@ import { MultiSelectFilter } from "@/components/filters/multi-select-filter";
 import { DateRangeFilter } from "@/components/filters/date-range-filter";
 import { parseListParam } from "@/lib/search-params";
 import { listAgendamentosPorIntervalo } from "@/actions/agendamentos";
+import { materializarTodasGrades } from "@/actions/grade-recorrente";
 import { getIntervaloVisivel, type VisaoCalendario } from "@/lib/calendario";
 import {
   STATUS_AGENDAMENTO_LABEL,
@@ -70,6 +69,8 @@ async function CalendarioView({
 
 export default async function AgendaPage({ searchParams }: PageProps) {
   const params = await searchParams;
+  // Completa as grades recorrentes de plano para o horizonte rolante (idempotente).
+  await materializarTodasGrades();
   const tab = params.tab === "lista" ? "lista" : "calendario";
   const visao: VisaoCalendario =
     params.view === "semana" || params.view === "dia" ? params.view : "mes";
@@ -106,19 +107,13 @@ export default async function AgendaPage({ searchParams }: PageProps) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Agenda</h1>
-          <p className="text-sm text-muted-foreground">
-            Consultas, retornos e compromissos da clínica.
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/agenda/novo">
-            <Plus />
-            Novo evento
-          </Link>
-        </Button>
+      <div>
+        <h1 className="text-2xl font-semibold">Agenda</h1>
+        <p className="text-sm text-muted-foreground">
+          Visão geral dos atendimentos da clínica. Para agendar, remarcar ou
+          marcar presença, use a aba <span className="font-medium">Agendamentos</span>{" "}
+          do paciente ou o dashboard.
+        </p>
       </div>
 
       <AgendaTabs

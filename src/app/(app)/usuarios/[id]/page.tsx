@@ -22,6 +22,8 @@ export default async function EditarUsuarioPage({
       inscricaoMunicipal: true,
       telefone: true,
       endereco: true,
+      atendeFisioterapia: true,
+      atendeEducacaoFisica: true,
     },
   });
 

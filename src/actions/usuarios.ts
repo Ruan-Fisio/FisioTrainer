@@ -23,7 +23,14 @@ export async function listUsuarios(filters: { q?: string }, page: number) {
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * PAGE_SIZE,
       take: PAGE_SIZE,
-      select: { id: true, name: true, email: true, createdAt: true },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        createdAt: true,
+        atendeFisioterapia: true,
+        atendeEducacaoFisica: true,
+      },
     }),
     prisma.user.count({ where }),
   ]);
@@ -56,6 +63,8 @@ export async function createUsuario(
     inscricaoMunicipal: formData.get("inscricaoMunicipal"),
     telefone: formData.get("telefone"),
     endereco: formData.get("endereco"),
+    atendeFisioterapia: formData.get("atendeFisioterapia") === "on",
+    atendeEducacaoFisica: formData.get("atendeEducacaoFisica") === "on",
   });
 
   if (!parsed.success) {
@@ -106,6 +115,8 @@ export async function updateUsuario(
     inscricaoMunicipal: formData.get("inscricaoMunicipal"),
     telefone: formData.get("telefone"),
     endereco: formData.get("endereco"),
+    atendeFisioterapia: formData.get("atendeFisioterapia") === "on",
+    atendeEducacaoFisica: formData.get("atendeEducacaoFisica") === "on",
   });
 
   if (!parsed.success) {
@@ -131,9 +142,13 @@ export async function updateUsuario(
     inscricaoMunicipal: string | null;
     telefone: string | null;
     endereco: string | null;
+    atendeFisioterapia: boolean;
+    atendeEducacaoFisica: boolean;
   } = {
     name: parsed.data.name,
     email: parsed.data.email,
+    atendeFisioterapia: parsed.data.atendeFisioterapia,
+    atendeEducacaoFisica: parsed.data.atendeEducacaoFisica,
     cref: parsed.data.cref || null,
     crefito: parsed.data.crefito || null,
     cpfCnpj: parsed.data.cpfCnpj || null,

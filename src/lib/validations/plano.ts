@@ -7,21 +7,14 @@ export const tipoPlanoLabels: Record<(typeof tipoPlanoValues)[number], string> =
   EDUCACAO_FISICA: "Educação Física",
 };
 
-export const formaPagamentoPlanoValues = [
-  "A_VISTA",
-  "A_VISTA_NF",
-  "ATE_3X_CARTAO",
-  "ATE_3X_NF",
-] as const;
+export const formaPagamentoPlanoValues = ["A_VISTA", "ATE_3X_CARTAO"] as const;
 
 export const formaPagamentoPlanoLabels: Record<
   (typeof formaPagamentoPlanoValues)[number],
   string
 > = {
   A_VISTA: "À vista",
-  A_VISTA_NF: "À vista + NF",
-  ATE_3X_CARTAO: "Até 3x Cartão",
-  ATE_3X_NF: "Até 3x + NF",
+  ATE_3X_CARTAO: "Até 3x no cartão",
 };
 
 export const periodicidadePlanoValues = ["MENSAL", "TRIMESTRAL"] as const;
@@ -44,24 +37,56 @@ const valorSchema = z
   })
   .transform((v) => Number(v));
 
-export const planoSchema = z.object({
-  nome: z.string().trim().min(1, "Nome do plano é obrigatório"),
-  descricao: z.string().trim().optional(),
-  tipos: z.array(z.enum(tipoPlanoValues)).min(1, "Selecione ao menos um tipo"),
-  atendimentos: z
-    .string()
-    .trim()
-    .min(1, "Número de atendimentos é obrigatório")
-    .refine((v) => Number.isInteger(Number(v)) && Number(v) >= 1, {
-      message: "Número de atendimentos inválido",
-    })
-    .transform((v) => Number(v)),
-  valorAVistaMensal: valorSchema,
-  valorAVistaTrimestral: valorSchema,
-  valorAVistaNfMensal: valorSchema,
-  valorAVistaNfTrimestral: valorSchema,
-  valorAte3xCartaoMensal: valorSchema,
-  valorAte3xCartaoTrimestral: valorSchema,
-  valorAte3xNfMensal: valorSchema,
-  valorAte3xNfTrimestral: valorSchema,
+/** Uma sala em que o plano pode ser executado + uma descrição livre do uso dela. */
+export const planoSalaSchema = z.object({
+  salaId: z.string().min(1),
+  descricao: z.string().trim().max(280, "Descrição muito longa").optional(),
 });
+
+/**
+ * Lista de salas do plano, serializada como JSON num hidden input (mesmo padrão de
+ * `gradeLinhas` em `plano-atribuicao-form.tsx`). Um plano de Fisioterapia/Educação Física
+ * precisa de pelo menos 1 sala — sem isso o sistema não sabe onde alocar o agendamento
+ * (`resolverSalaPlano` bloqueia na hora de agendar); o refine abaixo já falha cedo no form.
+ */
+const planoSalasSchema = z
+  .string()
+  .transform((v, ctx) => {
+    try {
+      return z.array(planoSalaSchema).parse(JSON.parse(v || "[]"));
+    } catch {
+      ctx.addIssue({ code: "custom", message: "Salas do plano inválidas." });
+      return z.NEVER;
+    }
+  });
+
+export const planoSchema = z
+  .object({
+    nome: z.string().trim().min(1, "Nome do plano é obrigatório"),
+    descricao: z.string().trim().optional(),
+    tipos: z.array(z.enum(tipoPlanoValues)).min(1, "Selecione ao menos um tipo"),
+    atendimentos: z
+      .string()
+      .trim()
+      .min(1, "Número de atendimentos é obrigatório")
+      .refine((v) => Number.isInteger(Number(v)) && Number(v) >= 1, {
+        message: "Número de atendimentos inválido",
+      })
+      .transform((v) => Number(v)),
+    creditosRemarcacao: z
+      .string()
+      .trim()
+      .min(1, "Créditos de remarcação é obrigatório")
+      .refine((v) => Number.isInteger(Number(v)) && Number(v) >= 0, {
+        message: "Créditos de remarcação inválido",
+      })
+      .transform((v) => Number(v)),
+    valorAVistaMensal: valorSchema,
+    valorAVistaTrimestral: valorSchema,
+    valorAte3xTrimestral: valorSchema,
+    salas: planoSalasSchema,
+  })
+  .refine((data) => data.salas.length > 0, {
+    message: "Selecione ao menos uma sala para o plano.",
+    path: ["salas"],
+  });

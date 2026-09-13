@@ -2,14 +2,29 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { planoAtribuicaoSchema } from "@/lib/validations/plano-atribuicao";
+import {
+  planoAtribuicaoSchema,
+  renovarPlanoSchema,
+} from "@/lib/validations/plano-atribuicao";
 import {
   calcularDesconto,
   cartaoDaForma,
+  formaEfetiva,
+  gerarDatasVencimento,
   gerarValoresParcelas,
-  notaFiscalDaForma,
+  maxParcelasPlano,
   valorPlano,
 } from "@/lib/planos";
+import {
+  contarRealizados,
+  planoRenovavel,
+  totalAtendimentosPlano,
+} from "@/lib/plano-renovacao";
+import {
+  aplicarGradeRecorrente,
+  validarLinhasGrade,
+} from "@/actions/grade-recorrente";
+import type { GradeRecorrenteLinha } from "@/lib/validations/grade-recorrente";
 
 export async function listPlanoAtribuicoesByPaciente(pacienteId: string) {
   const atribuicoes = await prisma.planoAtribuicao.findMany({
@@ -49,6 +64,17 @@ export type PlanoAtribuicaoActionState = {
   error?: string;
   success?: boolean;
 };
+
+function parseGradeLinhas(formData: FormData): GradeRecorrenteLinha[] {
+  const raw = formData.get("gradeLinhas");
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(String(raw));
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 function parseForm(formData: FormData) {
   return planoAtribuicaoSchema.safeParse({
@@ -103,13 +129,14 @@ export async function createPlanoAtribuicao(
     return { error: "Plano não encontrado." };
   }
 
-  const cartao = cartaoDaForma(parsed.data.formaPagamento);
-  const notaFiscal = notaFiscalDaForma(parsed.data.formaPagamento);
-  const valorOriginal = valorPlano(
-    plano,
-    parsed.data.formaPagamento,
-    parsed.data.periodicidade,
-  );
+  const gradeLinhas = parseGradeLinhas(formData);
+  const erroGrade = await validarLinhasGrade(gradeLinhas, plano.tipos, plano.atendimentos);
+  if (erroGrade) return { error: erroGrade };
+
+  const forma = formaEfetiva(parsed.data.periodicidade, parsed.data.formaPagamento);
+  const cartao = cartaoDaForma(forma);
+  const notaFiscal = true; // nota fiscal sempre inclusa
+  const valorOriginal = valorPlano(plano, forma, parsed.data.periodicidade);
   const vencimentosOrdenados = [...parsed.data.vencimentos].sort(
     (a, b) => a.getTime() - b.getTime(),
   );
@@ -121,14 +148,15 @@ export async function createPlanoAtribuicao(
     vencimentosOrdenados.length,
   );
 
-  await prisma.$transaction(async (tx) => {
-    const atribuicao = await tx.planoAtribuicao.create({
+  const atribuicao = await prisma.$transaction(async (tx) => {
+    const criada = await tx.planoAtribuicao.create({
       data: {
         pacienteId,
         planoId: plano.id,
         planoNome: plano.nome,
         atendimentos: plano.atendimentos,
-        formaPagamento: parsed.data.formaPagamento,
+        creditosRemarcacao: plano.creditosRemarcacao,
+        formaPagamento: forma,
         periodicidade: parsed.data.periodicidade,
         valorOriginal,
         desconto,
@@ -141,7 +169,7 @@ export async function createPlanoAtribuicao(
     });
 
     const parcelas = gerarParcelasData(
-      atribuicao.id,
+      criada.id,
       pacienteId,
       plano.nome,
       valor,
@@ -150,11 +178,15 @@ export async function createPlanoAtribuicao(
     );
 
     await tx.cobranca.createMany({ data: parcelas });
+    return criada;
   });
+
+  await aplicarGradeRecorrente(atribuicao.id, gradeLinhas);
 
   revalidatePath(`/pacientes/${pacienteId}`);
   revalidatePath("/dashboard");
   revalidatePath("/cobrancas");
+  revalidatePath("/agenda");
   return { success: true };
 }
 
@@ -182,13 +214,14 @@ export async function updatePlanoAtribuicao(
     return { error: "Plano não encontrado." };
   }
 
-  const cartao = cartaoDaForma(parsed.data.formaPagamento);
-  const notaFiscal = notaFiscalDaForma(parsed.data.formaPagamento);
-  const valorOriginal = valorPlano(
-    plano,
-    parsed.data.formaPagamento,
-    parsed.data.periodicidade,
-  );
+  const gradeLinhas = parseGradeLinhas(formData);
+  const erroGrade = await validarLinhasGrade(gradeLinhas, plano.tipos, plano.atendimentos);
+  if (erroGrade) return { error: erroGrade };
+
+  const forma = formaEfetiva(parsed.data.periodicidade, parsed.data.formaPagamento);
+  const cartao = cartaoDaForma(forma);
+  const notaFiscal = true; // nota fiscal sempre inclusa
+  const valorOriginal = valorPlano(plano, forma, parsed.data.periodicidade);
   const vencimentosOrdenados = [...parsed.data.vencimentos].sort(
     (a, b) => a.getTime() - b.getTime(),
   );
@@ -211,7 +244,8 @@ export async function updatePlanoAtribuicao(
         planoId: plano.id,
         planoNome: plano.nome,
         atendimentos: plano.atendimentos,
-        formaPagamento: parsed.data.formaPagamento,
+        creditosRemarcacao: plano.creditosRemarcacao,
+        formaPagamento: forma,
         periodicidade: parsed.data.periodicidade,
         valorOriginal,
         desconto,
@@ -236,9 +270,12 @@ export async function updatePlanoAtribuicao(
     await tx.cobranca.createMany({ data: parcelas });
   });
 
+  await aplicarGradeRecorrente(id, gradeLinhas);
+
   revalidatePath(`/pacientes/${pacienteId}`);
   revalidatePath("/dashboard");
   revalidatePath("/cobrancas");
+  revalidatePath("/agenda");
   return { success: true };
 }
 
@@ -246,6 +283,19 @@ export async function cancelarPlanoAtribuicao(id: string, pacienteId: string) {
   await prisma.$transaction(async (tx) => {
     await tx.cobranca.deleteMany({
       where: { planoAtribuicaoId: id, status: "PENDENTE" },
+    });
+    // Grade recorrente: desativa o modelo e apaga os agendamentos futuros já semeados.
+    await tx.agendamento.deleteMany({
+      where: {
+        planoAtribuicaoId: id,
+        gradeRecorrenteId: { not: null },
+        status: "AGENDADO",
+        dataInicio: { gt: new Date() },
+      },
+    });
+    await tx.gradeRecorrenteAtendimento.updateMany({
+      where: { planoAtribuicaoId: id },
+      data: { ativo: false },
     });
     await tx.planoAtribuicao.update({
       where: { id },
@@ -256,4 +306,167 @@ export async function cancelarPlanoAtribuicao(id: string, pacienteId: string) {
   revalidatePath(`/pacientes/${pacienteId}`);
   revalidatePath("/dashboard");
   revalidatePath("/cobrancas");
+}
+
+/* ------------------------------------------------------------------ *
+ * Renovação (aba Renovações de /planos)
+ * ------------------------------------------------------------------ */
+
+/**
+ * Planos atribuídos ATIVOS que já cumpriram todo o período (todos os atendimentos
+ * executados — Compareceu/Faltou — e todas as cobranças pagas). É só um lembrete para
+ * a clínica renovar; ver `planoRenovavel` (`src/lib/plano-renovacao.ts`).
+ */
+export async function listPlanosRenovaveis() {
+  const atribuicoes = await prisma.planoAtribuicao.findMany({
+    where: { status: "ATIVO" },
+    orderBy: { dataInicio: "asc" },
+    include: {
+      paciente: { select: { id: true, nome: true } },
+      cobrancas: { select: { status: true } },
+      agendamentos: { select: { status: true } },
+      plano: { select: { id: true } },
+    },
+  });
+
+  return atribuicoes
+    .filter((a) =>
+      planoRenovavel({
+        atendimentos: a.atendimentos,
+        periodicidade: a.periodicidade,
+        cobrancas: a.cobrancas,
+        agendamentos: a.agendamentos,
+      }),
+    )
+    .map((a) => ({
+      id: a.id,
+      pacienteId: a.pacienteId,
+      pacienteNome: a.paciente.nome,
+      planoNome: a.planoNome,
+      periodicidade: a.periodicidade,
+      atendimentos: a.atendimentos,
+      total: totalAtendimentosPlano(a.atendimentos, a.periodicidade),
+      realizados: contarRealizados(a.agendamentos),
+      cobrancasPagas: a.cobrancas.length,
+      dataInicio: a.dataInicio,
+      temPlano: a.plano != null,
+      maxParcelas: maxParcelasPlano(a.periodicidade, a.formaPagamento),
+    }));
+}
+
+export type RenovarPlanoState = { error?: string; success?: boolean };
+
+/**
+ * Renova um plano atribuído: marca a atribuição atual como `CONCLUIDO` (fica no histórico
+ * do paciente), desativa a grade dela e cria uma nova atribuição ATIVA + novas cobranças.
+ * Copia periodicidade/forma/desconto da anterior e recalcula o valor pelos preços atuais
+ * do `Plano`. A grade **não** é copiada.
+ */
+export async function renovarPlanoAtribuicao(
+  atribuicaoId: string,
+  primeiraData: string,
+  numeroParcelas: number,
+): Promise<RenovarPlanoState> {
+  const parsed = renovarPlanoSchema.safeParse({ primeiraData, numeroParcelas });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
+  }
+
+  const antiga = await prisma.planoAtribuicao.findUnique({
+    where: { id: atribuicaoId },
+    include: {
+      cobrancas: { select: { status: true } },
+      agendamentos: { select: { status: true } },
+      plano: true,
+    },
+  });
+  if (!antiga || antiga.status !== "ATIVO") {
+    return { error: "Atribuição não encontrada ou já encerrada." };
+  }
+  if (!antiga.plano) {
+    return { error: "O plano do catálogo foi removido — cadastre-o de novo para renovar." };
+  }
+  if (
+    !planoRenovavel({
+      atendimentos: antiga.atendimentos,
+      periodicidade: antiga.periodicidade,
+      cobrancas: antiga.cobrancas,
+      agendamentos: antiga.agendamentos,
+    })
+  ) {
+    return {
+      error:
+        "Este plano ainda não pode ser renovado (há atendimentos ou pagamentos pendentes).",
+    };
+  }
+
+  const plano = antiga.plano;
+  const forma = antiga.formaPagamento;
+  const periodicidade = antiga.periodicidade;
+  const maxParcelas = maxParcelasPlano(periodicidade, forma);
+  if (parsed.data.numeroParcelas > maxParcelas) {
+    return { error: `Esta forma de pagamento permite no máximo ${maxParcelas} parcela(s).` };
+  }
+
+  const vencimentos = gerarDatasVencimento(
+    parsed.data.primeiraData,
+    parsed.data.numeroParcelas,
+  ).map((d) => new Date(`${d}T12:00:00`));
+
+  const notaFiscal = true;
+  const valorOriginal = valorPlano(plano, forma, periodicidade);
+  const { valor, desconto } = calcularDesconto(
+    valorOriginal,
+    "VALOR",
+    Number(antiga.desconto),
+    0,
+    vencimentos.length,
+  );
+
+  await prisma.$transaction(async (tx) => {
+    await tx.planoAtribuicao.update({
+      where: { id: antiga.id },
+      data: { status: "CONCLUIDO" },
+    });
+    await tx.gradeRecorrenteAtendimento.updateMany({
+      where: { planoAtribuicaoId: antiga.id },
+      data: { ativo: false },
+    });
+
+    const nova = await tx.planoAtribuicao.create({
+      data: {
+        pacienteId: antiga.pacienteId,
+        planoId: plano.id,
+        planoNome: plano.nome,
+        atendimentos: plano.atendimentos,
+        creditosRemarcacao: plano.creditosRemarcacao,
+        formaPagamento: forma,
+        periodicidade,
+        valorOriginal,
+        desconto,
+        valor,
+        cartao: cartaoDaForma(forma),
+        notaFiscal,
+        numeroParcelas: vencimentos.length,
+        dataInicio: vencimentos[0],
+      },
+    });
+
+    await tx.cobranca.createMany({
+      data: gerarParcelasData(
+        nova.id,
+        antiga.pacienteId,
+        plano.nome,
+        valor,
+        vencimentos,
+        notaFiscal,
+      ),
+    });
+  });
+
+  revalidatePath("/planos");
+  revalidatePath(`/pacientes/${antiga.pacienteId}`);
+  revalidatePath("/cobrancas");
+  revalidatePath("/dashboard");
+  return { success: true };
 }

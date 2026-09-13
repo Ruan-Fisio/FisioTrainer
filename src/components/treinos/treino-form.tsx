@@ -59,13 +59,18 @@ type DefaultValues = {
   }[];
 };
 
+// Só pra linhas adicionadas depois, por clique (client-only) — nunca durante a
+// renderização inicial (`fromDefaultValues`), que roda no servidor E no cliente: um valor
+// aleatório aí gera `key`/`id`/`htmlFor` diferentes em cada lado, e o React descarta a
+// hidratação inteira do form (bug real encontrado via teste E2E — o campo "Nome" ficava
+// em branco depois de recarregar, mesmo já preenchido, porque o form inteiro remontava).
 function novaChave() {
   return Math.random().toString(36).slice(2);
 }
 
-function novoExercicio(): ExercicioDiaState {
+function novoExercicio(key: string = novaChave()): ExercicioDiaState {
   return {
-    key: novaChave(),
+    key,
     exercicioId: "",
     series: "",
     repeticoes: "",
@@ -75,35 +80,40 @@ function novoExercicio(): ExercicioDiaState {
   };
 }
 
-function novoDia(): DiaState {
+function novoDia(key: string = novaChave()): DiaState {
   return {
-    key: novaChave(),
+    key,
     diaSemana: "SEGUNDA",
-    exercicios: [novoExercicio()],
+    exercicios: [novoExercicio(`${key}-ex-0`)],
   };
 }
 
+/** Roda no servidor e no cliente (dentro do inicializador de `useState`) — chaves
+ * determinísticas (por índice), nunca aleatórias, pra bater na hidratação. */
 function fromDefaultValues(defaultValues?: DefaultValues): DiaState[] {
-  if (!defaultValues || defaultValues.dias.length === 0) return [novoDia()];
+  if (!defaultValues || defaultValues.dias.length === 0) return [novoDia("dia-0")];
 
-  return defaultValues.dias.map((dia) => ({
-    key: novaChave(),
-    id: dia.id,
-    diaSemana: dia.diaSemana,
-    exercicios:
-      dia.exercicios.length > 0
-        ? dia.exercicios.map((exercicio) => ({
-            key: novaChave(),
-            id: exercicio.id,
-            exercicioId: exercicio.exercicioId,
-            series: exercicio.series != null ? String(exercicio.series) : "",
-            repeticoes: exercicio.repeticoes ?? "",
-            carga: exercicio.carga != null ? String(exercicio.carga) : "",
-            descanso: exercicio.descanso != null ? String(exercicio.descanso) : "",
-            instrucoes: exercicio.instrucoes ?? "",
-          }))
-        : [novoExercicio()],
-  }));
+  return defaultValues.dias.map((dia, diaIndex) => {
+    const diaKey = `dia-${diaIndex}`;
+    return {
+      key: diaKey,
+      id: dia.id,
+      diaSemana: dia.diaSemana,
+      exercicios:
+        dia.exercicios.length > 0
+          ? dia.exercicios.map((exercicio, exercicioIndex) => ({
+              key: `${diaKey}-ex-${exercicioIndex}`,
+              id: exercicio.id,
+              exercicioId: exercicio.exercicioId,
+              series: exercicio.series != null ? String(exercicio.series) : "",
+              repeticoes: exercicio.repeticoes ?? "",
+              carga: exercicio.carga != null ? String(exercicio.carga) : "",
+              descanso: exercicio.descanso != null ? String(exercicio.descanso) : "",
+              instrucoes: exercicio.instrucoes ?? "",
+            }))
+          : [novoExercicio(`${diaKey}-ex-0`)],
+    };
+  });
 }
 
 export function TreinoForm({

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { createPlanoAtribuicao } from "@/actions/plano-atribuicoes";
 import { listPlanosDisponiveis } from "@/actions/planos";
+import { getGradeRecorrenteOpcoes } from "@/actions/grade-recorrente";
 import { PlanoAtribuicaoForm } from "@/components/plano-atribuicoes/plano-atribuicao-form";
 
 export default async function NovaAtribuicaoPlanoPage({
@@ -18,7 +19,10 @@ export default async function NovaAtribuicaoPlanoPage({
 
   if (!paciente) notFound();
 
-  const planosAtivos = await listPlanosDisponiveis();
+  const [planosAtivos, gradeOpcoes] = await Promise.all([
+    listPlanosDisponiveis(),
+    getGradeRecorrenteOpcoes(),
+  ]);
   const createPlanoAtribuicaoWithPaciente = createPlanoAtribuicao.bind(null, id);
 
   return (
@@ -34,6 +38,7 @@ export default async function NovaAtribuicaoPlanoPage({
         planosAtivos={planosAtivos}
         pacienteId={id}
         mode="create"
+        gradeOpcoes={gradeOpcoes}
       />
     </div>
   );

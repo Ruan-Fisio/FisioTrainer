@@ -7,14 +7,11 @@ function baseInput(overrides: Record<string, unknown> = {}) {
     descricao: "",
     tipos: ["FISIOTERAPIA"],
     atendimentos: "4",
+    creditosRemarcacao: "2",
     valorAVistaMensal: "400,00",
     valorAVistaTrimestral: "1.080,00",
-    valorAVistaNfMensal: "428,00",
-    valorAVistaNfTrimestral: "1.155,60",
-    valorAte3xCartaoMensal: "440,00",
-    valorAte3xCartaoTrimestral: "1.188,00",
-    valorAte3xNfMensal: "428,00",
-    valorAte3xNfTrimestral: "1.155,60",
+    valorAte3xTrimestral: "1.188,00",
+    salas: JSON.stringify([{ salaId: "sala-1", descricao: "Uso de equipamentos" }]),
     ...overrides,
   };
 }
@@ -26,13 +23,25 @@ describe("planoSchema", () => {
     if (parsed.success) {
       expect(parsed.data.atendimentos).toBe(4);
       expect(parsed.data.valorAVistaMensal).toBe(400);
-      expect(parsed.data.valorAte3xCartaoTrimestral).toBe(1188);
+      expect(parsed.data.valorAte3xTrimestral).toBe(1188);
     }
   });
 
   it("exige número de atendimentos válido", () => {
     const parsed = planoSchema.safeParse(baseInput({ atendimentos: "0" }));
     expect(parsed.success).toBe(false);
+  });
+
+  it("aceita creditosRemarcacao zero mas rejeita negativo/vazio", () => {
+    expect(planoSchema.safeParse(baseInput({ creditosRemarcacao: "0" })).success).toBe(
+      true,
+    );
+    expect(planoSchema.safeParse(baseInput({ creditosRemarcacao: "-1" })).success).toBe(
+      false,
+    );
+    expect(planoSchema.safeParse(baseInput({ creditosRemarcacao: "" })).success).toBe(
+      false,
+    );
   });
 
   it("exige ao menos um tipo selecionado", () => {
@@ -47,8 +56,8 @@ describe("planoSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("exige todos os 8 valores de forma de pagamento", () => {
-    const parsed = planoSchema.safeParse(baseInput({ valorAte3xCartaoMensal: "" }));
+  it("exige os 3 valores do plano", () => {
+    const parsed = planoSchema.safeParse(baseInput({ valorAte3xTrimestral: "" }));
     expect(parsed.success).toBe(false);
   });
 
@@ -69,5 +78,32 @@ describe("planoSchema", () => {
       expect(parsed.data).not.toHaveProperty("taxaCartao");
       expect(parsed.data).not.toHaveProperty("opcoes");
     }
+  });
+
+  it("faz parse das salas do JSON, com descrição opcional", () => {
+    const parsed = planoSchema.safeParse(
+      baseInput({
+        salas: JSON.stringify([
+          { salaId: "sala-1", descricao: "Usa a Sala 2 para uso de equipamentos" },
+          { salaId: "sala-2" },
+        ]),
+      }),
+    );
+    expect(parsed.success).toBe(true);
+    if (parsed.success) {
+      expect(parsed.data.salas).toEqual([
+        { salaId: "sala-1", descricao: "Usa a Sala 2 para uso de equipamentos" },
+        { salaId: "sala-2" },
+      ]);
+    }
+  });
+
+  it("exige ao menos uma sala configurada", () => {
+    expect(planoSchema.safeParse(baseInput({ salas: "[]" })).success).toBe(false);
+    expect(planoSchema.safeParse(baseInput({ salas: "" })).success).toBe(false);
+  });
+
+  it("rejeita JSON de salas malformado", () => {
+    expect(planoSchema.safeParse(baseInput({ salas: "{not json" })).success).toBe(false);
   });
 });

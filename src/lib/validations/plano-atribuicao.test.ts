@@ -39,9 +39,10 @@ describe("planoAtribuicaoSchema", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("aceita até 3 parcelas para formas 'até 3x'", () => {
+  it("aceita até 3 parcelas para trimestral em até 3x no cartão", () => {
     const parsed = planoAtribuicaoSchema.safeParse(
       baseInput({
+        periodicidade: "TRIMESTRAL",
         formaPagamento: "ATE_3X_CARTAO",
         vencimentos: ["2026-09-01", "2026-10-01", "2026-11-01"],
       }),
@@ -49,20 +50,33 @@ describe("planoAtribuicaoSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("rejeita mais de 3 parcelas para formas 'até 3x'", () => {
+  it("rejeita mais de 3 parcelas para trimestral em até 3x no cartão", () => {
     const parsed = planoAtribuicaoSchema.safeParse(
       baseInput({
-        formaPagamento: "ATE_3X_NF",
+        periodicidade: "TRIMESTRAL",
+        formaPagamento: "ATE_3X_CARTAO",
         vencimentos: ["2026-09-01", "2026-10-01", "2026-11-01", "2026-12-01"],
       }),
     );
     expect(parsed.success).toBe(false);
   });
 
-  it("rejeita mais de 1 parcela para formas 'à vista'", () => {
+  it("rejeita parcelamento de plano mensal", () => {
     const parsed = planoAtribuicaoSchema.safeParse(
       baseInput({
-        formaPagamento: "A_VISTA_NF",
+        periodicidade: "MENSAL",
+        formaPagamento: "ATE_3X_CARTAO",
+        vencimentos: ["2026-09-01", "2026-10-01"],
+      }),
+    );
+    expect(parsed.success).toBe(false);
+  });
+
+  it("rejeita mais de 1 parcela para trimestral à vista", () => {
+    const parsed = planoAtribuicaoSchema.safeParse(
+      baseInput({
+        periodicidade: "TRIMESTRAL",
+        formaPagamento: "A_VISTA",
         vencimentos: ["2026-09-01", "2026-10-01"],
       }),
     );

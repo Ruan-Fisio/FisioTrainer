@@ -47,7 +47,10 @@ export async function listPlanosDisponiveis() {
 }
 
 export async function getPlano(id: string) {
-  const plano = await prisma.plano.findUnique({ where: { id } });
+  const plano = await prisma.plano.findUnique({
+    where: { id },
+    include: { salas: { select: { salaId: true, descricao: true } } },
+  });
   if (!plano) return null;
   return toNumbers(plano);
 }
@@ -63,14 +66,11 @@ function parseForm(formData: FormData) {
     descricao: formData.get("descricao") ?? "",
     tipos: formData.getAll("tipos"),
     atendimentos: formData.get("atendimentos"),
+    creditosRemarcacao: formData.get("creditosRemarcacao"),
     valorAVistaMensal: formData.get("valorAVistaMensal"),
     valorAVistaTrimestral: formData.get("valorAVistaTrimestral"),
-    valorAVistaNfMensal: formData.get("valorAVistaNfMensal"),
-    valorAVistaNfTrimestral: formData.get("valorAVistaNfTrimestral"),
-    valorAte3xCartaoMensal: formData.get("valorAte3xCartaoMensal"),
-    valorAte3xCartaoTrimestral: formData.get("valorAte3xCartaoTrimestral"),
-    valorAte3xNfMensal: formData.get("valorAte3xNfMensal"),
-    valorAte3xNfTrimestral: formData.get("valorAte3xNfTrimestral"),
+    valorAte3xTrimestral: formData.get("valorAte3xTrimestral"),
+    salas: formData.get("salas") ?? "[]",
   });
 }
 
@@ -92,7 +92,10 @@ export async function createPlano(
     return { error: "Já existe um plano com este nome." };
   }
 
-  await prisma.plano.create({ data: parsed.data });
+  const { salas, ...dados } = parsed.data;
+  await prisma.plano.create({
+    data: { ...dados, salas: { create: salas } },
+  });
 
   revalidatePath("/planos");
   return { success: true };
@@ -117,7 +120,14 @@ export async function updatePlano(
     return { error: "Já existe um plano com este nome." };
   }
 
-  await prisma.plano.update({ where: { id }, data: parsed.data });
+  const { salas, ...dados } = parsed.data;
+  await prisma.$transaction([
+    prisma.planoSala.deleteMany({ where: { planoId: id } }),
+    prisma.plano.update({
+      where: { id },
+      data: { ...dados, salas: { create: salas } },
+    }),
+  ]);
 
   revalidatePath("/planos");
   return { success: true };

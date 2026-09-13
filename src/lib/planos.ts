@@ -1,24 +1,15 @@
-export type FormaPagamentoPlano = "A_VISTA" | "A_VISTA_NF" | "ATE_3X_CARTAO" | "ATE_3X_NF";
+export type FormaPagamentoPlano = "A_VISTA" | "ATE_3X_CARTAO";
 export type PeriodicidadePlano = "MENSAL" | "TRIMESTRAL";
 
-/** Nome do campo de valor do Plano para cada combinação forma de pagamento x periodicidade. */
-export const campoValorPlano: Record<FormaPagamentoPlano, Record<PeriodicidadePlano, string>> = {
-  A_VISTA: { MENSAL: "valorAVistaMensal", TRIMESTRAL: "valorAVistaTrimestral" },
-  A_VISTA_NF: { MENSAL: "valorAVistaNfMensal", TRIMESTRAL: "valorAVistaNfTrimestral" },
-  ATE_3X_CARTAO: { MENSAL: "valorAte3xCartaoMensal", TRIMESTRAL: "valorAte3xCartaoTrimestral" },
-  ATE_3X_NF: { MENSAL: "valorAte3xNfMensal", TRIMESTRAL: "valorAte3xNfTrimestral" },
-};
-
-/** Os 8 campos de valor do Plano (4 formas de pagamento x 2 periodicidades). */
+/**
+ * Os 3 preços do Plano (nota fiscal sempre inclusa no valor cadastrado):
+ * - mensal só à vista (não parcela);
+ * - trimestral à vista ou em até 3x no cartão.
+ */
 export const CAMPOS_VALOR_PLANO = [
   "valorAVistaMensal",
   "valorAVistaTrimestral",
-  "valorAVistaNfMensal",
-  "valorAVistaNfTrimestral",
-  "valorAte3xCartaoMensal",
-  "valorAte3xCartaoTrimestral",
-  "valorAte3xNfMensal",
-  "valorAte3xNfTrimestral",
+  "valorAte3xTrimestral",
 ] as const;
 
 export type CampoValorPlano = (typeof CAMPOS_VALOR_PLANO)[number];
@@ -39,23 +30,39 @@ export function valorPlano(
   formaPagamento: FormaPagamentoPlano,
   periodicidade: PeriodicidadePlano,
 ): number {
-  const raw = plano[campoValorPlano[formaPagamento][periodicidade]];
+  const campo =
+    periodicidade === "MENSAL"
+      ? "valorAVistaMensal"
+      : formaPagamento === "ATE_3X_CARTAO"
+        ? "valorAte3xTrimestral"
+        : "valorAVistaTrimestral";
+  const raw = plano[campo];
   return raw == null ? 0 : Number(raw);
 }
 
-/** Só "Até 3x Cartão" é pagamento no cartão — as outras 3 formas não são. */
+/** Só "Até 3x no cartão" é pagamento no cartão. */
 export function cartaoDaForma(formaPagamento: FormaPagamentoPlano): boolean {
   return formaPagamento === "ATE_3X_CARTAO";
 }
 
-/** Formas "+ NF" já incluem nota fiscal no valor cadastrado no plano. */
-export function notaFiscalDaForma(formaPagamento: FormaPagamentoPlano): boolean {
-  return formaPagamento === "A_VISTA_NF" || formaPagamento === "ATE_3X_NF";
+/**
+ * Máximo de parcelas: plano mensal nunca parcela (1); trimestral à vista = 1,
+ * trimestral em até 3x no cartão = 3.
+ */
+export function maxParcelasPlano(
+  periodicidade: PeriodicidadePlano,
+  formaPagamento: FormaPagamentoPlano,
+): number {
+  if (periodicidade === "MENSAL") return 1;
+  return formaPagamento === "ATE_3X_CARTAO" ? 3 : 1;
 }
 
-/** "À vista" permite só 1 parcela; "Até 3x" permite até 3. */
-export function maxParcelasDaForma(formaPagamento: FormaPagamentoPlano): number {
-  return formaPagamento === "ATE_3X_CARTAO" || formaPagamento === "ATE_3X_NF" ? 3 : 1;
+/** Forma de pagamento efetiva: plano mensal é sempre à vista. */
+export function formaEfetiva(
+  periodicidade: PeriodicidadePlano,
+  formaPagamento: FormaPagamentoPlano,
+): FormaPagamentoPlano {
+  return periodicidade === "MENSAL" ? "A_VISTA" : formaPagamento;
 }
 
 /** Divide o valor total em N parcelas, ajustando centavos de arredondamento na última parcela. */

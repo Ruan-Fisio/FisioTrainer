@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormActions } from "@/components/ui/form-actions";
 import type { UsuarioActionState } from "@/actions/usuarios";
@@ -30,6 +31,8 @@ export function UsuarioForm({
     inscricaoMunicipal?: string | null;
     telefone?: string | null;
     endereco?: string | null;
+    atendeFisioterapia?: boolean;
+    atendeEducacaoFisica?: boolean;
   };
   mode: "create" | "edit";
 }) {
@@ -91,6 +94,39 @@ export function UsuarioForm({
           defaultValue={defaultValues?.crefito ?? ""}
         />
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Modalidades de atendimento</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <p className="text-xs text-muted-foreground">
+            Define em quais modalidades este usuário pode ser escolhido como
+            profissional na agenda. Use para separar quem atende fisioterapia,
+            educação física ou os dois (profissionais, estagiários etc.).
+          </p>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="atendeFisioterapia"
+              name="atendeFisioterapia"
+              defaultChecked={defaultValues?.atendeFisioterapia ?? false}
+            />
+            <Label htmlFor="atendeFisioterapia" className="font-normal">
+              Atende Fisioterapia
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="atendeEducacaoFisica"
+              name="atendeEducacaoFisica"
+              defaultChecked={defaultValues?.atendeEducacaoFisica ?? false}
+            />
+            <Label htmlFor="atendeEducacaoFisica" className="font-normal">
+              Atende Educação Física
+            </Label>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

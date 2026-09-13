@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { isToday } from "date-fns";
 import { cn } from "@/lib/utils";
 import { horaDoDia, toDateInputValue } from "@/lib/format";
@@ -11,8 +10,6 @@ import type { EventoCalendario } from "@/components/agendamentos/calendario/type
 const DIA_SEMANA_CURTO = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
 
 export function GradeHoraria({ dias, eventos }: { dias: Date[]; eventos: EventoCalendario[] }) {
-  const router = useRouter();
-
   function eventosDoDia(dia: Date) {
     const alvo = toDateInputValue(dia);
     return eventos.filter((evento) => toDateInputValue(evento.dataInicio) === alvo);
@@ -26,12 +23,6 @@ export function GradeHoraria({ dias, eventos }: { dias: Date[]; eventos: EventoC
     return eventosDoDia(dia).filter(
       (e) => !e.diaInteiro && horaDoDia(e.dataInicio) === hora,
     );
-  }
-
-  function abrirNovoEvento(dia: Date, hora?: number) {
-    const params = new URLSearchParams({ data: toDateInputValue(dia) });
-    if (hora !== undefined) params.set("horaInicio", `${String(hora).padStart(2, "0")}:00`);
-    router.push(`/agenda/novo?${params.toString()}`);
   }
 
   const temEventoDiaInteiro = dias.some((dia) => eventosDiaInteiro(dia).length > 0);
@@ -91,8 +82,7 @@ export function GradeHoraria({ dias, eventos }: { dias: Date[]; eventos: EventoC
             {dias.map((dia) => (
               <div
                 key={dia.toISOString()}
-                onClick={() => abrirNovoEvento(dia, hora)}
-                className="flex min-h-12 cursor-pointer flex-col gap-0.5 border-l p-1 transition-colors hover:bg-muted/30"
+                className="flex min-h-12 flex-col gap-0.5 border-l p-1"
               >
                 {eventosDaHora(dia, hora).map((evento) => (
                   <EventoChip key={evento.id} evento={evento} />

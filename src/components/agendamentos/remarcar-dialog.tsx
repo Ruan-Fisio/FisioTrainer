@@ -30,7 +30,7 @@ export function RemarcarDialog({ agendamento }: { agendamento: RemarcarAlvo }) {
       </Button>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Remarcar evento</DialogTitle>
+          <DialogTitle>Remarcar atendimento</DialogTitle>
           <DialogDescription>
             {agendamento.titulo} · duração de {duracaoMin} min. Escolha um horário livre —
             horários ocupados aparecem desabilitados.

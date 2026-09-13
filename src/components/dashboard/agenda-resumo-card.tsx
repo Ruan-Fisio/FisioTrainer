@@ -258,6 +258,7 @@ export function AgendaResumoCard({
                           profissionalId: a.profissionalId,
                           dataInicio: a.dataInicio,
                           dataFim: a.dataFim,
+                          planoAtribuicaoId: a.planoAtribuicaoId,
                         }}
                       />
                     </div>

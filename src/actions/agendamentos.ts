@@ -1,12 +1,26 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { agendamentoSchema, combinarDataHora } from "@/lib/validations/agendamento";
-import { gerarOcorrencias, type RegraRecorrencia } from "@/lib/recorrencia";
-import { MODALIDADE_SALA, temHorarioFixo } from "@/lib/salas";
+import { combinarDataHora } from "@/lib/validations/agendamento";
+import { temHorarioFixo } from "@/lib/salas";
+import { getConfigSalas } from "@/lib/salas-config";
+import { getConfigFuncionamento, validarFuncionamento } from "@/lib/funcionamento-config";
+import { diaSemanaDeYmd } from "@/lib/funcionamento";
 import { pacientePodeDesmarcar } from "@/lib/agendamento-cancelamento";
+import { creditosDisponiveis, semCreditos } from "@/lib/remarcacao-creditos";
+import { totalAtendimentosPlano } from "@/lib/plano-renovacao";
+import { fimDoMes, inicioDoMes } from "@/lib/datas-brasilia";
+import {
+  buscarConflito,
+  mensagemConflito,
+  validarProfissionalModalidade,
+  verificarCapacidade,
+  getSalasCandidatasPlano,
+  vagasDisponiveisPlano,
+  resolverSalaPlano,
+} from "@/lib/agendamento-checagens";
+import { vagasTotais } from "@/lib/sala-plano";
 import { MODALIDADE_AGENDAMENTO_LABEL } from "@/components/agendamentos/agendamento-labels";
 import type { ModalidadeAgendamento } from "@/generated/prisma/enums";
 
@@ -15,6 +29,7 @@ const PAGE_SIZE = 10;
 const includePadrao = {
   pacientes: { select: { id: true, nome: true } },
   profissional: { select: { id: true, name: true } },
+  sala: { select: { id: true, nome: true } },
 };
 
 export async function listAgendamentos(
@@ -94,88 +109,6 @@ export async function listAgendamentosPorIntervalo(intervalo: {
   });
 }
 
-export async function getAgendamentosByPaciente(pacienteId: string) {
-  return prisma.agendamento.findMany({
-    where: { pacientes: { some: { id: pacienteId } } },
-    orderBy: { dataInicio: "desc" },
-    include: includePadrao,
-  });
-}
-
-export async function getAgendamento(id: string) {
-  return prisma.agendamento.findUnique({ where: { id }, include: includePadrao });
-}
-
-/**
- * Dois eventos conflitam quando pertencem ao mesmo profissional (ou ambos não
- * têm profissional definido) e os intervalos [dataInicio, dataFim) se sobrepõem.
- * Eventos cancelados liberam o horário. Isso nunca pode ser contornado: toda
- * criação/edição/remarcação passa por aqui antes de gravar no banco.
- */
-async function buscarConflito(params: {
-  profissionalId: string | null;
-  dataInicio: Date;
-  dataFim: Date;
-  excludeId?: string;
-}) {
-  return prisma.agendamento.findFirst({
-    where: {
-      ...(params.excludeId ? { id: { not: params.excludeId } } : {}),
-      profissionalId: params.profissionalId,
-      status: { not: "CANCELADO" },
-      dataInicio: { lt: params.dataFim },
-      dataFim: { gt: params.dataInicio },
-    },
-    select: { id: true, titulo: true, dataInicio: true },
-  });
-}
-
-function mensagemConflito(conflito: { titulo: string; dataInicio: Date }) {
-  const horario = conflito.dataInicio.toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  return `Conflito de horário com "${conflito.titulo}" (${horario}).`;
-}
-
-/**
- * Capacidade é contada por paciente, por modalidade, dentro da sala daquela modalidade
- * (Sala 1 tem limite independente para Educação Física e para Fisioterapia). Eventos que
- * se sobrepõem no tempo e são da mesma modalidade disputam a mesma capacidade.
- */
-async function verificarCapacidade(params: {
-  modalidade: ModalidadeAgendamento;
-  dataInicio: Date;
-  dataFim: Date;
-  quantidadePacientes: number;
-  excludeId?: string;
-}) {
-  const capacidade = MODALIDADE_SALA[params.modalidade].capacidade;
-
-  const concorrentes = await prisma.agendamento.findMany({
-    where: {
-      ...(params.excludeId ? { id: { not: params.excludeId } } : {}),
-      modalidade: params.modalidade,
-      status: { not: "CANCELADO" },
-      dataInicio: { lt: params.dataFim },
-      dataFim: { gt: params.dataInicio },
-    },
-    include: { pacientes: { select: { id: true } } },
-  });
-
-  const ocupadas = concorrentes.reduce((soma, a) => soma + Math.max(a.pacientes.length, 1), 0);
-  const novas = Math.max(params.quantidadePacientes, 1);
-
-  if (ocupadas + novas > capacidade) {
-    const sala = MODALIDADE_SALA[params.modalidade].sala;
-    const modalidadeLabel = MODALIDADE_AGENDAMENTO_LABEL[params.modalidade];
-    return `${sala} lotada nesse horário para ${modalidadeLabel} (${ocupadas}/${capacidade} vagas ocupadas).`;
-  }
-  return null;
-}
-
 /** Eventos do profissional (ou sem profissional) num dia, para montar um seletor de horários livres. */
 export async function getAgendamentosDoDia(
   data: string,
@@ -201,19 +134,53 @@ export async function getAgendamentosDoDia(
 /**
  * Vagas disponíveis em cada horário pré-configurado da modalidade, numa data. Usado para
  * filtrar no formulário quais horários ainda têm capacidade na sala daquela modalidade.
+ *
+ * Fisioterapia/Educação Física são sempre agendadas por um plano: `planoAtribuicaoId`
+ * escopa a capacidade só às salas cadastradas naquele plano (`resolverSalaPlano`), em
+ * vez de somar todas as salas da modalidade. Avaliação/Terapia Manual (sem plano) usam
+ * a sala fixa (`getConfigSalas`).
  */
 export async function getDisponibilidadeHorarios(
   data: string,
   modalidade: ModalidadeAgendamento,
   excludeId?: string,
+  planoAtribuicaoId?: string,
 ) {
+  const { diasAbertos, feriados } = await getConfigFuncionamento();
+  if (!diasAbertos.has(diaSemanaDeYmd(data)) || feriados.has(data)) return [];
+
   const horarios = await prisma.horarioAtendimento.findMany({
     where: { modalidade, ativo: true },
     orderBy: { ordem: "asc" },
   });
   if (horarios.length === 0) return [];
 
-  const capacidade = MODALIDADE_SALA[modalidade].capacidade;
+  const usaPlano = planoAtribuicaoId != null;
+
+  if (usaPlano) {
+    return Promise.all(
+      horarios.map(async (h) => {
+        const inicioSlot = combinarDataHora(data, h.horario);
+        const fimSlot = new Date(inicioSlot.getTime() + h.duracaoMin * 60000);
+        const { capacidade, vagas } = await vagasDisponiveisPlano({
+          planoAtribuicaoId,
+          modalidade,
+          dataInicio: inicioSlot,
+          dataFim: fimSlot,
+          excludeId,
+        });
+        return {
+          horario: h.horario,
+          duracaoMin: h.duracaoMin,
+          capacidade,
+          ocupadas: capacidade - vagas,
+          vagas,
+        };
+      }),
+    );
+  }
+
+  const capacidade = (await getConfigSalas())[modalidade].capacidade;
   const inicioDia = new Date(`${data}T00:00:00`);
   const fimDia = new Date(`${data}T23:59:59`);
 
@@ -245,243 +212,12 @@ export async function getDisponibilidadeHorarios(
   });
 }
 
-export type AgendamentoActionState = {
-  error?: string;
-  success?: boolean;
-};
-
-function parseForm(formData: FormData) {
-  const pacienteIdsRaw = formData.get("pacienteIds");
-  const diasSemanaRaw = formData.get("diasSemana");
-
-  let pacienteIds: unknown = [];
-  let diasSemana: unknown = [];
-
-  try {
-    pacienteIds = pacienteIdsRaw ? JSON.parse(String(pacienteIdsRaw)) : [];
-    diasSemana = diasSemanaRaw ? JSON.parse(String(diasSemanaRaw)) : [];
-  } catch {
-    return null;
-  }
-
-  return agendamentoSchema.safeParse({
-    titulo: formData.get("titulo"),
-    pacienteIds,
-    profissionalId: formData.get("profissionalId") || undefined,
-    data: formData.get("data"),
-    horaInicio: formData.get("horaInicio"),
-    horaFim: formData.get("horaFim"),
-    diaInteiro: formData.get("diaInteiro") === "on",
-    modalidade: formData.get("modalidade"),
-    status: formData.get("status"),
-    observacao: formData.get("observacao") ?? "",
-    repeticao: formData.get("repeticao") || "NAO_REPETE",
-    intervalo: formData.get("intervalo") || undefined,
-    unidade: formData.get("unidade") || undefined,
-    diasSemana,
-    termino: formData.get("termino") || undefined,
-    terminoData: formData.get("terminoData") || undefined,
-    terminoOcorrencias: formData.get("terminoOcorrencias") || undefined,
-  });
-}
-
 function revalidar(pacienteIds: string[]) {
   revalidatePath("/agenda");
   revalidatePath("/dashboard");
   for (const pacienteId of pacienteIds) {
     revalidatePath(`/pacientes/${pacienteId}`);
   }
-}
-
-export async function createAgendamento(
-  _prevState: AgendamentoActionState,
-  formData: FormData,
-): Promise<AgendamentoActionState> {
-  const parsed = parseForm(formData);
-
-  if (!parsed || !parsed.success) {
-    return { error: parsed?.error.issues[0]?.message ?? "Dados inválidos." };
-  }
-
-  const dados = parsed.data;
-  const diaInteiro = dados.diaInteiro;
-  const horaInicio = diaInteiro ? "00:00" : dados.horaInicio;
-  const horaFim = diaInteiro ? "23:59" : dados.horaFim;
-  const dataInicioBase = combinarDataHora(dados.data, horaInicio);
-  const dataFimBase = combinarDataHora(dados.data, horaFim);
-  const duracaoMs = dataFimBase.getTime() - dataInicioBase.getTime();
-
-  const profissionalId = dados.profissionalId || null;
-
-  const dadosComuns = {
-    titulo: dados.titulo,
-    profissionalId,
-    diaInteiro,
-    modalidade: dados.modalidade,
-    status: dados.status,
-    observacao: dados.observacao,
-    pacientes: { connect: dados.pacienteIds.map((id) => ({ id })) },
-  };
-
-  if (dados.repeticao === "NAO_REPETE") {
-    const conflito = await buscarConflito({
-      profissionalId,
-      dataInicio: dataInicioBase,
-      dataFim: dataFimBase,
-    });
-    if (conflito) return { error: mensagemConflito(conflito) };
-
-    const semCapacidade = await verificarCapacidade({
-      modalidade: dados.modalidade,
-      dataInicio: dataInicioBase,
-      dataFim: dataFimBase,
-      quantidadePacientes: dados.pacienteIds.length,
-    });
-    if (semCapacidade) return { error: semCapacidade };
-
-    await prisma.agendamento.create({
-      data: {
-        ...dadosComuns,
-        dataInicio: dataInicioBase,
-        dataFim: dataFimBase,
-        serieId: null,
-      },
-    });
-  } else {
-    const unidadePorPreset = {
-      DIARIA: "DIA",
-      SEMANAL: "SEMANA",
-      MENSAL: "MES",
-      ANUAL: "ANO",
-    } as const;
-
-    const regra: RegraRecorrencia =
-      dados.repeticao === "PERSONALIZADA"
-        ? {
-            intervalo: dados.intervalo ?? 1,
-            unidade: dados.unidade ?? "SEMANA",
-            diasSemana: dados.diasSemana,
-            termino: dados.termino ?? "NUNCA",
-            terminoData: dados.terminoData ? new Date(`${dados.terminoData}T23:59:59`) : undefined,
-            terminoOcorrencias: dados.terminoOcorrencias,
-          }
-        : {
-            intervalo: 1,
-            unidade: unidadePorPreset[dados.repeticao],
-            termino: dados.termino ?? "NUNCA",
-            terminoData: dados.terminoData ? new Date(`${dados.terminoData}T23:59:59`) : undefined,
-            terminoOcorrencias: dados.terminoOcorrencias,
-          };
-
-    const ocorrencias = gerarOcorrencias(dataInicioBase, regra);
-
-    for (const dataInicio of ocorrencias) {
-      const dataFim = new Date(dataInicio.getTime() + duracaoMs);
-      const conflito = await buscarConflito({ profissionalId, dataInicio, dataFim });
-      if (conflito) return { error: mensagemConflito(conflito) };
-
-      const semCapacidade = await verificarCapacidade({
-        modalidade: dados.modalidade,
-        dataInicio,
-        dataFim,
-        quantidadePacientes: dados.pacienteIds.length,
-      });
-      if (semCapacidade) return { error: semCapacidade };
-    }
-
-    const serieId = randomUUID();
-
-    await prisma.$transaction(
-      ocorrencias.map((dataInicio) =>
-        prisma.agendamento.create({
-          data: {
-            ...dadosComuns,
-            dataInicio,
-            dataFim: new Date(dataInicio.getTime() + duracaoMs),
-            serieId,
-          },
-        }),
-      ),
-    );
-  }
-
-  revalidar(dados.pacienteIds);
-  return { success: true };
-}
-
-export async function updateAgendamento(
-  id: string,
-  _prevState: AgendamentoActionState,
-  formData: FormData,
-): Promise<AgendamentoActionState> {
-  const parsed = parseForm(formData);
-
-  if (!parsed || !parsed.success) {
-    return { error: parsed?.error.issues[0]?.message ?? "Dados inválidos." };
-  }
-
-  const dados = parsed.data;
-  const diaInteiro = dados.diaInteiro;
-  const horaInicio = diaInteiro ? "00:00" : dados.horaInicio;
-  const horaFim = diaInteiro ? "23:59" : dados.horaFim;
-  const profissionalId = dados.profissionalId || null;
-  const dataInicio = combinarDataHora(dados.data, horaInicio);
-  const dataFim = combinarDataHora(dados.data, horaFim);
-
-  const conflito = await buscarConflito({ profissionalId, dataInicio, dataFim, excludeId: id });
-  if (conflito) return { error: mensagemConflito(conflito) };
-
-  const semCapacidade = await verificarCapacidade({
-    modalidade: dados.modalidade,
-    dataInicio,
-    dataFim,
-    quantidadePacientes: dados.pacienteIds.length,
-    excludeId: id,
-  });
-  if (semCapacidade) return { error: semCapacidade };
-
-  await prisma.agendamento.update({
-    where: { id },
-    data: {
-      titulo: dados.titulo,
-      profissionalId,
-      diaInteiro,
-      modalidade: dados.modalidade,
-      status: dados.status,
-      observacao: dados.observacao,
-      dataInicio,
-      dataFim,
-      pacientes: { set: dados.pacienteIds.map((pacienteId) => ({ id: pacienteId })) },
-    },
-  });
-
-  revalidar(dados.pacienteIds);
-  return { success: true };
-}
-
-export async function deleteAgendamento(
-  id: string,
-  escopo: "esta" | "seguintes" | "todas" = "esta",
-) {
-  const agendamento = await prisma.agendamento.findUnique({
-    where: { id },
-    include: { pacientes: { select: { id: true } } },
-  });
-  if (!agendamento) return;
-
-  const pacienteIds = agendamento.pacientes.map((p) => p.id);
-
-  if (!agendamento.serieId || escopo === "esta") {
-    await prisma.agendamento.delete({ where: { id } });
-  } else if (escopo === "seguintes") {
-    await prisma.agendamento.deleteMany({
-      where: { serieId: agendamento.serieId, dataInicio: { gte: agendamento.dataInicio } },
-    });
-  } else {
-    await prisma.agendamento.deleteMany({ where: { serieId: agendamento.serieId } });
-  }
-
-  revalidar(pacienteIds);
 }
 
 /** Marcação rápida de comparecimento/falta a partir do dashboard, sem abrir o formulário completo. */
@@ -497,20 +233,46 @@ export async function atualizarStatusAgendamento(
   revalidar(agendamento.pacientes.map((p) => p.id));
 }
 
-export type RemarcarActionState = { error?: string; success?: boolean };
+export type RemarcarActionState = {
+  error?: string;
+  success?: boolean;
+  /** Plano sem créditos de remarcação no mês: a clínica precisa confirmar (reenviar com `forcar`). */
+  requiresConfirmacao?: boolean;
+};
 
-/** Remarca um evento para nova data/horário, preservando duração, pacientes e demais dados. */
+/**
+ * Remarca um evento para nova data/horário, preservando duração, pacientes e demais dados.
+ * Se o evento estiver ligado a um plano, exige `justificativa` e consome 1 crédito de
+ * remarcação do plano no mês; sem saldo, retorna `requiresConfirmacao` até que a clínica
+ * reenvie com `forcar: true` (aí remarca mesmo assim, deixando o mês no vermelho).
+ */
 export async function remarcarAgendamento(
   id: string,
   novaData: string,
   novaHoraInicio: string,
   novaHoraFim: string,
+  justificativa?: string,
+  forcar = false,
 ): Promise<RemarcarActionState> {
   const agendamento = await prisma.agendamento.findUnique({
     where: { id },
-    include: { pacientes: { select: { id: true } } },
+    include: {
+      pacientes: { select: { id: true } },
+      planoAtribuicao: { select: { id: true, creditosRemarcacao: true } },
+    },
   });
   if (!agendamento) return { error: "Evento não encontrado." };
+
+  const motivo = justificativa?.trim() ?? "";
+  if (agendamento.planoAtribuicao && motivo.length < 3) {
+    return { error: "Informe a justificativa da remarcação." };
+  }
+  if (agendamento.planoAtribuicao && !forcar) {
+    const usados = await contarCreditosRemarcacaoNoMes(agendamento.planoAtribuicao.id);
+    if (semCreditos(agendamento.planoAtribuicao.creditosRemarcacao, usados)) {
+      return { requiresConfirmacao: true };
+    }
+  }
 
   const dataInicio = combinarDataHora(novaData, novaHoraInicio);
   const dataFim = combinarDataHora(novaData, novaHoraFim);
@@ -518,6 +280,9 @@ export async function remarcarAgendamento(
   if (dataFim <= dataInicio) {
     return { error: "Horário de término deve ser depois do início." };
   }
+
+  const erroFuncionamento = await validarFuncionamento(dataInicio);
+  if (erroFuncionamento) return { error: erroFuncionamento };
 
   const conflito = await buscarConflito({
     profissionalId: agendamento.profissionalId,
@@ -527,18 +292,44 @@ export async function remarcarAgendamento(
   });
   if (conflito) return { error: mensagemConflito(conflito) };
 
-  const semCapacidade = await verificarCapacidade({
-    modalidade: agendamento.modalidade,
-    dataInicio,
-    dataFim,
-    quantidadePacientes: agendamento.pacientes.length,
-    excludeId: id,
-  });
-  if (semCapacidade) return { error: semCapacidade };
+  let salaId: string | null = null;
+  if (agendamento.planoAtribuicao) {
+    const sala = await resolverSalaPlano({
+      planoAtribuicaoId: agendamento.planoAtribuicao.id,
+      modalidade: agendamento.modalidade,
+      dataInicio,
+      dataFim,
+      quantidadePacientes: agendamento.pacientes.length,
+      excludeId: id,
+    });
+    if (!sala.ok) return { error: sala.error };
+    salaId = sala.salaId;
+  } else {
+    const semCapacidade = await verificarCapacidade({
+      modalidade: agendamento.modalidade,
+      dataInicio,
+      dataFim,
+      quantidadePacientes: agendamento.pacientes.length,
+      excludeId: id,
+    });
+    if (semCapacidade) return { error: semCapacidade };
+  }
 
-  await prisma.agendamento.update({
-    where: { id },
-    data: { dataInicio, dataFim, status: "AGENDADO" },
+  await prisma.$transaction(async (tx) => {
+    await tx.agendamento.update({
+      where: { id },
+      data: { dataInicio, dataFim, status: "AGENDADO", salaId },
+    });
+    if (agendamento.planoAtribuicao) {
+      await tx.creditoRemarcacao.create({
+        data: {
+          planoAtribuicaoId: agendamento.planoAtribuicao.id,
+          agendamentoId: id,
+          origem: "CLINICA",
+          justificativa: motivo,
+        },
+      });
+    }
   });
 
   revalidar(agendamento.pacientes.map((p) => p.id));
@@ -557,10 +348,19 @@ export type DesmarcarAgendamentoState = { error?: string; success?: boolean };
 export async function desmarcarAgendamentoPeloPaciente(
   agendamentoId: string,
   pacienteId: string,
+  justificativa: string,
 ): Promise<DesmarcarAgendamentoState> {
+  const motivo = justificativa?.trim() ?? "";
+  if (motivo.length < 3) {
+    return { error: "Descreva o motivo da remarcação para continuar." };
+  }
+
   const ag = await prisma.agendamento.findUnique({
     where: { id: agendamentoId },
-    include: { pacientes: { select: { id: true } } },
+    include: {
+      pacientes: { select: { id: true } },
+      planoAtribuicao: { select: { id: true, creditosRemarcacao: true } },
+    },
   });
   if (!ag) return { error: "Atendimento não encontrado." };
   if (!ag.pacientes.some((p) => p.id === pacienteId)) {
@@ -577,22 +377,63 @@ export async function desmarcarAgendamentoPeloPaciente(
     };
   }
 
+  if (ag.planoAtribuicao) {
+    const usados = await contarCreditosRemarcacaoNoMes(ag.planoAtribuicao.id);
+    if (semCreditos(ag.planoAtribuicao.creditosRemarcacao, usados)) {
+      return {
+        error:
+          "Não é possível desmarcar por aqui neste momento. Entre em contato com a clínica.",
+      };
+    }
+  }
+
   const carimbo = new Date().toLocaleString("pt-BR", {
     dateStyle: "short",
     timeStyle: "short",
   });
-  await prisma.agendamento.update({
-    where: { id: agendamentoId },
-    data: {
-      status: "CANCELADO",
-      observacao: [ag.observacao, `Desmarcado pelo paciente pelo portal em ${carimbo}.`]
-        .filter(Boolean)
-        .join("\n"),
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.agendamento.update({
+      where: { id: agendamentoId },
+      data: {
+        status: "CANCELADO",
+        observacao: [
+          ag.observacao,
+          `Desmarcado pelo paciente pelo portal em ${carimbo}. Motivo: ${motivo}`,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      },
+    });
+    if (ag.planoAtribuicao) {
+      await tx.creditoRemarcacao.create({
+        data: {
+          planoAtribuicaoId: ag.planoAtribuicao.id,
+          agendamentoId,
+          origem: "PACIENTE",
+          justificativa: motivo,
+        },
+      });
+    }
   });
 
   revalidar(ag.pacientes.map((p) => p.id));
   return { success: true };
+}
+
+/**
+ * Créditos de remarcação já consumidos por uma atribuição de plano no mês-calendário
+ * (Brasília) que contém `ref`. Cada linha de `CreditoRemarcacao` = 1 crédito.
+ */
+async function contarCreditosRemarcacaoNoMes(
+  planoAtribuicaoId: string,
+  ref: Date = new Date(),
+) {
+  return prisma.creditoRemarcacao.count({
+    where: {
+      planoAtribuicaoId,
+      createdAt: { gte: inicioDoMes(ref), lte: fimDoMes(ref) },
+    },
+  });
 }
 
 /* ------------------------------------------------------------------ *
@@ -612,24 +453,41 @@ export async function getDadosAgendamentoAssistido(pacienteId: string) {
       orderBy: { createdAt: "desc" },
       include: { plano: { select: { tipos: true } } },
     }),
-    prisma.user.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    prisma.user.findMany({
+      orderBy: { name: "asc" },
+      select: {
+        id: true,
+        name: true,
+        atendeFisioterapia: true,
+        atendeEducacaoFisica: true,
+      },
+    }),
   ]);
 
-  const opcoes = atribuicoes.flatMap((a) => {
+  const opcoesComTipo = atribuicoes.flatMap((a) => {
     const tipos = a.plano?.tipos ?? [];
     return tipos
       .filter((t) => MODALIDADE_POR_TIPO_PLANO[t])
-      .map((t) => {
-        const modalidade = MODALIDADE_POR_TIPO_PLANO[t];
-        return {
-          atribuicaoId: a.id,
-          planoNome: a.planoNome,
-          modalidade,
-          atendimentos: a.atendimentos,
-          sala: MODALIDADE_SALA[modalidade].sala,
-        };
-      });
+      .map((t) => ({ atribuicao: a, modalidade: MODALIDADE_POR_TIPO_PLANO[t] }));
   });
+
+  const opcoes = await Promise.all(
+    opcoesComTipo.map(async ({ atribuicao: a, modalidade }) => {
+      const candidatas = await getSalasCandidatasPlano(a.id, modalidade);
+      return {
+        atribuicaoId: a.id,
+        planoNome: a.planoNome,
+        modalidade,
+        atendimentos: a.atendimentos,
+        periodicidade: a.periodicidade,
+        total: totalAtendimentosPlano(a.atendimentos, a.periodicidade),
+        sala:
+          candidatas.length > 0
+            ? candidatas.map((c) => c.nome).join(", ")
+            : "sem sala configurada",
+      };
+    }),
+  );
 
   return { opcoes, profissionais };
 }
@@ -651,6 +509,23 @@ async function contarAgendamentosNoMes(
   });
 }
 
+/**
+ * Total de agendamentos não-cancelados da atribuição em TODO o plano (sem filtro de mês).
+ * É o teto real: um plano MENSAL 4x = 4 atendimentos no total; TRIMESTRAL Nx = N×3.
+ */
+async function contarAgendamentosDaAtribuicao(
+  planoAtribuicaoId: string,
+  excludeId?: string,
+) {
+  return prisma.agendamento.count({
+    where: {
+      ...(excludeId ? { id: { not: excludeId } } : {}),
+      planoAtribuicaoId,
+      status: { not: "CANCELADO" },
+    },
+  });
+}
+
 export type DiaDisponibilidade = {
   data: string;
   temHorarios: boolean;
@@ -663,12 +538,17 @@ export type DiaDisponibilidade = {
  * Para modalidades com grade fixa soma as vagas de cada horário pré-configurado;
  * para as de horário livre marca todo dia como disponível (o passo do horário faz
  * a checagem fina). `excludeId` tira o próprio evento da conta (usado na remarcação).
+ *
+ * `planoAtribuicaoId` (Fisioterapia/Educação Física) escopa a capacidade só às salas
+ * cadastradas naquele plano — sem ele (ou plano sem sala configurada), cai na sala fixa
+ * por modalidade (`getConfigSalas`), usada por Avaliação/Terapia Manual.
  */
 async function calcularDiasDisponiveis(
   modalidade: ModalidadeAgendamento,
   ano: number,
   mes: number,
   excludeId?: string,
+  planoAtribuicaoId?: string,
 ): Promise<DiaDisponibilidade[]> {
   const inicioMes = new Date(ano, mes - 1, 1, 0, 0, 0, 0);
   const fimMes = new Date(ano, mes, 0, 23, 59, 59, 999);
@@ -684,7 +564,13 @@ async function calcularDiasDisponiveis(
       })
     : [];
 
-  const capacidade = MODALIDADE_SALA[modalidade].capacidade;
+  const candidatas = planoAtribuicaoId
+    ? await getSalasCandidatasPlano(planoAtribuicaoId, modalidade)
+    : [];
+  const capacidadeFixa = planoAtribuicaoId
+    ? 0
+    : (await getConfigSalas())[modalidade].capacidade;
+  const { diasAbertos, feriados } = await getConfigFuncionamento();
 
   const agendamentosDoMes = await prisma.agendamento.findMany({
     where: {
@@ -700,6 +586,12 @@ async function calcularDiasDisponiveis(
   return Array.from({ length: totalDias }, (_, i) => {
     const dataStr = dataStrDe(i + 1);
 
+    const fechado =
+      !diasAbertos.has(diaSemanaDeYmd(dataStr)) || feriados.has(dataStr);
+    if (fechado) {
+      return { data: dataStr, temHorarios: false, vagas: 0, lotado: true };
+    }
+
     if (horarios.length === 0) {
       // horário livre: dia sempre disponível, o passo seguinte filtra
       return { data: dataStr, temHorarios: true, vagas: 1, lotado: false };
@@ -709,10 +601,25 @@ async function calcularDiasDisponiveis(
     for (const h of horarios) {
       const inicioSlot = combinarDataHora(dataStr, h.horario);
       const fimSlot = new Date(inicioSlot.getTime() + h.duracaoMin * 60000);
-      const ocupadas = agendamentosDoMes
-        .filter((a) => a.dataInicio < fimSlot && a.dataFim > inicioSlot)
-        .reduce((soma, a) => soma + Math.max(a.pacientes.length, 1), 0);
-      vagasDia += Math.max(capacidade - ocupadas, 0);
+      const concorrentes = agendamentosDoMes.filter(
+        (a) => a.dataInicio < fimSlot && a.dataFim > inicioSlot,
+      );
+
+      if (planoAtribuicaoId) {
+        const ocupadasPorSala: Record<string, number> = {};
+        for (const a of concorrentes) {
+          if (!a.salaId) continue;
+          ocupadasPorSala[a.salaId] =
+            (ocupadasPorSala[a.salaId] ?? 0) + Math.max(a.pacientes.length, 1);
+        }
+        vagasDia += vagasTotais(candidatas, ocupadasPorSala);
+      } else {
+        const ocupadas = concorrentes.reduce(
+          (soma, a) => soma + Math.max(a.pacientes.length, 1),
+          0,
+        );
+        vagasDia += Math.max(capacidadeFixa - ocupadas, 0);
+      }
     }
 
     return { data: dataStr, temHorarios: true, vagas: vagasDia, lotado: vagasDia === 0 };
@@ -725,8 +632,17 @@ export async function getDisponibilidadeMes(params: {
   ano: number;
   mes: number;
   excludeId?: string;
+  planoAtribuicaoId?: string;
 }) {
-  return { dias: await calcularDiasDisponiveis(params.modalidade, params.ano, params.mes, params.excludeId) };
+  return {
+    dias: await calcularDiasDisponiveis(
+      params.modalidade,
+      params.ano,
+      params.mes,
+      params.excludeId,
+      params.planoAtribuicaoId,
+    ),
+  };
 }
 
 /**
@@ -739,21 +655,32 @@ export async function getDisponibilidadeMesAssistido(params: {
   mes: number; // 1-12
   planoAtribuicaoId: string;
   atendimentos: number | null;
+  periodicidade?: string;
 }) {
   const { modalidade, ano, mes, planoAtribuicaoId, atendimentos } = params;
   const inicioMes = new Date(ano, mes - 1, 1, 0, 0, 0, 0);
   const fimMes = new Date(ano, mes, 0, 23, 59, 59, 999);
+  const total = totalAtendimentosPlano(atendimentos, params.periodicidade ?? "MENSAL");
 
-  const [usadosNoMes, dias] = await Promise.all([
+  const [usadosNoMes, usadosTotal, dias] = await Promise.all([
     contarAgendamentosNoMes(planoAtribuicaoId, inicioMes, fimMes),
-    calcularDiasDisponiveis(modalidade, ano, mes),
+    contarAgendamentosDaAtribuicao(planoAtribuicaoId),
+    calcularDiasDisponiveis(modalidade, ano, mes, undefined, planoAtribuicaoId),
   ]);
+
+  const limiteMesAtingido = atendimentos != null && usadosNoMes >= atendimentos;
+  const limiteTotalAtingido = total != null && usadosTotal >= total;
 
   return {
     dias,
     limiteMes: atendimentos,
     usadosNoMes,
-    limiteAtingido: atendimentos != null && usadosNoMes >= atendimentos,
+    limiteTotal: total,
+    usadosTotal,
+    limiteMesAtingido,
+    limiteTotalAtingido,
+    // bloqueia a visão do mês atual quando o mês encheu OU o plano todo encheu
+    limiteAtingido: limiteMesAtingido || limiteTotalAtingido,
   };
 }
 
@@ -773,15 +700,17 @@ export async function criarAgendamentoAssistido(params: {
   if (!profissionalId) return { error: "Selecione o profissional." };
   if (!data || !horario) return { error: "Selecione dia e horário." };
 
-  const [paciente, atribuicao, horarioConfig] = await Promise.all([
+  const [paciente, atribuicao, horarioConfig, erroProfissional] = await Promise.all([
     prisma.paciente.findUnique({ where: { id: pacienteId }, select: { nome: true } }),
     prisma.planoAtribuicao.findUnique({ where: { id: planoAtribuicaoId } }),
     prisma.horarioAtendimento.findUnique({
       where: { modalidade_horario: { modalidade, horario } },
     }),
+    validarProfissionalModalidade(profissionalId, modalidade),
   ]);
 
   if (!paciente) return { error: "Paciente não encontrado." };
+  if (erroProfissional) return { error: erroProfissional };
   if (!atribuicao || atribuicao.pacienteId !== pacienteId || atribuicao.status !== "ATIVO") {
     return { error: "Plano não está ativo para este paciente." };
   }
@@ -792,25 +721,41 @@ export async function criarAgendamentoAssistido(params: {
   const dataInicio = combinarDataHora(data, horario);
   const dataFim = new Date(dataInicio.getTime() + horarioConfig.duracaoMin * 60000);
 
+  const erroFuncionamento = await validarFuncionamento(dataInicio);
+  if (erroFuncionamento) return { error: erroFuncionamento };
+
+  // Teto do plano inteiro (MENSAL Nx = N no total; TRIMESTRAL Nx = N×3). É o limite duro.
+  const totalPlano = totalAtendimentosPlano(
+    atribuicao.atendimentos,
+    atribuicao.periodicidade,
+  );
+  const usadosTotal = await contarAgendamentosDaAtribuicao(planoAtribuicaoId);
+  if (totalPlano != null && usadosTotal >= totalPlano) {
+    return {
+      error: `Este plano permite ${totalPlano} atendimento(s) no total e todos já foram agendados. Remarque um atendimento existente em vez de criar outro.`,
+    };
+  }
+
   const inicioMes = new Date(dataInicio.getFullYear(), dataInicio.getMonth(), 1, 0, 0, 0, 0);
   const fimMes = new Date(dataInicio.getFullYear(), dataInicio.getMonth() + 1, 0, 23, 59, 59, 999);
   const usadosNoMes = await contarAgendamentosNoMes(planoAtribuicaoId, inicioMes, fimMes);
   if (atribuicao.atendimentos != null && usadosNoMes >= atribuicao.atendimentos) {
     return {
-      error: `Limite de ${atribuicao.atendimentos} agendamento(s) deste plano já atingido neste mês.`,
+      error: `Este plano permite ${atribuicao.atendimentos} atendimento(s) por mês e ${dataInicio.toLocaleString("pt-BR", { month: "long", timeZone: "America/Sao_Paulo" })} já está cheio. Agende em outro mês do período do plano.`,
     };
   }
 
   const conflito = await buscarConflito({ profissionalId, dataInicio, dataFim });
   if (conflito) return { error: mensagemConflito(conflito) };
 
-  const semCapacidade = await verificarCapacidade({
+  const sala = await resolverSalaPlano({
+    planoAtribuicaoId,
     modalidade,
     dataInicio,
     dataFim,
     quantidadePacientes: 1,
   });
-  if (semCapacidade) return { error: semCapacidade };
+  if (!sala.ok) return { error: sala.error };
 
   await prisma.agendamento.create({
     data: {
@@ -821,6 +766,7 @@ export async function criarAgendamentoAssistido(params: {
       modalidade,
       status: "AGENDADO",
       planoAtribuicaoId,
+      salaId: sala.salaId,
       pacientes: { connect: { id: pacienteId } },
     },
   });
@@ -848,35 +794,68 @@ export async function getConsumoPlanoPaciente(
     include: { plano: { select: { tipos: true } } },
   });
 
-  const agendamentos = atribuicoes.length
-    ? await prisma.agendamento.findMany({
-        where: {
-          planoAtribuicaoId: { in: atribuicoes.map((a) => a.id) },
-          status: { not: "CANCELADO" },
-          dataInicio: { gte: inicioMes, lte: fimMes },
-        },
-        orderBy: { dataInicio: "asc" },
-        include: { profissional: { select: { name: true } } },
-      })
-    : [];
+  const ids = atribuicoes.map((a) => a.id);
+  const [agendamentos, creditos, totaisPorAtribuicao] = atribuicoes.length
+    ? await Promise.all([
+        prisma.agendamento.findMany({
+          where: {
+            planoAtribuicaoId: { in: ids },
+            status: { not: "CANCELADO" },
+            dataInicio: { gte: inicioMes, lte: fimMes },
+          },
+          orderBy: { dataInicio: "asc" },
+          include: { profissional: { select: { name: true } } },
+        }),
+        prisma.creditoRemarcacao.findMany({
+          where: {
+            planoAtribuicaoId: { in: ids },
+            createdAt: { gte: inicioMes, lte: fimMes },
+          },
+          select: { planoAtribuicaoId: true },
+        }),
+        prisma.agendamento.groupBy({
+          by: ["planoAtribuicaoId"],
+          where: { planoAtribuicaoId: { in: ids }, status: { not: "CANCELADO" } },
+          _count: { _all: true },
+        }),
+      ])
+    : [[], [], []];
 
   return atribuicoes.map((a) => {
     const desta = agendamentos.filter((ag) => ag.planoAtribuicaoId === a.id);
+    const creditosUsados = creditos.filter(
+      (c) => c.planoAtribuicaoId === a.id,
+    ).length;
+    const usadosTotal =
+      totaisPorAtribuicao.find((t) => t.planoAtribuicaoId === a.id)?._count._all ?? 0;
+    const total = totalAtendimentosPlano(a.atendimentos, a.periodicidade);
     return {
       atribuicaoId: a.id,
       planoNome: a.planoNome,
       tipos: a.plano?.tipos ?? [],
       atendimentos: a.atendimentos,
+      periodicidade: a.periodicidade,
+      total,
       usados: desta.length,
+      usadosTotal,
+      disponiveisTotal: total != null ? Math.max(total - usadosTotal, 0) : null,
+      creditos: {
+        max: a.creditosRemarcacao,
+        usados: creditosUsados,
+        disponiveis: creditosDisponiveis(a.creditosRemarcacao, creditosUsados),
+      },
       disponiveis:
         a.atendimentos != null ? Math.max(a.atendimentos - desta.length, 0) : null,
       agendamentos: desta.map((ag) => ({
         id: ag.id,
+        titulo: ag.titulo,
         dataInicio: ag.dataInicio,
         dataFim: ag.dataFim,
         modalidade: ag.modalidade,
         status: ag.status,
+        profissionalId: ag.profissionalId,
         profissional: ag.profissional?.name ?? null,
+        planoAtribuicaoId: ag.planoAtribuicaoId,
       })),
     };
   });
