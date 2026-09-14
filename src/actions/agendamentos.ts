@@ -804,7 +804,10 @@ export async function getConsumoPlanoPaciente(
             dataInicio: { gte: inicioMes, lte: fimMes },
           },
           orderBy: { dataInicio: "asc" },
-          include: { profissional: { select: { name: true } } },
+          include: {
+            profissional: { select: { name: true } },
+            sala: { select: { nome: true } },
+          },
         }),
         prisma.creditoRemarcacao.findMany({
           where: {
@@ -855,6 +858,7 @@ export async function getConsumoPlanoPaciente(
         status: ag.status,
         profissionalId: ag.profissionalId,
         profissional: ag.profissional?.name ?? null,
+        sala: ag.sala?.nome ?? null,
         planoAtribuicaoId: ag.planoAtribuicaoId,
       })),
     };

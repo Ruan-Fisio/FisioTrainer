@@ -58,6 +58,7 @@ export async function getProximosAgendamentos(periodo: PeriodoProximos = "dia") 
     include: {
       pacientes: { select: { id: true, nome: true } },
       profissional: { select: { id: true, name: true } },
+      sala: { select: { id: true, nome: true } },
     },
   });
 }

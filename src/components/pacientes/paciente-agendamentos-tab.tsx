@@ -336,6 +336,7 @@ export function PacienteAgendamentosTab({
                               {" · "}
                               {MODALIDADE_AGENDAMENTO_LABEL[ag.modalidade] ?? ag.modalidade}
                               {ag.profissional ? ` · ${ag.profissional}` : ""}
+                              {ag.sala ? ` · ${ag.sala}` : ""}
                             </span>
                           ) : (
                             <span className="text-xs text-muted-foreground">

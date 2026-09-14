@@ -224,6 +224,7 @@ export function AgendaResumoCard({
                           {MODALIDADE_AGENDAMENTO_LABEL[a.modalidade]}
                         </span>
                         {a.profissional?.name && <span>{a.profissional.name}</span>}
+                        {a.sala?.nome && <span>{a.sala.nome}</span>}
                       </span>
                     </div>
                   </div>
