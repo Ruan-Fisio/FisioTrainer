@@ -1,68 +1,76 @@
 /**
- * Limites de dia/semana/mês no fuso da clínica (America/Sao_Paulo, UTC-3 fixo),
- * calculados sem depender do fuso do processo — na Vercel o runtime das server
- * actions pode continuar em UTC mesmo com `process.env.TZ` no next.config, e aí
- * `date-fns` calcularia as bordas no dia errado.
+ * Limites de dia/semana/mês no fuso da clínica (America/Sao_Paulo), calculados sem
+ * depender do fuso do processo — na Vercel o runtime das server actions pode continuar
+ * em UTC mesmo com `process.env.TZ` no next.config, e aí `date-fns` sozinho calcularia
+ * a borda no dia errado.
+ *
+ * `toZonedTime` "traduz" o instante para os campos de calendário de Brasília (ano, mês,
+ * dia, hora...); as funções puras do `date-fns` (`startOfDay`, `startOfWeek`, ...) então
+ * operam nesses campos; `fromZonedTime` converte de volta pro instante real (UTC), lendo
+ * os mesmos campos como se fossem horário de Brasília — nenhum dos dois passos depende
+ * do fuso do processo. Nunca reimplementar esse cálculo à mão (string com offset,
+ * `Date.UTC`, `getUTCDate` etc.) — usar sempre os helpers deste arquivo.
  */
-
-const OFFSET = "-03:00";
-
-/** "YYYY-MM-DD" do instante no fuso da clínica. */
-function ymdBrasilia(d: Date): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(d);
-}
-
-/** Dia da semana (0=domingo) da data-calendário "YYYY-MM-DD". */
-function diaDaSemana(ymd: string): number {
-  return new Date(`${ymd}T12:00:00Z`).getUTCDay();
-}
-
-function somarDias(ymd: string, dias: number): string {
-  const base = new Date(`${ymd}T12:00:00Z`);
-  base.setUTCDate(base.getUTCDate() + dias);
-  return base.toISOString().slice(0, 10);
-}
+import { fromZonedTime, toZonedTime } from "date-fns-tz";
+import {
+  addMonths,
+  endOfDay,
+  endOfMonth,
+  endOfWeek,
+  startOfDay,
+  startOfMonth,
+  startOfWeek,
+} from "date-fns";
+import { TIMEZONE } from "@/lib/format";
 
 export function inicioDoDia(d: Date = new Date()): Date {
-  return new Date(`${ymdBrasilia(d)}T00:00:00.000${OFFSET}`);
+  return fromZonedTime(startOfDay(toZonedTime(d, TIMEZONE)), TIMEZONE);
 }
 
 export function fimDoDia(d: Date = new Date()): Date {
-  return new Date(`${ymdBrasilia(d)}T23:59:59.999${OFFSET}`);
+  return fromZonedTime(endOfDay(toZonedTime(d, TIMEZONE)), TIMEZONE);
+}
+
+/** Início do domingo da semana que contém `d` (semana começa no domingo). */
+export function inicioDaSemana(d: Date = new Date()): Date {
+  return fromZonedTime(
+    startOfWeek(toZonedTime(d, TIMEZONE), { weekStartsOn: 0 }),
+    TIMEZONE,
+  );
 }
 
 /** Fim do sábado da semana que contém `d` (semana começa no domingo). */
 export function fimDaSemana(d: Date = new Date()): Date {
-  const ymd = ymdBrasilia(d);
-  const sabado = somarDias(ymd, 6 - diaDaSemana(ymd));
-  return new Date(`${sabado}T23:59:59.999${OFFSET}`);
+  return fromZonedTime(endOfWeek(toZonedTime(d, TIMEZONE), { weekStartsOn: 0 }), TIMEZONE);
 }
 
 /** Primeiro instante do mês que contém `d`. */
 export function inicioDoMes(d: Date = new Date()): Date {
-  const [ano, mes] = ymdBrasilia(d).split("-");
-  return new Date(`${ano}-${mes}-01T00:00:00.000${OFFSET}`);
+  return fromZonedTime(startOfMonth(toZonedTime(d, TIMEZONE)), TIMEZONE);
 }
 
 /** Fim do último dia do mês que contém `d`. */
 export function fimDoMes(d: Date = new Date()): Date {
-  const [ano, mes] = ymdBrasilia(d).split("-").map(Number);
-  const ultimoDia = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
-  const ymd = `${ano}-${String(mes).padStart(2, "0")}-${String(ultimoDia).padStart(2, "0")}`;
-  return new Date(`${ymd}T23:59:59.999${OFFSET}`);
+  return fromZonedTime(endOfMonth(toZonedTime(d, TIMEZONE)), TIMEZONE);
 }
 
 /** Primeiro instante do mês seguinte ao que contém `d`. */
 export function inicioDoProximoMes(d: Date = new Date()): Date {
-  const [ano, mes] = ymdBrasilia(d).split("-").map(Number);
-  const anoProx = mes === 12 ? ano + 1 : ano;
-  const mesProx = mes === 12 ? 1 : mes + 1;
-  return new Date(
-    `${anoProx}-${String(mesProx).padStart(2, "0")}-01T00:00:00.000${OFFSET}`,
-  );
+  return fromZonedTime(startOfMonth(addMonths(toZonedTime(d, TIMEZONE), 1)), TIMEZONE);
+}
+
+/** Ano e mês (1-12) do instante `d`, no fuso da clínica — nunca `d.getFullYear()`/`getMonth()`. */
+export function anoMesBrasilia(d: Date = new Date()): { ano: number; mes: number } {
+  const zoned = toZonedTime(d, TIMEZONE);
+  return { ano: zoned.getFullYear(), mes: zoned.getMonth() + 1 };
+}
+
+/**
+ * Primeiro instante do dia "ano-mes-dia" (todos 1-based), no fuso da clínica — para
+ * construir uma borda de intervalo a partir de campos numéricos (ex. um mês vindo de um
+ * `<select>`) sem cair no parse sem-offset (`new Date(ano, mes-1, dia)`, que interpreta os
+ * componentes no fuso do processo).
+ */
+export function dataBrasilia(ano: number, mes: number, dia = 1): Date {
+  return fromZonedTime(new Date(ano, mes - 1, dia), TIMEZONE);
 }

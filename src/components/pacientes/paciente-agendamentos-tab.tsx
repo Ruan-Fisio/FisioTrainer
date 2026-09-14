@@ -38,6 +38,7 @@ import {
   STATUS_AGENDAMENTO_LABEL,
 } from "@/components/agendamentos/agendamento-labels";
 import { tipoPlanoLabels } from "@/lib/validations/plano";
+import { formatarDataHoraExtenso } from "@/lib/format";
 import { AgendamentoAssistidoDialog } from "@/components/pacientes/agendamento-assistido-dialog";
 import { GradeRecorrenteDialog } from "@/components/pacientes/grade-recorrente-dialog";
 import { RemarcarDialog } from "@/components/agendamentos/remarcar-dialog";
@@ -58,18 +59,7 @@ function ordinal(n: number) {
 }
 
 function quandoLabel(data: Date) {
-  // Ancorado no horário de Brasília, não no fuso do navegador.
-  const s = data
-    .toLocaleString("pt-BR", {
-      weekday: "long",
-      day: "2-digit",
-      month: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone: "America/Sao_Paulo",
-    })
-    .replace(",", "");
-  return s.charAt(0).toUpperCase() + s.slice(1);
+  return formatarDataHoraExtenso(data);
 }
 
 function CirculoNumero({ n, usado }: { n: number; usado: boolean }) {

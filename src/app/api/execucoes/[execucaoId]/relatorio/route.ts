@@ -10,13 +10,7 @@ import {
   graficosDaSecao,
 } from "@/lib/relatorio-comparativo";
 import { RelatorioPdfDocument } from "@/lib/pdf/relatorio-documento";
-
-function formatarData(data: Date) {
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(data);
-}
+import { formatarDataHora as formatarData } from "@/lib/format";
 
 export async function GET(
   request: Request,

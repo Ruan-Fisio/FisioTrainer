@@ -6,13 +6,14 @@
  * (Fisioterapia x Educação Física x Combinado x Avulso), a receber nos próximos
  * meses e rankings de planos/pacientes.
  *
- * Todo bucketing por mês é feito no fuso da clínica (America/Sao_Paulo) via `Intl`,
- * nunca com `getMonth()` — ver CLAUDE.md. Os edge cases (virada de mês/ano, cobrança
- * perto da meia-noite UTC) são cobertos por `financeiro.test.ts`.
+ * Todo bucketing por mês é feito no fuso da clínica (America/Sao_Paulo) via
+ * `date-fns-tz`, nunca com `getMonth()` — ver CLAUDE.md. Os edge cases (virada de
+ * mês/ano, cobrança perto da meia-noite UTC) são cobertos por `financeiro.test.ts`.
  */
+import { formatInTimeZone } from "date-fns-tz";
+import { ptBR } from "date-fns/locale";
 import { inicioDoDia } from "./datas-brasilia";
-
-const TZ = "America/Sao_Paulo";
+import { TIMEZONE as TZ } from "./format";
 
 export type CategoriaReceita =
   | "FISIOTERAPIA"
@@ -53,25 +54,16 @@ export function categoriaReceita(
 
 /** "YYYY-MM" do instante no fuso da clínica. */
 export function mesReferencia(d: Date): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: TZ,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  })
-    .format(d)
-    .slice(0, 7);
+  return formatInTimeZone(d, TZ, "yyyy-MM");
 }
 
 /** Rótulo curto pt-BR ("jan/25") a partir de "YYYY-MM". */
 export function rotuloMes(mesRef: string): string {
   const [ano, mes] = mesRef.split("-").map(Number);
-  const nome = new Intl.DateTimeFormat("pt-BR", {
-    timeZone: TZ,
-    month: "short",
-  })
-    .format(new Date(Date.UTC(ano, mes - 1, 15)))
-    .replace(".", "");
+  // Dia 15 nunca cruza a borda do mês ao converter fusos — âncora seguro pra pegar só o nome do mês.
+  const nome = formatInTimeZone(new Date(Date.UTC(ano, mes - 1, 15)), TZ, "MMM", {
+    locale: ptBR,
+  });
   return `${nome}/${String(ano).slice(-2)}`;
 }
 

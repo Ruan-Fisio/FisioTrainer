@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { getConfigSalas } from "@/lib/salas-config";
 import { escolherSalaComVaga, vagasTotais, type SalaCandidata } from "@/lib/sala-plano";
 import { MODALIDADE_AGENDAMENTO_LABEL } from "@/components/agendamentos/agendamento-labels";
+import { formatarDiaMesHora } from "@/lib/format";
 import type { ModalidadeAgendamento } from "@/generated/prisma/enums";
 
 /**
@@ -46,13 +47,7 @@ export async function buscarConflito(params: {
 }
 
 export function mensagemConflito(conflito: { titulo: string; dataInicio: Date }) {
-  const horario = conflito.dataInicio.toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "America/Sao_Paulo",
-  });
+  const horario = formatarDiaMesHora(conflito.dataInicio);
   return `Conflito de horário com "${conflito.titulo}" (${horario}).`;
 }
 

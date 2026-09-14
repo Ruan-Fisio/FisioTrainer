@@ -35,6 +35,8 @@ import { HistoricoClinicoDialog } from "@/components/pacientes/historico-clinico
 import { AgendamentoAssistidoDialog } from "@/components/pacientes/agendamento-assistido-dialog";
 import { CompartilharAcessoDialog } from "@/components/pacientes/compartilhar-acesso-dialog";
 import { PacienteTabs } from "@/components/pacientes/paciente-tabs";
+import { formatarDataSemHora } from "@/lib/format";
+import { anoMesBrasilia } from "@/lib/datas-brasilia";
 import { listTreinosPaciente } from "@/actions/treinos-paciente";
 import { TreinosPacienteList } from "@/components/treinos/treinos-paciente-list";
 import { AtribuirTreinoButton } from "@/components/treinos/atribuir-treino-button";
@@ -55,9 +57,7 @@ async function EvolucoesListLoader({ pacienteId }: { pacienteId: string }) {
 }
 
 async function AgendamentosTabLoader({ pacienteId }: { pacienteId: string }) {
-  const agora = new Date();
-  const ano = agora.getFullYear();
-  const mes = agora.getMonth() + 1;
+  const { ano, mes } = anoMesBrasilia();
   await materializarGradesPaciente(pacienteId);
   const [resumo, gradeContexto] = await Promise.all([
     getConsumoPlanoPaciente(pacienteId, ano, mes),
@@ -131,9 +131,7 @@ export default async function PacienteDetailPage({
           <p className="text-sm text-muted-foreground">
             {[
               paciente.idade != null ? `${paciente.idade} anos` : null,
-              paciente.dataNascimento
-                ? new Intl.DateTimeFormat("pt-BR").format(paciente.dataNascimento)
-                : null,
+              paciente.dataNascimento ? formatarDataSemHora(paciente.dataNascimento) : null,
               paciente.cpf,
               paciente.contato,
               paciente.endereco,

@@ -1,4 +1,5 @@
 import { parseGoniometriaValor } from "@/lib/goniometria";
+import { formatarDataSemHora } from "@/lib/format";
 
 export type ExameParaComparativo = {
   secoes: {
@@ -75,7 +76,7 @@ export function montarDadosPaciente(paciente: PacienteInfo): LinhaInfo[] {
     paciente.dataNascimento
       ? {
           label: "Data de nascimento",
-          valor: new Intl.DateTimeFormat("pt-BR").format(paciente.dataNascimento),
+          valor: formatarDataSemHora(paciente.dataNascimento),
         }
       : null,
     paciente.cpf ? { label: "CPF", valor: paciente.cpf } : null,

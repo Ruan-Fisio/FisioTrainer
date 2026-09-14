@@ -24,6 +24,7 @@ import { listPlanoAtribuicoesByPaciente } from "@/actions/plano-atribuicoes";
 import { getCobrancasByPaciente } from "@/actions/cobrancas";
 import { getConsumoPlanoPaciente } from "@/actions/agendamentos";
 import { materializarGradesPaciente } from "@/actions/grade-recorrente";
+import { anoMesBrasilia } from "@/lib/datas-brasilia";
 
 async function AvaliacoesLoader({ pacienteId }: { pacienteId: string }) {
   const avaliacoes = await getAvaliacoesByPaciente(pacienteId);
@@ -122,9 +123,7 @@ async function FinanceiroLoader({
 }
 
 async function AgendamentosLoader({ pacienteId }: { pacienteId: string }) {
-  const agora = new Date();
-  const ano = agora.getFullYear();
-  const mes = agora.getMonth() + 1;
+  const { ano, mes } = anoMesBrasilia();
   await materializarGradesPaciente(pacienteId);
   // Portal do paciente nunca vê os créditos de remarcação — zerar antes de enviar ao client.
   const resumo = (await getConsumoPlanoPaciente(pacienteId, ano, mes)).map((plano) => ({

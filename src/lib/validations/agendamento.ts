@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { fromZonedTime } from "date-fns-tz";
+import { TIMEZONE } from "@/lib/format";
 
 export const repeticaoOptions = [
   "NAO_REPETE",
@@ -39,10 +41,11 @@ export const agendamentoSchema = z
 
 /**
  * Combina uma data (YYYY-MM-DD) e uma hora (HH:mm) informadas pelo usuário,
- * interpretando-as sempre como horário de Brasília (UTC-3). O Brasil não tem
- * horário de verão desde 2019, então o offset é fixo. Fixar o offset aqui evita
- * que o resultado dependa do fuso do processo (UTC na Vercel, local em dev).
+ * interpretando-as sempre como horário de Brasília — via `date-fns-tz`
+ * (`fromZonedTime`), que resolve o offset pelo banco de fusos IANA em vez de um
+ * `-03:00` fixo na mão. O resultado não depende do fuso do processo (UTC na
+ * Vercel, local em dev).
  */
 export function combinarDataHora(data: string, hora: string) {
-  return new Date(`${data}T${hora}:00-03:00`);
+  return fromZonedTime(`${data}T${hora}:00`, TIMEZONE);
 }

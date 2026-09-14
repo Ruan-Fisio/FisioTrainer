@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ExecucaoDetailActions } from "@/components/exame-execucoes/execucao-detail-actions";
 import { parseGoniometriaValor } from "@/lib/goniometria";
 import { parseSelecionadas } from "@/lib/multipla-escolha";
+import { formatarDataHora } from "@/lib/format";
 
 function ValorColuna({
   tipo,
@@ -88,10 +89,7 @@ export default async function ExecucaoDetailPage({
           <p className="text-sm text-muted-foreground">
             {execucao.paciente.nome}
             {" · "}
-            {new Intl.DateTimeFormat("pt-BR", {
-              dateStyle: "short",
-              timeStyle: "short",
-            }).format(execucao.data)}
+            {formatarDataHora(execucao.data)}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -193,10 +191,7 @@ export default async function ExecucaoDetailPage({
                 className="group flex items-center justify-between gap-2 p-4 transition-colors hover:bg-primary/5"
               >
                 <p className="text-sm">
-                  {new Intl.DateTimeFormat("pt-BR", {
-                    dateStyle: "short",
-                    timeStyle: "short",
-                  }).format(retorno.data)}
+                  {formatarDataHora(retorno.data)}
                 </p>
                 <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
               </Link>
@@ -208,10 +203,7 @@ export default async function ExecucaoDetailPage({
       {execucao.tipo === "RETORNO" && execucao.avaliacao && (
         <p className="text-sm text-muted-foreground">
           Retorno da avaliação de{" "}
-          {new Intl.DateTimeFormat("pt-BR", {
-            dateStyle: "short",
-            timeStyle: "short",
-          }).format(execucao.avaliacao.data)}
+          {formatarDataHora(execucao.avaliacao.data)}
           {" — "}
           <Link
             href={`/pacientes/${id}/exames/${execucao.avaliacao.id}`}

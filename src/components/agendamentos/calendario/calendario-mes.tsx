@@ -3,7 +3,7 @@
 import { isSameMonth, isToday } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { toDateInputValue } from "@/lib/format";
+import { toDateInputValue, formatarDiaMes } from "@/lib/format";
 import { getDiasDaGrade } from "@/lib/calendario";
 import { EventoChip } from "@/components/agendamentos/calendario/evento-chip";
 import type { EventoCalendario } from "@/components/agendamentos/calendario/types";
@@ -88,7 +88,7 @@ export function CalendarioMes({
                       onClick={(e) => e.stopPropagation()}
                     >
                       <p className="mb-1 text-sm font-medium">
-                        {dia.toLocaleDateString("pt-BR", { day: "2-digit", month: "long" })}
+                        {formatarDiaMes(dia)}
                       </p>
                       {eventosDia.map((evento) => (
                         <EventoChip key={evento.id} evento={evento} />

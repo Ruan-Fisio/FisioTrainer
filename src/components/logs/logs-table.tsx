@@ -12,6 +12,7 @@ import { PaginationControls } from "@/components/filters/pagination-controls";
 import { LogDetalhesDialog } from "@/components/logs/log-detalhes-dialog";
 import { acaoLabel, moduloLabel } from "@/lib/audit";
 import { listLogs, type LogFilters } from "@/actions/logs";
+import { formatarDataHoraSegundos } from "@/lib/format";
 
 function acaoClasse(acao: string) {
   if (acao.startsWith("create")) {
@@ -23,12 +24,7 @@ function acaoClasse(acao: string) {
   return "border-transparent bg-primary/10 text-primary";
 }
 
-function formatarQuando(data: Date) {
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "medium",
-  }).format(data);
-}
+const formatarQuando = formatarDataHoraSegundos;
 
 export async function LogsTable({
   filters,

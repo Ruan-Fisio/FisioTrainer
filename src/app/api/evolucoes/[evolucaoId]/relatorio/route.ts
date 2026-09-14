@@ -3,13 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { EvolucaoPdfDocument } from "@/lib/pdf/evolucao-documento";
-
-function formatarData(data: Date) {
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(data);
-}
+import { formatarDataHora as formatarData } from "@/lib/format";
 
 export async function GET(
   request: Request,

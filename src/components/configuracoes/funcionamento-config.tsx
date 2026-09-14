@@ -31,16 +31,14 @@ import {
   type FuncionamentoActionState,
 } from "@/actions/funcionamento";
 import type { DiaSemana } from "@/generated/prisma/enums";
+import { formatarDataSemHora } from "@/lib/format";
 
 type DiaFuncionamento = { diaSemana: DiaSemana; label: string; aberto: boolean };
 type Feriado = { id: string; data: Date | string; descricao: string };
 
 const initial: FuncionamentoActionState = {};
 
-const formatarDataFeriado = (data: Date | string) =>
-  new Intl.DateTimeFormat("pt-BR", { timeZone: "UTC", dateStyle: "long" }).format(
-    new Date(data),
-  );
+const formatarDataFeriado = (data: Date | string) => formatarDataSemHora(data, "long");
 
 export function FuncionamentoConfig({
   dias,

@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { format } from "date-fns";
+import { formatInTimeZone } from "date-fns-tz";
 import { ptBR } from "date-fns/locale";
 import { CalendarClock, ListChecks, Stethoscope, User } from "lucide-react";
 import { prisma } from "@/lib/prisma";
@@ -16,6 +16,8 @@ import { parseListParam } from "@/lib/search-params";
 import { listAgendamentosPorIntervalo } from "@/actions/agendamentos";
 import { materializarTodasGrades } from "@/actions/grade-recorrente";
 import { getIntervaloVisivel, type VisaoCalendario } from "@/lib/calendario";
+import { toDateInputValue, TIMEZONE } from "@/lib/format";
+import { combinarDataHora } from "@/lib/validations/agendamento";
 import {
   STATUS_AGENDAMENTO_LABEL,
   MODALIDADE_AGENDAMENTO_LABEL,
@@ -50,10 +52,10 @@ async function CalendarioView({
 
   const titulo =
     visao === "mes"
-      ? format(dataReferencia, "MMMM yyyy", { locale: ptBR })
+      ? formatInTimeZone(dataReferencia, TIMEZONE, "MMMM yyyy", { locale: ptBR })
       : visao === "semana"
-        ? `${format(inicio, "d MMM", { locale: ptBR })} – ${format(fim, "d MMM", { locale: ptBR })}`
-        : format(dataReferencia, "d 'de' MMMM", { locale: ptBR });
+        ? `${formatInTimeZone(inicio, TIMEZONE, "d MMM", { locale: ptBR })} – ${formatInTimeZone(fim, TIMEZONE, "d MMM", { locale: ptBR })}`
+        : formatInTimeZone(dataReferencia, TIMEZONE, "d 'de' MMMM", { locale: ptBR });
 
   return (
     <div className="flex flex-col gap-4">
@@ -74,7 +76,12 @@ export default async function AgendaPage({ searchParams }: PageProps) {
   const tab = params.tab === "lista" ? "lista" : "calendario";
   const visao: VisaoCalendario =
     params.view === "semana" || params.view === "dia" ? params.view : "mes";
-  const dataReferencia = params.data ? new Date(`${params.data}T00:00:00`) : new Date();
+  // Dia-calendário sempre resolvido em Brasília: `toDateInputValue` (nunca `new Date()`
+  // cru) pro "hoje" default, e `combinarDataHora` (via `date-fns-tz`) pra interpretar o
+  // "YYYY-MM-DD" da URL como horário de Brasília em vez do fuso do processo. Ver "Fuso
+  // horário" no CLAUDE.md.
+  const ymdReferencia = params.data ?? toDateInputValue(new Date());
+  const dataReferencia = combinarDataHora(ymdReferencia, "12:00");
 
   const page = Number(params.page ?? "1") || 1;
   const pacienteIds = parseListParam(params.pacientes);

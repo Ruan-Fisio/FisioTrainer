@@ -11,13 +11,7 @@ import {
 } from "@/components/ui/table";
 import { EvolucaoRowActions } from "@/components/evolucoes/evolucao-row-actions";
 import { PaginationControls } from "@/components/filters/pagination-controls";
-
-function formatarData(data: Date) {
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(data);
-}
+import { formatarDataHora as formatarData } from "@/lib/format";
 
 export async function EvolucoesTable({
   page,

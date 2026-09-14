@@ -2,10 +2,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { getAvaliacoesByPaciente } from "@/actions/exame-execucoes";
-
-function formatarData(data: Date) {
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(data);
-}
+import { formatarData } from "@/lib/format";
 
 type Avaliacao = Awaited<ReturnType<typeof getAvaliacoesByPaciente>>[number];
 

@@ -21,7 +21,7 @@ import {
   MODALIDADE_AGENDAMENTO_LABEL,
 } from "@/components/agendamentos/agendamento-labels";
 import { cn } from "@/lib/utils";
-import { formatarDataHora } from "@/lib/format";
+import { formatarDataHora, formatarDataExtenso, formatarHora } from "@/lib/format";
 import {
   getProximosAgendamentos,
   type PeriodoProximos,
@@ -49,24 +49,12 @@ function nomeParticipante(a: Agendamento) {
   return a.pacientes[0]?.nome ?? a.titulo;
 }
 
-// A clínica opera em horário de Brasília — ancorar a exibição nesse fuso.
-const TZ = "America/Sao_Paulo";
-
 function horaCurta(d: Date) {
-  return d.toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: TZ,
-  });
+  return formatarHora(d);
 }
 
 function chaveDia(d: Date) {
-  return d.toLocaleDateString("pt-BR", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    timeZone: TZ,
-  });
+  return formatarDataExtenso(d);
 }
 
 export function AgendaResumoCard({

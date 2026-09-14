@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EvolucaoDetailActions } from "@/components/evolucoes/evolucao-detail-actions";
+import { formatarDataHora as formatarData } from "@/lib/format";
 
 const TEXT_FIELDS: { key: "hdp" | "hda" | "evolucao" | "conduta"; label: string }[] = [
   { key: "hdp", label: "HDP (Histórico da Doença Pregressa)" },
@@ -20,13 +21,6 @@ const EVOLUCAO_FIELDS: { key: "evolucao" | "conduta"; label: string }[] = [
   { key: "evolucao", label: "Evolução" },
   { key: "conduta", label: "Conduta" },
 ];
-
-function formatarData(data: Date) {
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(data);
-}
 
 export default async function VisualizarEvolucaoPage({
   params,

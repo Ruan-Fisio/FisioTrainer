@@ -8,13 +8,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import type { getEvolucoesByPaciente } from "@/actions/evolucoes";
-
-function formatarData(data: Date) {
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(data);
-}
+import { formatarDataHora } from "@/lib/format";
 
 type Evolucao = Awaited<ReturnType<typeof getEvolucoesByPaciente>>[number];
 
@@ -61,7 +55,7 @@ export function EvolucoesPublicas({ evolucoes }: { evolucoes: Evolucao[] }) {
           <Collapsible>
             <CollapsibleTrigger className="group flex w-full items-center justify-between gap-2 p-4 text-left">
               <div className="flex flex-col gap-1">
-                <p className="font-medium">{formatarData(evolucao.data)}</p>
+                <p className="font-medium">{formatarDataHora(evolucao.data)}</p>
                 <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Stethoscope className="size-3.5" />
                   {evolucao.profissional.name}

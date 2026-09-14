@@ -15,15 +15,11 @@ import {
   STATUS_AGENDAMENTO_LABEL,
 } from "@/components/agendamentos/agendamento-labels";
 import type { EventoCalendario } from "@/components/agendamentos/calendario/types";
+import { formatarDataExtenso, formatarHora } from "@/lib/format";
 
 function formatarIntervalo(evento: EventoCalendario) {
   if (evento.diaInteiro) return "Dia inteiro";
-  const opcoes: Intl.DateTimeFormatOptions = {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "America/Sao_Paulo",
-  };
-  return `${evento.dataInicio.toLocaleTimeString("pt-BR", opcoes)} – ${evento.dataFim.toLocaleTimeString("pt-BR", opcoes)}`;
+  return `${formatarHora(evento.dataInicio)} – ${formatarHora(evento.dataFim)}`;
 }
 
 /**
@@ -43,12 +39,7 @@ export function EventoChip({
     STATUS_AGENDAMENTO_LABEL[evento.status]?.className ??
     "bg-primary/15 text-primary hover:bg-primary/25";
 
-  const data = evento.dataInicio.toLocaleDateString("pt-BR", {
-    weekday: "long",
-    day: "2-digit",
-    month: "long",
-    timeZone: "America/Sao_Paulo",
-  });
+  const data = formatarDataExtenso(evento.dataInicio);
 
   return (
     <>
@@ -67,11 +58,7 @@ export function EventoChip({
       >
         {!evento.diaInteiro && (
           <span className="mr-1 tabular-nums opacity-80">
-            {evento.dataInicio.toLocaleTimeString("pt-BR", {
-              hour: "2-digit",
-              minute: "2-digit",
-              timeZone: "America/Sao_Paulo",
-            })}
+            {formatarHora(evento.dataInicio)}
           </span>
         )}
         {evento.titulo}

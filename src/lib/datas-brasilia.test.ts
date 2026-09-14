@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  anoMesBrasilia,
   fimDaSemana,
   fimDoDia,
   fimDoMes,
+  inicioDaSemana,
   inicioDoDia,
   inicioDoMes,
   inicioDoProximoMes,
@@ -37,6 +39,20 @@ describe("limites de data no fuso da clínica", () => {
   it("um evento de sábado à noite ainda conta na semana", () => {
     const sabadoNoite = new Date("2026-09-06T01:00:00Z"); // 05/09 22:00 BRT
     expect(sabadoNoite <= fimDaSemana(ref)).toBe(true);
+  });
+
+  it("início da semana é o domingo anterior (ou o mesmo dia, se já for domingo)", () => {
+    expect(brt(inicioDaSemana(ref))).toBe("2026-08-30 00:00:00");
+    const domingo = new Date("2026-08-30T15:00:00Z"); // 30/08 12:00 BRT (domingo)
+    expect(brt(inicioDaSemana(domingo))).toBe("2026-08-30 00:00:00");
+  });
+
+  it("ano/mês do instante são lidos no fuso de Brasília, nunca getFullYear()/getMonth() do processo", () => {
+    // 31/01 22:30 em Brasília = 01/02 01:30 em UTC — teria virado o mês/ano errado
+    // se lido com getFullYear()/getMonth() num processo rodando em UTC.
+    const viradaDeAno = new Date("2027-02-01T01:30:00Z");
+    expect(anoMesBrasilia(viradaDeAno)).toEqual({ ano: 2027, mes: 1 });
+    expect(anoMesBrasilia(ref)).toEqual({ ano: 2026, mes: 9 });
   });
 
   it("início do mês e início do mês seguinte (com virada de ano)", () => {

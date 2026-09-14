@@ -10,7 +10,8 @@ import { diaSemanaDeYmd } from "@/lib/funcionamento";
 import { pacientePodeDesmarcar } from "@/lib/agendamento-cancelamento";
 import { creditosDisponiveis, semCreditos } from "@/lib/remarcacao-creditos";
 import { totalAtendimentosPlano } from "@/lib/plano-renovacao";
-import { fimDoMes, inicioDoMes } from "@/lib/datas-brasilia";
+import { dataBrasilia, fimDoMes, inicioDoMes } from "@/lib/datas-brasilia";
+import { formatarDataHora, formatarMes } from "@/lib/format";
 import {
   buscarConflito,
   mensagemConflito,
@@ -387,10 +388,7 @@ export async function desmarcarAgendamentoPeloPaciente(
     }
   }
 
-  const carimbo = new Date().toLocaleString("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  });
+  const carimbo = formatarDataHora(new Date());
   await prisma.$transaction(async (tx) => {
     await tx.agendamento.update({
       where: { id: agendamentoId },
@@ -550,9 +548,9 @@ async function calcularDiasDisponiveis(
   excludeId?: string,
   planoAtribuicaoId?: string,
 ): Promise<DiaDisponibilidade[]> {
-  const inicioMes = new Date(ano, mes - 1, 1, 0, 0, 0, 0);
-  const fimMes = new Date(ano, mes, 0, 23, 59, 59, 999);
-  const totalDias = fimMes.getDate();
+  const inicioMes = dataBrasilia(ano, mes);
+  const fimMes = fimDoMes(inicioMes);
+  const totalDias = new Date(ano, mes, 0).getDate();
 
   const dataStrDe = (dia: number) =>
     `${ano}-${String(mes).padStart(2, "0")}-${String(dia).padStart(2, "0")}`;
@@ -658,8 +656,8 @@ export async function getDisponibilidadeMesAssistido(params: {
   periodicidade?: string;
 }) {
   const { modalidade, ano, mes, planoAtribuicaoId, atendimentos } = params;
-  const inicioMes = new Date(ano, mes - 1, 1, 0, 0, 0, 0);
-  const fimMes = new Date(ano, mes, 0, 23, 59, 59, 999);
+  const inicioMes = dataBrasilia(ano, mes);
+  const fimMes = fimDoMes(inicioMes);
   const total = totalAtendimentosPlano(atendimentos, params.periodicidade ?? "MENSAL");
 
   const [usadosNoMes, usadosTotal, dias] = await Promise.all([
@@ -736,12 +734,14 @@ export async function criarAgendamentoAssistido(params: {
     };
   }
 
-  const inicioMes = new Date(dataInicio.getFullYear(), dataInicio.getMonth(), 1, 0, 0, 0, 0);
-  const fimMes = new Date(dataInicio.getFullYear(), dataInicio.getMonth() + 1, 0, 23, 59, 59, 999);
-  const usadosNoMes = await contarAgendamentosNoMes(planoAtribuicaoId, inicioMes, fimMes);
+  const usadosNoMes = await contarAgendamentosNoMes(
+    planoAtribuicaoId,
+    inicioDoMes(dataInicio),
+    fimDoMes(dataInicio),
+  );
   if (atribuicao.atendimentos != null && usadosNoMes >= atribuicao.atendimentos) {
     return {
-      error: `Este plano permite ${atribuicao.atendimentos} atendimento(s) por mês e ${dataInicio.toLocaleString("pt-BR", { month: "long", timeZone: "America/Sao_Paulo" })} já está cheio. Agende em outro mês do período do plano.`,
+      error: `Este plano permite ${atribuicao.atendimentos} atendimento(s) por mês e ${formatarMes(dataInicio)} já está cheio. Agende em outro mês do período do plano.`,
     };
   }
 
@@ -785,8 +785,8 @@ export async function getConsumoPlanoPaciente(
   ano: number,
   mes: number, // 1-12
 ) {
-  const inicioMes = new Date(ano, mes - 1, 1, 0, 0, 0, 0);
-  const fimMes = new Date(ano, mes, 0, 23, 59, 59, 999);
+  const inicioMes = dataBrasilia(ano, mes);
+  const fimMes = fimDoMes(inicioMes);
 
   const atribuicoes = await prisma.planoAtribuicao.findMany({
     where: { pacienteId, status: "ATIVO" },

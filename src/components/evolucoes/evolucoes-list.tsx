@@ -2,13 +2,7 @@ import Link from "next/link";
 import { ChevronRight, Stethoscope } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import type { getEvolucoesByPaciente } from "@/actions/evolucoes";
-
-function formatarData(data: Date) {
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(data);
-}
+import { formatarDataHora as formatarData } from "@/lib/format";
 
 type Evolucao = Awaited<ReturnType<typeof getEvolucoesByPaciente>>[number];
 

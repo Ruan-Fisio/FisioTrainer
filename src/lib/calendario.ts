@@ -1,30 +1,34 @@
+import { addDays } from "date-fns";
 import {
-  addDays,
-  endOfMonth,
-  endOfWeek,
-  startOfMonth,
-  startOfWeek,
-} from "date-fns";
+  fimDaSemana,
+  fimDoDia,
+  fimDoMes,
+  inicioDaSemana,
+  inicioDoDia,
+  inicioDoMes,
+} from "@/lib/datas-brasilia";
 
 export type VisaoCalendario = "mes" | "semana" | "dia";
 
+/**
+ * Intervalo visível do calendário, sempre calculado no dia-calendário de Brasília
+ * (nunca `date-fns startOfX / endOfX` ou `.setHours(...)` locais — o processo pode rodar
+ * em UTC na Vercel, o que erraria a borda em até 3h. Ver seção "Fuso horário" do CLAUDE.md).
+ */
 export function getIntervaloVisivel(visao: VisaoCalendario, dataReferencia: Date) {
   if (visao === "mes") {
-    const inicio = startOfWeek(startOfMonth(dataReferencia), { weekStartsOn: 0 });
-    const fim = endOfWeek(endOfMonth(dataReferencia), { weekStartsOn: 0 });
-    return { inicio, fim };
+    return {
+      inicio: inicioDaSemana(inicioDoMes(dataReferencia)),
+      fim: fimDaSemana(fimDoMes(dataReferencia)),
+    };
   }
   if (visao === "semana") {
     return {
-      inicio: startOfWeek(dataReferencia, { weekStartsOn: 0 }),
-      fim: endOfWeek(dataReferencia, { weekStartsOn: 0 }),
+      inicio: inicioDaSemana(dataReferencia),
+      fim: fimDaSemana(dataReferencia),
     };
   }
-  const inicio = new Date(dataReferencia);
-  inicio.setHours(0, 0, 0, 0);
-  const fim = new Date(dataReferencia);
-  fim.setHours(23, 59, 59, 999);
-  return { inicio, fim };
+  return { inicio: inicioDoDia(dataReferencia), fim: fimDoDia(dataReferencia) };
 }
 
 export function getDiasDaGrade(inicio: Date, fim: Date) {

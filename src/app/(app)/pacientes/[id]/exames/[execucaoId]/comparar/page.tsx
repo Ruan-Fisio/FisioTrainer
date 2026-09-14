@@ -23,6 +23,7 @@ import {
   graficosDaSecao,
   type Classificacao,
 } from "@/lib/relatorio-comparativo";
+import { formatarDataHora as formatarData } from "@/lib/format";
 
 function formatarSinal(valor: number) {
   const arredondado = Math.round(valor * 10) / 10;
@@ -114,12 +115,6 @@ export default async function CompararExecucaoPage({
   const comparativo = await getComparativo(execucaoId, retornoSelecionadoId);
 
   if (!comparativo) notFound();
-
-  const formatarData = (data: Date) =>
-    new Intl.DateTimeFormat("pt-BR", {
-      dateStyle: "short",
-      timeStyle: "short",
-    }).format(data);
 
   const paciente = comparativo.paciente;
 

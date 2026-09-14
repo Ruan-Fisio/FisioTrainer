@@ -6,6 +6,7 @@ import { TableSkeleton } from "@/components/skeletons/table-skeleton";
 import { MultiSelectFilter } from "@/components/filters/multi-select-filter";
 import { DateRangeFilter } from "@/components/filters/date-range-filter";
 import { parseListParam } from "@/lib/search-params";
+import { toDateInputValue } from "@/lib/format";
 
 type PageProps = {
   searchParams: Promise<{
@@ -16,10 +17,6 @@ type PageProps = {
     ate?: string;
   }>;
 };
-
-function toDateInputValue(date: Date) {
-  return date.toISOString().slice(0, 10);
-}
 
 function ultimos30DiasPadrao() {
   const hoje = new Date();

@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter, usePathname } from "next/navigation";
+import { formatarDataHora } from "@/lib/format";
 
 export function RetornoSelect({
   retornos,
@@ -22,10 +23,7 @@ export function RetornoSelect({
     >
       {retornos.map((retorno) => (
         <option key={retorno.id} value={retorno.id}>
-          {new Intl.DateTimeFormat("pt-BR", {
-            dateStyle: "short",
-            timeStyle: "short",
-          }).format(retorno.data)}
+          {formatarDataHora(retorno.data)}
         </option>
       ))}
     </select>

@@ -7,13 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { getAvaliacoesByPaciente } from "@/actions/exame-execucoes";
-
-function formatarData(data: Date) {
-  return new Intl.DateTimeFormat("pt-BR", {
-    dateStyle: "short",
-    timeStyle: "short",
-  }).format(data);
-}
+import { formatarDataHora as formatarData } from "@/lib/format";
 
 type Avaliacao = Awaited<ReturnType<typeof getAvaliacoesByPaciente>>[number];
 
