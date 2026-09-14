@@ -121,7 +121,7 @@ export function PlanoAtribuicaoForm({
       : "1",
   );
   const [descontoTipo, setDescontoTipo] = useState<DescontoTipo>(
-    defaultValues?.descontoTipo ?? "ALVO_PARCELA",
+    defaultValues?.descontoTipo ?? "NENHUM",
   );
   const [descontoValor, setDescontoValor] = useState(
     defaultValues?.descontoValor ? String(defaultValues.descontoValor) : "",
