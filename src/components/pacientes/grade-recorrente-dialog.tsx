@@ -24,17 +24,12 @@ import {
 import {
   previewGradeRecorrente,
   salvarGradeRecorrente,
+  verificarConflitosGrade,
   type PreviewGradeState,
+  type ConflitosGradeState,
 } from "@/actions/grade-recorrente";
 import type { GradeRecorrenteLinha } from "@/lib/validations/grade-recorrente";
-
-function formatarYmd(ymd: string) {
-  return new Date(`${ymd}T12:00:00`).toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-}
+import { formatarYmd } from "@/lib/format";
 
 /**
  * Prévia ao vivo de quanto a grade em edição preenche do total do plano — atualiza a cada
@@ -105,10 +100,41 @@ function PreviaGrade({
             <p>Adicione mais dias pra não deixar atendimento sem agendar.</p>
           </>
         )}
-        <p className="text-xs opacity-80">
-          Não conta conflito de sala/profissional — isso só é conferido ao salvar.
-        </p>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Lista os conflitos de verdade (profissional ou sala ocupados) que a checagem prévia
+ * ao clicar em "Salvar" encontrou — datas específicas que ficariam sem agendamento se a
+ * grade for salva do jeito que está. Mostrada só quando há algo a decidir; o usuário
+ * escolhe ajustar a grade ou salvar mesmo assim (essas datas ficam sem agendamento; as
+ * demais são criadas normalmente).
+ */
+function ConflitosGrade({ conflitos }: { conflitos: ConflitosGradeState["conflitos"] }) {
+  if (conflitos.length === 0) return null;
+  const visiveis = conflitos.slice(0, 8);
+  const restantes = conflitos.length - visiveis.length;
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
+      <p className="font-medium text-destructive">
+        {conflitos.length} atendimento(s) dessa grade não vão ser criados por conflito de
+        horário:
+      </p>
+      <ul className="flex flex-col gap-0.5 text-xs text-muted-foreground">
+        {visiveis.map((c, i) => (
+          <li key={i}>
+            {formatarYmd(c.data)} — {c.motivo}
+          </li>
+        ))}
+        {restantes > 0 && <li>e mais {restantes} data(s)...</li>}
+      </ul>
+      <p className="text-xs text-muted-foreground">
+        Ajuste o dia, horário ou profissional pra evitar isso, ou salve mesmo assim — só
+        essas datas ficam sem agendamento, as demais são criadas normalmente.
+      </p>
     </div>
   );
 }
@@ -132,6 +158,7 @@ export function GradeRecorrenteDialog({
   const [open, setOpen] = useState(false);
   const [linhas, setLinhas] = useState<GradeRecorrenteLinha[]>(linhasIniciais);
   const [erro, setErro] = useState<string>();
+  const [conflitos, setConflitos] = useState<ConflitosGradeState["conflitos"]>([]);
   const [pending, startTransition] = useTransition();
 
   function onOpenChange(next: boolean) {
@@ -139,26 +166,54 @@ export function GradeRecorrenteDialog({
     if (next) {
       setLinhas(linhasIniciais);
       setErro(undefined);
+      setConflitos([]);
     }
   }
 
+  function atualizarLinhas(novas: GradeRecorrenteLinha[]) {
+    setLinhas(novas);
+    // Qualquer mudança na grade invalida os conflitos já checados — evita o usuário
+    // salvar "mesmo assim" com base numa checagem que não corresponde mais à grade atual.
+    setConflitos([]);
+  }
+
+  async function salvarDeFato() {
+    const res = await salvarGradeRecorrente(atribuicaoId, linhas);
+    if (res.error) {
+      setErro(res.error);
+      setConflitos([]);
+      return;
+    }
+    const r = res.resumo;
+    const partes = [`${r?.criados ?? 0} agendamento(s) criado(s)`];
+    if (r && r.pulados.length > 0) {
+      partes.push(`${r.pulados.length} não coube(ram) no mês`);
+    }
+    toast.success(`Grade salva. ${partes.join(" · ")}.`);
+    setOpen(false);
+    router.refresh();
+  }
+
+  /** Clique em "Salvar grade": checa conflitos reais antes de gravar — só interrompe o
+   * fluxo quando há algo pra decidir; sem conflito, salva direto (mínimo de cliques). */
   function salvar() {
     setErro(undefined);
     startTransition(async () => {
-      const res = await salvarGradeRecorrente(atribuicaoId, linhas);
-      if (res.error) {
-        setErro(res.error);
+      const check = await verificarConflitosGrade(atribuicaoId, linhas);
+      if (check.error) {
+        setErro(check.error);
         return;
       }
-      const r = res.resumo;
-      const partes = [`${r?.criados ?? 0} agendamento(s) criado(s)`];
-      if (r && r.pulados.length > 0) {
-        partes.push(`${r.pulados.length} não coube(ram) no mês`);
+      if (check.conflitos.length > 0) {
+        setConflitos(check.conflitos);
+        return;
       }
-      toast.success(`Grade salva. ${partes.join(" · ")}.`);
-      setOpen(false);
-      router.refresh();
+      await salvarDeFato();
     });
+  }
+
+  function salvarMesmoAssim() {
+    startTransition(salvarDeFato);
   }
 
   if (modalidades.length === 0) return null;
@@ -185,13 +240,15 @@ export function GradeRecorrenteDialog({
         <GradeSection
           bare
           linhas={linhas}
-          onChange={setLinhas}
+          onChange={atualizarLinhas}
           modalidades={modalidades}
           atendimentos={atendimentos}
           opcoes={opcoes}
         />
 
         <PreviaGrade atribuicaoId={atribuicaoId} linhas={linhas} />
+
+        <ConflitosGrade conflitos={conflitos} />
 
         {erro && <p className="text-sm text-destructive">{erro}</p>}
 
@@ -203,9 +260,20 @@ export function GradeRecorrenteDialog({
           >
             Cancelar
           </Button>
-          <Button onClick={salvar} disabled={pending}>
-            {pending ? "Salvando…" : "Salvar grade"}
-          </Button>
+          {conflitos.length > 0 ? (
+            <>
+              <Button variant="outline" onClick={() => setConflitos([])} disabled={pending}>
+                Ajustar grade
+              </Button>
+              <Button variant="destructive" onClick={salvarMesmoAssim} disabled={pending}>
+                {pending ? "Salvando…" : "Salvar mesmo assim"}
+              </Button>
+            </>
+          ) : (
+            <Button onClick={salvar} disabled={pending}>
+              {pending ? "Verificando…" : "Salvar grade"}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>

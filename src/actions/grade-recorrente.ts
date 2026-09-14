@@ -26,7 +26,7 @@ import {
   type GradeRecorrenteLinha,
 } from "@/lib/validations/grade-recorrente";
 import { MODALIDADE_AGENDAMENTO_LABEL } from "@/components/agendamentos/agendamento-labels";
-import type { ModalidadeAgendamento } from "@/generated/prisma/enums";
+import type { DiaSemana, ModalidadeAgendamento } from "@/generated/prisma/enums";
 
 const DURACAO_HORARIO_LIVRE_MIN = 50;
 
@@ -401,23 +401,40 @@ export type MaterializacaoResumo = {
   pulados: { data: string; motivo: string }[];
 };
 
-/** Materializa os agendamentos da grade de UMA atribuição para o horizonte rolante. Idempotente. */
-export async function materializarGradeRecorrente(
-  atribuicaoId: string,
-): Promise<MaterializacaoResumo> {
+type LinhaGradeProcessamento = {
+  /** Ausente quando é uma prévia (linha ainda não salva) — pula a idempotência por id. */
+  id?: string;
+  modalidade: ModalidadeAgendamento;
+  diaSemana: DiaSemana;
+  horario: string;
+  profissionalId?: string | null;
+};
+
+/**
+ * Núcleo do gerador de grade, compartilhado entre a materialização de verdade
+ * (`materializarGradeRecorrente`, `dryRun: false`, grava no banco) e a checagem de
+ * conflitos da prévia (`verificarConflitosGrade`, `dryRun: true`, só simula) — as duas
+ * precisam andar em sincronia (mesma ordem de slots, mesmas checagens de funcionamento/
+ * limite/conflito/sala), senão a prévia mentiria sobre o que a materialização real faz.
+ * `idsExcluidos` tira da conta (contagem E checagem de conflito/sala) agendamentos que
+ * ainda existem no banco mas serão apagados por `aplicarGradeRecorrente` antes de
+ * materializar de verdade — necessário só na prévia, onde nada foi apagado ainda.
+ */
+async function processarGrade(params: {
+  atribuicaoId: string;
+  atendimentosMes: number | null;
+  periodicidade: string;
+  dataInicioAtribuicao: Date;
+  pacienteId: string;
+  pacienteNome: string;
+  linhas: LinhaGradeProcessamento[];
+  dryRun: boolean;
+  idsExcluidos?: string[];
+}): Promise<MaterializacaoResumo> {
   const resumo: MaterializacaoResumo = { criados: 0, pulados: [] };
+  if (params.linhas.length === 0) return resumo;
 
-  const atribuicao = await prisma.planoAtribuicao.findUnique({
-    where: { id: atribuicaoId },
-    include: {
-      paciente: { select: { id: true, nome: true } },
-      gradeRecorrente: { where: { ativo: true } },
-    },
-  });
-  if (!atribuicao || atribuicao.status !== "ATIVO") return resumo;
-  const linhas = atribuicao.gradeRecorrente;
-  if (linhas.length === 0) return resumo;
-
+  const idsExcluidos = params.idsExcluidos ?? [];
   const agora = new Date();
   const hojeYmd = toDateInputValue(agora);
 
@@ -428,10 +445,10 @@ export async function materializarGradeRecorrente(
   // grade seja "rala" (poucos dias/semana) e isso demore vários meses a mais que o período
   // nominal do plano. O corte real é sempre o total (`orcamentoTotal`), nunca a janela —
   // ver `bufferMesesGrade`.
-  const meses = MESES_COBERTURA_GRADE[atribuicao.periodicidade] ?? 1;
-  const orcamentoTotal = orcamentoGrade(atribuicao.atendimentos, meses);
+  const meses = MESES_COBERTURA_GRADE[params.periodicidade] ?? 1;
+  const orcamentoTotal = orcamentoGrade(params.atendimentosMes, meses);
   const { de: janelaDe, ate: fimYmd } = janelaCoberturaGrade(
-    toDateInputValue(atribuicao.dataInicio),
+    toDateInputValue(params.dataInicioAtribuicao),
     meses + bufferMesesGrade(orcamentoTotal),
   );
   const deYmd = hojeYmd > janelaDe ? hojeYmd : janelaDe;
@@ -440,8 +457,9 @@ export async function materializarGradeRecorrente(
   // Quantos atendimentos da atribuição já contam contra o total (janela inteira).
   let usadosTotal = await prisma.agendamento.count({
     where: {
-      planoAtribuicaoId: atribuicaoId,
+      planoAtribuicaoId: params.atribuicaoId,
       status: { not: "CANCELADO" },
+      id: { notIn: idsExcluidos },
       dataInicio: {
         gte: new Date(`${janelaDe}T00:00:00.000-03:00`),
         lte: new Date(`${fimYmd}T23:59:59.999-03:00`),
@@ -469,8 +487,9 @@ export async function materializarGradeRecorrente(
     const ref = new Date(`${ym}-15T12:00:00-03:00`);
     const total = await prisma.agendamento.count({
       where: {
-        planoAtribuicaoId: atribuicaoId,
+        planoAtribuicaoId: params.atribuicaoId,
         status: { not: "CANCELADO" },
+        id: { notIn: idsExcluidos },
         dataInicio: { gte: inicioDoMes(ref), lte: fimDoMes(ref) },
       },
     });
@@ -481,7 +500,7 @@ export async function materializarGradeRecorrente(
   // Expande as linhas em (data, linha) e ordena por data — assim o corte no limite
   // mensal pega os primeiros dias do mês na ordem do calendário (Seg, Qua, Qui…),
   // não todos os dias de uma linha antes da próxima.
-  const slotsExpandidos = linhas
+  const slotsExpandidos = params.linhas
     .flatMap((linha) =>
       datasDoDiaSemana(linha.diaSemana, deYmd, fimYmd).map((ymd) => ({ ymd, linha })),
     )
@@ -501,16 +520,18 @@ export async function materializarGradeRecorrente(
     }
 
     const slotData = new Date(`${ymd}T00:00:00.000Z`);
-    const jaExiste = await prisma.agendamento.findFirst({
-      where: { gradeRecorrenteId: linha.id, slotData },
-      select: { id: true },
-    });
-    if (jaExiste) continue;
+    if (!params.dryRun && linha.id) {
+      const jaExiste = await prisma.agendamento.findFirst({
+        where: { gradeRecorrenteId: linha.id, slotData },
+        select: { id: true },
+      });
+      if (jaExiste) continue;
+    }
 
     const ym = ymd.slice(0, 7);
     const usados = await contarMes(ym);
     // Mês cheio: o atendimento transborda para um mês seguinte (não é "pulado").
-    if (atribuicao.atendimentos != null && usados >= atribuicao.atendimentos) {
+    if (params.atendimentosMes != null && usados >= params.atendimentosMes) {
       continue;
     }
 
@@ -525,18 +546,25 @@ export async function materializarGradeRecorrente(
       profissionalId: linha.profissionalId ?? null,
       dataInicio,
       dataFim,
+      excludeId: idsExcluidos,
     });
     if (conflito) {
-      resumo.pulados.push({ data: ymd, motivo: "conflito de profissional" });
+      resumo.pulados.push({
+        data: ymd,
+        motivo: params.dryRun
+          ? `conflito de horário com "${conflito.titulo}"`
+          : "conflito de profissional",
+      });
       continue;
     }
 
     const sala = await resolverSalaPlano({
-      planoAtribuicaoId: atribuicaoId,
+      planoAtribuicaoId: params.atribuicaoId,
       modalidade: linha.modalidade,
       dataInicio,
       dataFim,
       quantidadePacientes: 1,
+      excludeId: idsExcluidos,
     });
     if (!sala.ok) {
       resumo.pulados.push({
@@ -546,27 +574,132 @@ export async function materializarGradeRecorrente(
       continue;
     }
 
-    await prisma.agendamento.create({
-      data: {
-        titulo: `${MODALIDADE_AGENDAMENTO_LABEL[linha.modalidade]} — ${atribuicao.paciente.nome}`,
-        profissionalId: linha.profissionalId ?? null,
-        dataInicio,
-        dataFim,
-        modalidade: linha.modalidade,
-        status: "AGENDADO",
-        planoAtribuicaoId: atribuicaoId,
-        gradeRecorrenteId: linha.id,
-        slotData,
-        salaId: sala.salaId,
-        pacientes: { connect: { id: atribuicao.paciente.id } },
-      },
-    });
+    if (!params.dryRun) {
+      await prisma.agendamento.create({
+        data: {
+          titulo: `${MODALIDADE_AGENDAMENTO_LABEL[linha.modalidade]} — ${params.pacienteNome}`,
+          profissionalId: linha.profissionalId ?? null,
+          dataInicio,
+          dataFim,
+          modalidade: linha.modalidade,
+          status: "AGENDADO",
+          planoAtribuicaoId: params.atribuicaoId,
+          gradeRecorrenteId: linha.id!,
+          slotData,
+          salaId: sala.salaId,
+          pacientes: { connect: { id: params.pacienteId } },
+        },
+      });
+    }
+
     usadosNoMes.set(ym, usados + 1);
     usadosTotal += 1;
     resumo.criados += 1;
   }
 
   return resumo;
+}
+
+/** Materializa os agendamentos da grade de UMA atribuição para o horizonte rolante. Idempotente. */
+export async function materializarGradeRecorrente(
+  atribuicaoId: string,
+): Promise<MaterializacaoResumo> {
+  const atribuicao = await prisma.planoAtribuicao.findUnique({
+    where: { id: atribuicaoId },
+    include: {
+      paciente: { select: { id: true, nome: true } },
+      gradeRecorrente: { where: { ativo: true } },
+    },
+  });
+  if (!atribuicao || atribuicao.status !== "ATIVO") return { criados: 0, pulados: [] };
+
+  return processarGrade({
+    atribuicaoId,
+    atendimentosMes: atribuicao.atendimentos,
+    periodicidade: atribuicao.periodicidade,
+    dataInicioAtribuicao: atribuicao.dataInicio,
+    pacienteId: atribuicao.paciente.id,
+    pacienteNome: atribuicao.paciente.nome,
+    linhas: atribuicao.gradeRecorrente,
+    dryRun: false,
+  });
+}
+
+export type ConflitosGradeState = {
+  error?: string;
+  /** Conflitos "reais" (de profissional ou sala) que o usuário pode evitar ajustando a grade. */
+  conflitos: { data: string; motivo: string }[];
+  /** Quantos atendimentos a grade proposta geraria de fato, simulando o que existe hoje no banco. */
+  criadosSimulados: number;
+};
+
+/**
+ * Simula a materialização de uma grade PROPOSTA (ainda não salva) contra o estado atual
+ * do banco — mesmas checagens de conflito de profissional e sala que a materialização de
+ * verdade faz — e devolve quais datas específicas ficariam sem agendamento e por quê.
+ * Chamada uma vez, no clique de "Salvar grade" (não a cada edição, que é mais cara que a
+ * prévia rápida de `previewGradeRecorrente`), para o usuário decidir — ANTES de salvar —
+ * se ajusta a grade ou aceita salvar mesmo com essas lacunas.
+ */
+export async function verificarConflitosGrade(
+  atribuicaoId: string,
+  linhasRaw: GradeRecorrenteLinha[],
+): Promise<ConflitosGradeState> {
+  const vazio: ConflitosGradeState = { conflitos: [], criadosSimulados: 0 };
+
+  const parsed = gradeRecorrenteSchema.safeParse({ linhas: linhasRaw });
+  if (!parsed.success || parsed.data.linhas.length === 0) return vazio;
+
+  const atribuicao = await prisma.planoAtribuicao.findUnique({
+    where: { id: atribuicaoId },
+    select: {
+      status: true,
+      atendimentos: true,
+      periodicidade: true,
+      dataInicio: true,
+      paciente: { select: { id: true, nome: true } },
+    },
+  });
+  if (!atribuicao || atribuicao.status !== "ATIVO") {
+    return { ...vazio, error: "Plano não está ativo." };
+  }
+
+  // Tudo que `aplicarGradeRecorrente` vai apagar e recriar ao salvar — a simulação
+  // precisa excluir esses agendamentos da contagem e das checagens de conflito/sala,
+  // senão a grade atual "brigaria" com a própria prévia dela mesma.
+  const idsExcluidos = (
+    await prisma.agendamento.findMany({
+      where: {
+        planoAtribuicaoId: atribuicaoId,
+        gradeRecorrenteId: { not: null },
+        status: "AGENDADO",
+        dataInicio: { gt: new Date() },
+      },
+      select: { id: true },
+    })
+  ).map((a) => a.id);
+
+  const resultado = await processarGrade({
+    atribuicaoId,
+    atendimentosMes: atribuicao.atendimentos,
+    periodicidade: atribuicao.periodicidade,
+    dataInicioAtribuicao: atribuicao.dataInicio,
+    pacienteId: atribuicao.paciente.id,
+    pacienteNome: atribuicao.paciente.nome,
+    linhas: parsed.data.linhas,
+    dryRun: true,
+    idsExcluidos,
+  });
+
+  // "Clínica fechada"/"sem sala configurada"/"horário não configurado" já são visíveis
+  // de outras formas (calendário, cadastro do plano) — só interrompe o fluxo de salvar
+  // por conflito de verdade (profissional ocupado ou sala lotada), que é o que pode
+  // silenciosamente esvaziar a grade sem o usuário perceber.
+  const conflitos = resultado.pulados.filter(
+    (p) => p.motivo.startsWith("conflito de horário") || p.motivo === "sala lotada",
+  );
+
+  return { conflitos, criadosSimulados: resultado.criados };
 }
 
 /** Completa a grade de todas as atribuições ativas de um paciente (lazy top-up). */

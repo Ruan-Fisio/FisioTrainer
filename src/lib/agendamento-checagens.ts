@@ -11,6 +11,18 @@ import { MODALIDADE_AGENDAMENTO_LABEL } from "@/components/agendamentos/agendame
 import type { ModalidadeAgendamento } from "@/generated/prisma/enums";
 
 /**
+ * Monta a cláusula `id` de exclusão a partir de um id (uso normal — excluir o próprio
+ * evento numa remarcação) ou vários (uso da prévia da grade — excluir de uma vez todos
+ * os agendamentos futuros que `aplicarGradeRecorrente` vai apagar e recriar, senão eles
+ * se auto-conflitariam na simulação).
+ */
+function excludeClause(excludeId?: string | string[]) {
+  if (!excludeId) return {};
+  const ids = Array.isArray(excludeId) ? excludeId : [excludeId];
+  return ids.length > 0 ? { id: { notIn: ids } } : {};
+}
+
+/**
  * Dois eventos conflitam quando pertencem ao mesmo profissional (ou ambos não
  * têm profissional definido) e os intervalos [dataInicio, dataFim) se sobrepõem.
  * Eventos cancelados liberam o horário.
@@ -19,11 +31,11 @@ export async function buscarConflito(params: {
   profissionalId: string | null;
   dataInicio: Date;
   dataFim: Date;
-  excludeId?: string;
+  excludeId?: string | string[];
 }) {
   return prisma.agendamento.findFirst({
     where: {
-      ...(params.excludeId ? { id: { not: params.excludeId } } : {}),
+      ...excludeClause(params.excludeId),
       profissionalId: params.profissionalId,
       status: { not: "CANCELADO" },
       dataInicio: { lt: params.dataFim },
@@ -83,14 +95,14 @@ export async function verificarCapacidade(params: {
   dataInicio: Date;
   dataFim: Date;
   quantidadePacientes: number;
-  excludeId?: string;
+  excludeId?: string | string[];
 }) {
   const configSalas = await getConfigSalas();
   const capacidade = configSalas[params.modalidade].capacidade;
 
   const concorrentes = await prisma.agendamento.findMany({
     where: {
-      ...(params.excludeId ? { id: { not: params.excludeId } } : {}),
+      ...excludeClause(params.excludeId),
       modalidade: params.modalidade,
       status: { not: "CANCELADO" },
       dataInicio: { lt: params.dataFim },
@@ -179,13 +191,13 @@ async function ocupacaoPorSala(
   modalidade: ModalidadeAgendamento,
   dataInicio: Date,
   dataFim: Date,
-  excludeId?: string,
+  excludeId?: string | string[],
 ): Promise<{ ocupacao: Record<string, number>; bloqueadas: Set<string> }> {
   if (salaIds.length === 0) return { ocupacao: {}, bloqueadas: new Set() };
 
   const concorrentes = await prisma.agendamento.findMany({
     where: {
-      ...(excludeId ? { id: { not: excludeId } } : {}),
+      ...excludeClause(excludeId),
       salaId: { in: salaIds },
       status: { not: "CANCELADO" },
       dataInicio: { lt: dataFim },
@@ -217,7 +229,7 @@ export async function vagasDisponiveisPlano(params: {
   modalidade: ModalidadeAgendamento;
   dataInicio: Date;
   dataFim: Date;
-  excludeId?: string;
+  excludeId?: string | string[];
 }) {
   const candidatas = await getSalasCandidatasPlano(params.planoAtribuicaoId, params.modalidade);
   const { ocupacao, bloqueadas } = await ocupacaoPorSala(
@@ -250,7 +262,7 @@ export async function resolverSalaPlano(params: {
   dataInicio: Date;
   dataFim: Date;
   quantidadePacientes: number;
-  excludeId?: string;
+  excludeId?: string | string[];
 }): Promise<ResolverSalaResultado> {
   const modalidadeLabel = MODALIDADE_AGENDAMENTO_LABEL[params.modalidade];
   const candidatas = await getSalasCandidatasPlano(params.planoAtribuicaoId, params.modalidade);
