@@ -51,6 +51,7 @@ import type { getGradeRecorrenteContexto } from "@/actions/grade-recorrente";
 import type { ModalidadePlano } from "@/components/plano-atribuicoes/grade-section";
 
 type Resumo = Awaited<ReturnType<typeof getConsumoPlanoPaciente>>;
+type PlanoResumo = Resumo[number];
 type GradeContexto = Awaited<ReturnType<typeof getGradeRecorrenteContexto>>;
 type StatusMarcado = "COMPARECEU" | "FALTOU" | "AGENDADO" | "CANCELADO";
 
@@ -103,6 +104,10 @@ export function PacienteAgendamentosTab({
   const [statusOverride, setStatusOverride] = useState<Record<string, StatusMarcado>>({});
   const [marcando, startMarcando] = useTransition();
   const router = useRouter();
+
+  // Portal (somenteLeitura): navegação em camadas — lista de planos primeiro,
+  // clicar num plano mostra só os atendimentos dele (mesmo espírito do Financeiro).
+  const [planoSelecionadoId, setPlanoSelecionadoId] = useState<string | null>(null);
 
   function aoDesmarcar(agId: string) {
     setStatusOverride((prev) => ({ ...prev, [agId]: "CANCELADO" }));
@@ -201,223 +206,60 @@ export function PacienteAgendamentosTab({
             <span className="font-medium">Planos</span> para controlar os atendimentos.
           </CardContent>
         </Card>
-      ) : (
-        resumo.map((plano) => {
-          const capacidadeMes = plano.atendimentos ?? plano.usados;
-          // Nunca oferecer mais slots vazios do que o plano inteiro ainda permite,
-          // para não induzir a marcar além do total (ex. MENSAL 4x já com 3+1).
-          const slotsVazios = slotsVaziosNoMes({
-            capacidadeMes: plano.atendimentos,
-            usadosNoMes: plano.usados,
-            disponivelNoPlano: plano.disponiveisTotal,
-          });
-          const slots = Array.from(
-            { length: plano.usados + slotsVazios },
-            (_, i) => i,
+      ) : somenteLeitura ? (
+        (() => {
+          const planoSelecionado = resumo.find(
+            (p) => p.atribuicaoId === planoSelecionadoId,
           );
-          const dispBadge = plano.disponiveisTotal ?? plano.disponiveis;
-
+          if (planoSelecionado) {
+            return (
+              <div className="flex flex-col gap-3">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-fit"
+                  onClick={() => setPlanoSelecionadoId(null)}
+                >
+                  <ChevronLeft className="size-4" />
+                  Voltar aos planos
+                </Button>
+                <PlanoAgendamentosDetalhe
+                  plano={planoSelecionado}
+                  pacienteId={pacienteId}
+                  somenteLeitura
+                  statusOverride={statusOverride}
+                  marcando={marcando}
+                  marcar={marcar}
+                  aoDesmarcar={aoDesmarcar}
+                />
+              </div>
+            );
+          }
           return (
-            <Card key={plano.atribuicaoId}>
-              <CardContent className="flex flex-col gap-4 p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <div className="flex flex-col gap-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-medium">{plano.planoNome}</p>
-                      {plano.tipos.map((t) => (
-                        <Badge key={t} variant="secondary">
-                          {tipoPlanoLabels[t]}
-                        </Badge>
-                      ))}
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {plano.usados} de {capacidadeMes} atendimentos neste mês
-                      {plano.total != null && plano.total !== capacidadeMes ? (
-                        <>
-                          {" · "}
-                          <span
-                            className={cn(
-                              plano.disponiveisTotal === 0 && "font-medium text-destructive",
-                            )}
-                          >
-                            {plano.usadosTotal} de {plano.total} no plano
-                          </span>
-                        </>
-                      ) : null}
-                    </p>
-                    {!somenteLeitura && (
-                      <p className="text-xs text-muted-foreground">
-                        Remarcações:{" "}
-                        <span
-                          className={cn(
-                            "font-medium",
-                            plano.creditos.disponiveis === 0 && "text-destructive",
-                          )}
-                        >
-                          {plano.creditos.usados} de {plano.creditos.max}
-                        </span>{" "}
-                        neste mês
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "gap-1",
-                        dispBadge === 0 &&
-                          "border-destructive/40 bg-destructive/10 text-destructive",
-                      )}
-                    >
-                      <CalendarCheck className="size-3.5" />
-                      {dispBadge == null
-                        ? "livre"
-                        : `${dispBadge} disponíve${dispBadge === 1 ? "l" : "is"}`}
-                    </Badge>
-                    {!somenteLeitura && gradeContexto && (
-                      <GradeRecorrenteDialog
-                        atribuicaoId={plano.atribuicaoId}
-                        planoNome={plano.planoNome}
-                        atendimentos={plano.atendimentos}
-                        modalidades={
-                          plano.tipos.filter(
-                            (t): t is ModalidadePlano =>
-                              t === "EDUCACAO_FISICA" || t === "FISIOTERAPIA",
-                          )
-                        }
-                        linhasIniciais={
-                          gradeContexto.linhasPorAtribuicao[plano.atribuicaoId] ?? []
-                        }
-                        opcoes={gradeContexto.opcoes}
-                      />
-                    )}
-                  </div>
-                </div>
-
-                <ol className="flex flex-col gap-2">
-                  {slots.map((i) => {
-                    const agBruto = plano.agendamentos[i];
-                    // Cancelamento otimista pelo portal: o slot volta a ficar livre na hora.
-                    const ag =
-                      agBruto && statusOverride[agBruto.id] === "CANCELADO"
-                        ? undefined
-                        : agBruto;
-                    const statusAtual = ag
-                      ? (statusOverride[ag.id] ?? ag.status)
-                      : null;
-                    const statusInfo = statusAtual
-                      ? STATUS_AGENDAMENTO_LABEL[statusAtual]
-                      : null;
-
-                    return (
-                      <li
-                        key={agBruto?.id ?? `vazio-${i}`}
-                        className={cn(
-                          "flex flex-wrap items-center gap-3 rounded-lg border p-2.5",
-                          ag ? "bg-card" : "border-dashed bg-muted/30",
-                        )}
-                      >
-                        <CirculoNumero n={i + 1} usado={!!ag} />
-                        <div className="flex min-w-0 flex-1 flex-col">
-                          <span className="text-sm font-medium">{ordinal(i + 1)}</span>
-                          {ag ? (
-                            <span className="text-xs text-muted-foreground">
-                              {quandoLabel(ag.dataInicio)}
-                              {" · "}
-                              {MODALIDADE_AGENDAMENTO_LABEL[ag.modalidade] ?? ag.modalidade}
-                              {ag.profissional ? ` · ${ag.profissional}` : ""}
-                              {ag.sala ? ` · ${ag.sala}` : ""}
-                            </span>
-                          ) : (
-                            <span className="text-xs text-muted-foreground">
-                              Disponível para agendar
-                            </span>
-                          )}
-                        </div>
-
-                        {ag ? (
-                          somenteLeitura ? (
-                            statusAtual === "AGENDADO" ? (
-                              <DesmarcarSlotButton
-                                agendamentoId={ag.id}
-                                pacienteId={pacienteId}
-                                dataInicio={ag.dataInicio}
-                                onDesmarcado={() => aoDesmarcar(ag.id)}
-                              />
-                            ) : statusInfo ? (
-                              <Badge
-                                variant="outline"
-                                className={statusInfo.className}
-                              >
-                                {statusInfo.label}
-                              </Badge>
-                            ) : null
-                          ) : statusAtual === "AGENDADO" ? (
-                            <div className="flex flex-wrap items-center gap-1.5">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={marcando}
-                                onClick={() => marcar(ag.id, "COMPARECEU")}
-                              >
-                                <Check className="size-4" />
-                                Compareceu
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                disabled={marcando}
-                                onClick={() => marcar(ag.id, "FALTOU")}
-                              >
-                                <X className="size-4" />
-                                Faltou
-                              </Button>
-                              <RemarcarDialog
-                                agendamento={{
-                                  id: ag.id,
-                                  titulo: ag.titulo,
-                                  modalidade: ag.modalidade,
-                                  profissionalId: ag.profissionalId,
-                                  dataInicio: ag.dataInicio,
-                                  dataFim: ag.dataFim,
-                                  planoAtribuicaoId: ag.planoAtribuicaoId,
-                                }}
-                              />
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1.5">
-                              {statusInfo && (
-                                <Badge variant="outline" className={statusInfo.className}>
-                                  {statusInfo.label}
-                                </Badge>
-                              )}
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                disabled={marcando}
-                                onClick={() => marcar(ag.id, "AGENDADO")}
-                                title="Reverter para agendado"
-                              >
-                                <RotateCcw className="size-4" />
-                                <span className="sr-only">Reverter</span>
-                              </Button>
-                            </div>
-                          )
-                        ) : (
-                          <AgendamentoAssistidoDialog
-                            pacienteId={pacienteId}
-                            label="Agendar"
-                            size="sm"
-                          />
-                        )}
-                      </li>
-                    );
-                  })}
-                </ol>
-              </CardContent>
-            </Card>
+            <div className="flex flex-col gap-3">
+              {resumo.map((plano) => (
+                <PlanoResumoListItem
+                  key={plano.atribuicaoId}
+                  plano={plano}
+                  onClick={() => setPlanoSelecionadoId(plano.atribuicaoId)}
+                />
+              ))}
+            </div>
           );
-        })
+        })()
+      ) : (
+        resumo.map((plano) => (
+          <PlanoAgendamentosDetalhe
+            key={plano.atribuicaoId}
+            plano={plano}
+            pacienteId={pacienteId}
+            somenteLeitura={false}
+            gradeContexto={gradeContexto}
+            statusOverride={statusOverride}
+            marcando={marcando}
+            marcar={marcar}
+          />
+        ))
       )}
 
       {somenteLeitura ? (
@@ -436,6 +278,286 @@ export function PacienteAgendamentosTab({
         </p>
       )}
     </div>
+  );
+}
+
+function PlanoResumoListItem({
+  plano,
+  onClick,
+}: {
+  plano: PlanoResumo;
+  onClick: () => void;
+}) {
+  const capacidadeMes = plano.atendimentos ?? plano.usados;
+  const dispBadge = plano.disponiveisTotal ?? plano.disponiveis;
+
+  return (
+    <button type="button" onClick={onClick} className="text-left">
+      <Card className="transition-colors hover:bg-muted/50">
+        <CardContent className="flex items-center justify-between gap-3 p-4">
+          <div className="flex flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-medium">{plano.planoNome}</p>
+              {plano.tipos.map((t) => (
+                <Badge key={t} variant="secondary">
+                  {tipoPlanoLabels[t]}
+                </Badge>
+              ))}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {plano.usados} de {capacidadeMes} atendimentos neste mês
+              {plano.total != null && plano.total !== capacidadeMes ? (
+                <>
+                  {" · "}
+                  {plano.usadosTotal} de {plano.total} no plano
+                </>
+              ) : null}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant="outline"
+              className={cn(
+                "gap-1",
+                dispBadge === 0 &&
+                  "border-destructive/40 bg-destructive/10 text-destructive",
+              )}
+            >
+              <CalendarCheck className="size-3.5" />
+              {dispBadge == null
+                ? "livre"
+                : `${dispBadge} disponíve${dispBadge === 1 ? "l" : "is"}`}
+            </Badge>
+            <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
+          </div>
+        </CardContent>
+      </Card>
+    </button>
+  );
+}
+
+function PlanoAgendamentosDetalhe({
+  plano,
+  pacienteId,
+  somenteLeitura,
+  gradeContexto,
+  statusOverride,
+  marcando,
+  marcar,
+  aoDesmarcar,
+}: {
+  plano: PlanoResumo;
+  pacienteId: string;
+  somenteLeitura: boolean;
+  gradeContexto?: GradeContexto;
+  statusOverride: Record<string, StatusMarcado>;
+  marcando: boolean;
+  marcar: (agId: string, status: "COMPARECEU" | "FALTOU" | "AGENDADO") => void;
+  aoDesmarcar?: (agId: string) => void;
+}) {
+  const capacidadeMes = plano.atendimentos ?? plano.usados;
+  // Nunca oferecer mais slots vazios do que o plano inteiro ainda permite,
+  // para não induzir a marcar além do total (ex. MENSAL 4x já com 3+1).
+  const slotsVazios = slotsVaziosNoMes({
+    capacidadeMes: plano.atendimentos,
+    usadosNoMes: plano.usados,
+    disponivelNoPlano: plano.disponiveisTotal,
+  });
+  const slots = Array.from({ length: plano.usados + slotsVazios }, (_, i) => i);
+  const dispBadge = plano.disponiveisTotal ?? plano.disponiveis;
+
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-4 p-4">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div className="flex flex-col gap-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-medium">{plano.planoNome}</p>
+              {plano.tipos.map((t) => (
+                <Badge key={t} variant="secondary">
+                  {tipoPlanoLabels[t]}
+                </Badge>
+              ))}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {plano.usados} de {capacidadeMes} atendimentos neste mês
+              {plano.total != null && plano.total !== capacidadeMes ? (
+                <>
+                  {" · "}
+                  <span
+                    className={cn(
+                      plano.disponiveisTotal === 0 && "font-medium text-destructive",
+                    )}
+                  >
+                    {plano.usadosTotal} de {plano.total} no plano
+                  </span>
+                </>
+              ) : null}
+            </p>
+            {!somenteLeitura && (
+              <p className="text-xs text-muted-foreground">
+                Remarcações:{" "}
+                <span
+                  className={cn(
+                    "font-medium",
+                    plano.creditos.disponiveis === 0 && "text-destructive",
+                  )}
+                >
+                  {plano.creditos.usados} de {plano.creditos.max}
+                </span>{" "}
+                neste mês
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge
+              variant="outline"
+              className={cn(
+                "gap-1",
+                dispBadge === 0 &&
+                  "border-destructive/40 bg-destructive/10 text-destructive",
+              )}
+            >
+              <CalendarCheck className="size-3.5" />
+              {dispBadge == null
+                ? "livre"
+                : `${dispBadge} disponíve${dispBadge === 1 ? "l" : "is"}`}
+            </Badge>
+            {!somenteLeitura && gradeContexto && (
+              <GradeRecorrenteDialog
+                atribuicaoId={plano.atribuicaoId}
+                planoNome={plano.planoNome}
+                atendimentos={plano.atendimentos}
+                modalidades={plano.tipos.filter(
+                  (t): t is ModalidadePlano =>
+                    t === "EDUCACAO_FISICA" || t === "FISIOTERAPIA",
+                )}
+                linhasIniciais={
+                  gradeContexto.linhasPorAtribuicao[plano.atribuicaoId] ?? []
+                }
+                opcoes={gradeContexto.opcoes}
+              />
+            )}
+          </div>
+        </div>
+
+        <ol className="flex flex-col gap-2">
+          {slots.map((i) => {
+            const agBruto = plano.agendamentos[i];
+            // Cancelamento otimista pelo portal: o slot volta a ficar livre na hora.
+            const ag =
+              agBruto && statusOverride[agBruto.id] === "CANCELADO"
+                ? undefined
+                : agBruto;
+            const statusAtual = ag ? (statusOverride[ag.id] ?? ag.status) : null;
+            const statusInfo = statusAtual
+              ? STATUS_AGENDAMENTO_LABEL[statusAtual]
+              : null;
+
+            return (
+              <li
+                key={agBruto?.id ?? `vazio-${i}`}
+                className={cn(
+                  "flex flex-wrap items-center gap-3 rounded-lg border p-2.5",
+                  ag ? "bg-card" : "border-dashed bg-muted/30",
+                )}
+              >
+                <CirculoNumero n={i + 1} usado={!!ag} />
+                <div className="flex min-w-0 flex-1 flex-col">
+                  <span className="text-sm font-medium">{ordinal(i + 1)}</span>
+                  {ag ? (
+                    <span className="text-xs text-muted-foreground">
+                      {quandoLabel(ag.dataInicio)}
+                      {" · "}
+                      {MODALIDADE_AGENDAMENTO_LABEL[ag.modalidade] ?? ag.modalidade}
+                      {ag.profissional ? ` · ${ag.profissional}` : ""}
+                      {ag.sala ? ` · ${ag.sala}` : ""}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      Disponível para agendar
+                    </span>
+                  )}
+                </div>
+
+                {ag ? (
+                  somenteLeitura ? (
+                    statusAtual === "AGENDADO" ? (
+                      <DesmarcarSlotButton
+                        agendamentoId={ag.id}
+                        pacienteId={pacienteId}
+                        dataInicio={ag.dataInicio}
+                        onDesmarcado={() => aoDesmarcar?.(ag.id)}
+                      />
+                    ) : statusInfo ? (
+                      <Badge variant="outline" className={statusInfo.className}>
+                        {statusInfo.label}
+                      </Badge>
+                    ) : null
+                  ) : statusAtual === "AGENDADO" ? (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={marcando}
+                        onClick={() => marcar(ag.id, "COMPARECEU")}
+                      >
+                        <Check className="size-4" />
+                        Compareceu
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={marcando}
+                        onClick={() => marcar(ag.id, "FALTOU")}
+                      >
+                        <X className="size-4" />
+                        Faltou
+                      </Button>
+                      <RemarcarDialog
+                        agendamento={{
+                          id: ag.id,
+                          titulo: ag.titulo,
+                          modalidade: ag.modalidade,
+                          profissionalId: ag.profissionalId,
+                          dataInicio: ag.dataInicio,
+                          dataFim: ag.dataFim,
+                          planoAtribuicaoId: ag.planoAtribuicaoId,
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      {statusInfo && (
+                        <Badge variant="outline" className={statusInfo.className}>
+                          {statusInfo.label}
+                        </Badge>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={marcando}
+                        onClick={() => marcar(ag.id, "AGENDADO")}
+                        title="Reverter para agendado"
+                      >
+                        <RotateCcw className="size-4" />
+                        <span className="sr-only">Reverter</span>
+                      </Button>
+                    </div>
+                  )
+                ) : (
+                  <AgendamentoAssistidoDialog
+                    pacienteId={pacienteId}
+                    label="Agendar"
+                    size="sm"
+                  />
+                )}
+              </li>
+            );
+          })}
+        </ol>
+      </CardContent>
+    </Card>
   );
 }
 

@@ -1,7 +1,6 @@
 "use client";
 
-import { useMemo, type ComponentType } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, type ComponentType } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -50,21 +49,16 @@ export function TreinoCompartilhadoView({
 }: {
   treinos: TreinoView[];
 }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const treinoId = searchParams.get("treino");
+  const [treinoId, setTreinoId] = useState<string | null>(null);
 
-  const treinoSelecionado = useMemo(
-    () => treinos.find((t) => t.id === treinoId) ?? null,
-    [treinos, treinoId],
-  );
+  const treinoSelecionado = treinos.find((t) => t.id === treinoId) ?? null;
 
   function selecionarTreino(id: string) {
-    router.push(`?treino=${id}`, { scroll: false });
+    setTreinoId(id);
   }
 
   function voltar() {
-    router.push("?", { scroll: false });
+    setTreinoId(null);
   }
 
   if (!treinoSelecionado) {
