@@ -1,24 +1,25 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronRight, Plus, GitCompare } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { getExecucao } from "@/actions/exame-execucoes";
+import { resolverPacientePorToken } from "@/lib/acesso-compartilhado";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ExecucaoDetailActions } from "@/components/exame-execucoes/execucao-detail-actions";
 import { ExecucaoValores } from "@/components/exame-execucoes/execucao-detalhe";
 import { formatarDataHora } from "@/lib/format";
 
-export default async function ExecucaoDetailPage({
+export default async function ExecucaoPublicaPage({
   params,
 }: {
-  params: Promise<{ id: string; execucaoId: string }>;
+  params: Promise<{ token: string; execucaoId: string }>;
 }) {
-  const { id, execucaoId } = await params;
+  const { token, execucaoId } = await params;
+  const { pacienteId } = await resolverPacientePorToken(token);
 
   const execucao = await getExecucao(execucaoId);
 
-  if (!execucao || execucao.pacienteId !== id) notFound();
+  if (!execucao || execucao.pacienteId !== pacienteId) notFound();
 
   return (
     <div className="flex flex-col gap-6">
@@ -31,34 +32,14 @@ export default async function ExecucaoDetailPage({
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground">
-            {execucao.paciente.nome}
-            {" · "}
             {formatarDataHora(execucao.data)}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          {execucao.tipo === "AVALIACAO" && (
-            <Button asChild size="sm">
-              <Link href={`/pacientes/${id}/exames/${execucaoId}/retorno`}>
-                <Plus />
-                Novo retorno
-              </Link>
-            </Button>
-          )}
-          {execucao.tipo === "AVALIACAO" && execucao.retornos.length > 0 && (
-            <Button asChild variant="outline" size="sm">
-              <Link href={`/pacientes/${id}/exames/${execucaoId}/comparar`}>
-                <GitCompare />
-                Comparar
-              </Link>
-            </Button>
-          )}
-          <ExecucaoDetailActions
-            id={execucaoId}
-            pacienteId={id}
-            tipo={execucao.tipo}
-          />
-        </div>
+        <Button asChild variant="outline" size="sm">
+          <Link href={`/compartilhado/paciente/${token}?tab=avaliacoes`}>
+            Voltar
+          </Link>
+        </Button>
       </div>
 
       <ExecucaoValores execucao={execucao} />
@@ -69,12 +50,10 @@ export default async function ExecucaoDetailPage({
           {execucao.retornos.map((retorno) => (
             <Card key={retorno.id} className="p-0">
               <Link
-                href={`/pacientes/${id}/exames/${retorno.id}`}
+                href={`/compartilhado/paciente/${token}/exames/${retorno.id}`}
                 className="group flex items-center justify-between gap-2 p-4 transition-colors hover:bg-primary/5"
               >
-                <p className="text-sm">
-                  {formatarDataHora(retorno.data)}
-                </p>
+                <p className="text-sm">{formatarDataHora(retorno.data)}</p>
                 <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
               </Link>
             </Card>
@@ -84,11 +63,10 @@ export default async function ExecucaoDetailPage({
 
       {execucao.tipo === "RETORNO" && execucao.avaliacao && (
         <p className="text-sm text-muted-foreground">
-          Retorno da avaliação de{" "}
-          {formatarDataHora(execucao.avaliacao.data)}
+          Retorno da avaliação de {formatarDataHora(execucao.avaliacao.data)}
           {" — "}
           <Link
-            href={`/pacientes/${id}/exames/${execucao.avaliacao.id}`}
+            href={`/compartilhado/paciente/${token}/exames/${execucao.avaliacao.id}`}
             className="underline"
           >
             ver avaliação original

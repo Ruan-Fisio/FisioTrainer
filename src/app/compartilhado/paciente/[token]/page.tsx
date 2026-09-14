@@ -5,7 +5,7 @@ import { PacienteTabs } from "@/components/pacientes/paciente-tabs";
 import { AvaliacoesPublicas } from "@/components/compartilhado/avaliacoes-publicas";
 import { EvolucoesPublicas } from "@/components/compartilhado/evolucoes-publicas";
 import { PlanoAtribuicoesList } from "@/components/plano-atribuicoes/plano-atribuicoes-list";
-import { PacienteCobrancasList } from "@/components/cobrancas/paciente-cobrancas-list";
+import { PlanosFinanceiroPublico } from "@/components/compartilhado/planos-financeiro-publico";
 import { PacienteAgendamentosTab } from "@/components/pacientes/paciente-agendamentos-tab";
 import { TreinoCompartilhadoView } from "@/app/compartilhado/treinos/[pacienteId]/treino-compartilhado-view";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,9 +26,15 @@ import { getConsumoPlanoPaciente } from "@/actions/agendamentos";
 import { materializarGradesPaciente } from "@/actions/grade-recorrente";
 import { anoMesBrasilia } from "@/lib/datas-brasilia";
 
-async function AvaliacoesLoader({ pacienteId }: { pacienteId: string }) {
+async function AvaliacoesLoader({
+  pacienteId,
+  token,
+}: {
+  pacienteId: string;
+  token: string;
+}) {
   const avaliacoes = await getAvaliacoesByPaciente(pacienteId);
-  return <AvaliacoesPublicas avaliacoes={avaliacoes} />;
+  return <AvaliacoesPublicas token={token} avaliacoes={avaliacoes} />;
 }
 
 async function EvolucoesLoader({ pacienteId }: { pacienteId: string }) {
@@ -100,24 +106,20 @@ async function PlanosLoader({ pacienteId }: { pacienteId: string }) {
 
 async function FinanceiroLoader({
   pacienteId,
-  pacienteNome,
+  token,
 }: {
   pacienteId: string;
-  pacienteNome: string;
+  token: string;
 }) {
   const [atribuicoes, cobrancas] = await Promise.all([
     listPlanoAtribuicoesByPaciente(pacienteId),
     getCobrancasByPaciente(pacienteId),
   ]);
   return (
-    <PacienteCobrancasList
-      pacienteId={pacienteId}
-      pacienteNome={pacienteNome}
-      pacienteContato={null}
-      cobrancas={cobrancas}
+    <PlanosFinanceiroPublico
+      token={token}
       atribuicoes={atribuicoes}
-      cnpjPix={null}
-      somenteLeitura
+      cobrancas={cobrancas}
     />
   );
 }
@@ -167,7 +169,7 @@ export default async function PortalPacientePage({
             icon: <ClipboardList />,
             content: (
               <Suspense fallback={<TableSkeleton />}>
-                <AvaliacoesLoader pacienteId={pacienteId} />
+                <AvaliacoesLoader pacienteId={pacienteId} token={token} />
               </Suspense>
             ),
           },
@@ -219,7 +221,7 @@ export default async function PortalPacientePage({
               <Suspense fallback={<TableSkeleton />}>
                 <FinanceiroLoader
                   pacienteId={pacienteId}
-                  pacienteNome={paciente.nome}
+                  token={token}
                 />
               </Suspense>
             ),
