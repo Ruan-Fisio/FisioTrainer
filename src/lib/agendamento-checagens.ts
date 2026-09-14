@@ -166,21 +166,27 @@ export async function getSalasCandidatasPlano(
     .map(({ salaId, nome, capacidade }) => ({ salaId, nome, capacidade }));
 }
 
-/** Pacientes concorrentes por sala, dentre uma lista de salas candidatas, num intervalo de tempo. */
+/**
+ * Pacientes concorrentes por sala, dentre uma lista de salas candidatas, num intervalo
+ * de tempo — e quais dessas salas já estão em uso por OUTRA modalidade nesse mesmo
+ * horário (`bloqueadas`). Uma sala com capacidade pra Fisioterapia e Educação Física
+ * nunca atende as duas ao mesmo tempo: assim que tem 1 agendamento de uma modalidade
+ * num horário, a sala fica exclusiva dela pra qualquer outro agendamento sobreposto,
+ * mesmo que ainda "caiba" numericamente na capacidade da outra modalidade.
+ */
 async function ocupacaoPorSala(
   salaIds: string[],
   modalidade: ModalidadeAgendamento,
   dataInicio: Date,
   dataFim: Date,
   excludeId?: string,
-): Promise<Record<string, number>> {
-  if (salaIds.length === 0) return {};
+): Promise<{ ocupacao: Record<string, number>; bloqueadas: Set<string> }> {
+  if (salaIds.length === 0) return { ocupacao: {}, bloqueadas: new Set() };
 
   const concorrentes = await prisma.agendamento.findMany({
     where: {
       ...(excludeId ? { id: { not: excludeId } } : {}),
       salaId: { in: salaIds },
-      modalidade,
       status: { not: "CANCELADO" },
       dataInicio: { lt: dataFim },
       dataFim: { gt: dataInicio },
@@ -189,11 +195,16 @@ async function ocupacaoPorSala(
   });
 
   const ocupacao: Record<string, number> = {};
+  const bloqueadas = new Set<string>();
   for (const a of concorrentes) {
     if (!a.salaId) continue;
+    if (a.modalidade !== modalidade) {
+      bloqueadas.add(a.salaId);
+      continue;
+    }
     ocupacao[a.salaId] = (ocupacao[a.salaId] ?? 0) + Math.max(a.pacientes.length, 1);
   }
-  return ocupacao;
+  return { ocupacao, bloqueadas };
 }
 
 /**
@@ -209,7 +220,7 @@ export async function vagasDisponiveisPlano(params: {
   excludeId?: string;
 }) {
   const candidatas = await getSalasCandidatasPlano(params.planoAtribuicaoId, params.modalidade);
-  const ocupadas = await ocupacaoPorSala(
+  const { ocupacao, bloqueadas } = await ocupacaoPorSala(
     candidatas.map((c) => c.salaId),
     params.modalidade,
     params.dataInicio,
@@ -217,7 +228,11 @@ export async function vagasDisponiveisPlano(params: {
     params.excludeId,
   );
   const capacidade = candidatas.reduce((soma, c) => soma + c.capacidade, 0);
-  return { capacidade, vagas: vagasTotais(candidatas, ocupadas), semSalaConfigurada: candidatas.length === 0 };
+  return {
+    capacidade,
+    vagas: vagasTotais(candidatas, ocupacao, bloqueadas),
+    semSalaConfigurada: candidatas.length === 0,
+  };
 }
 
 export type ResolverSalaResultado =
@@ -246,19 +261,22 @@ export async function resolverSalaPlano(params: {
     };
   }
 
-  const ocupadas = await ocupacaoPorSala(
+  const { ocupacao, bloqueadas } = await ocupacaoPorSala(
     candidatas.map((c) => c.salaId),
     params.modalidade,
     params.dataInicio,
     params.dataFim,
     params.excludeId,
   );
-  const escolhida = escolherSalaComVaga(candidatas, ocupadas, params.quantidadePacientes);
+  const escolhida = escolherSalaComVaga(candidatas, ocupacao, params.quantidadePacientes, bloqueadas);
   if (!escolhida) {
     const nomes = candidatas.map((c) => c.nome).join(", ");
+    const emUsoPorOutraModalidade = candidatas.every((c) => bloqueadas.has(c.salaId));
     return {
       ok: false,
-      error: `${nomes} lotada(s) nesse horário para ${modalidadeLabel}.`,
+      error: emUsoPorOutraModalidade
+        ? `${nomes} já está em uso por outra modalidade nesse horário — uma sala não atende Fisioterapia e Educação Física ao mesmo tempo.`
+        : `${nomes} lotada(s) nesse horário para ${modalidadeLabel}.`,
     };
   }
   return { ok: true, salaId: escolhida.salaId, nome: escolhida.nome };

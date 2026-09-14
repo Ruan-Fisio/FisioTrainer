@@ -14,14 +14,22 @@ export type OcupacaoPorSala = Record<string, number>;
 /**
  * Primeira sala candidata (na ordem recebida) com vaga suficiente para `quantidade`
  * pacientes novos. `null` se nenhuma tiver vaga (ou não houver candidatas).
+ *
+ * `bloqueadas` são salas que já têm agendamento de OUTRA modalidade nesse horário —
+ * uma sala nunca atende Fisioterapia e Educação Física ao mesmo tempo: a partir do
+ * momento que tem 1 agendamento de uma modalidade num horário, a sala fica exclusiva
+ * daquela modalidade para o restante da sobreposição, mesmo se ainda houver vaga
+ * numérica pra outra modalidade.
  */
 export function escolherSalaComVaga(
   candidatas: SalaCandidata[],
   ocupadas: OcupacaoPorSala,
   quantidade: number,
+  bloqueadas: ReadonlySet<string> = new Set(),
 ): SalaCandidata | null {
   const novas = Math.max(quantidade, 1);
   for (const candidata of candidatas) {
+    if (bloqueadas.has(candidata.salaId)) continue;
     const ocupada = ocupadas[candidata.salaId] ?? 0;
     if (ocupada + novas <= candidata.capacidade) return candidata;
   }
@@ -32,8 +40,10 @@ export function escolherSalaComVaga(
 export function vagasTotais(
   candidatas: SalaCandidata[],
   ocupadas: OcupacaoPorSala,
+  bloqueadas: ReadonlySet<string> = new Set(),
 ): number {
   return candidatas.reduce((soma, candidata) => {
+    if (bloqueadas.has(candidata.salaId)) return soma;
     const ocupada = ocupadas[candidata.salaId] ?? 0;
     return soma + Math.max(candidata.capacidade - ocupada, 0);
   }, 0);

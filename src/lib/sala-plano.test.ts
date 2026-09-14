@@ -36,6 +36,17 @@ describe("escolherSalaComVaga", () => {
     const escolhida = escolherSalaComVaga(salas, { s3: 1 }, 2);
     expect(escolhida).toBeNull();
   });
+
+  it("pula sala bloqueada por outra modalidade mesmo com vaga numérica", () => {
+    // Sala 2 está livre (0 ocupada) mas tem agendamento de outra modalidade no horário.
+    const escolhida = escolherSalaComVaga(salas, {}, 1, new Set(["s2"]));
+    expect(escolhida?.salaId).toBe("s3");
+  });
+
+  it("retorna null quando todas as candidatas estão bloqueadas por outra modalidade", () => {
+    const escolhida = escolherSalaComVaga(salas, {}, 1, new Set(["s2", "s3"]));
+    expect(escolhida).toBeNull();
+  });
 });
 
 describe("vagasTotais", () => {
@@ -50,5 +61,11 @@ describe("vagasTotais", () => {
 
   it("é 0 sem candidatas", () => {
     expect(vagasTotais([], {})).toBe(0);
+  });
+
+  it("não soma vaga de sala bloqueada por outra modalidade", () => {
+    // Sala 2 (capacidade 1) bloqueada; só a Sala 3 (capacidade 2) entra na soma.
+    expect(vagasTotais(salas, {}, new Set(["s2"]))).toBe(2);
+    expect(vagasTotais(salas, {}, new Set(["s2", "s3"]))).toBe(0);
   });
 });
