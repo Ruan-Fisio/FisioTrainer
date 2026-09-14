@@ -248,6 +248,7 @@ export function TreinoForm({
           name="descricao"
           defaultValue={defaultValues?.descricao}
           rows={3}
+          maxLength={280}
         />
       </div>
 

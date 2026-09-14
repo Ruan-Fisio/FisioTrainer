@@ -21,7 +21,7 @@ export const treinoDiaSchema = z.object({
 
 export const treinoSchema = z.object({
   nome: z.string().trim().min(2, "Nome deve ter ao menos 2 caracteres"),
-  descricao: z.string().trim().optional(),
+  descricao: z.string().trim().max(280, "Descrição muito longa").optional(),
   dias: z.array(treinoDiaSchema).min(1, "Adicione ao menos um dia"),
 });
 

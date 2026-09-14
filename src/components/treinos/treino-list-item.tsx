@@ -26,10 +26,10 @@ export function TreinoTableRow({
   return (
     <TableRow className="cursor-pointer" onClick={() => router.push(`/treinos/${id}`)}>
       <TableCell className="font-medium">
-        <div className="flex flex-col">
-          <span>{nome}</span>
+        <div className="flex max-w-xs flex-col">
+          <span className="truncate">{nome}</span>
           {descricao && (
-            <span className="text-xs text-muted-foreground">{descricao}</span>
+            <span className="truncate text-xs text-muted-foreground">{descricao}</span>
           )}
         </div>
       </TableCell>
@@ -65,10 +65,10 @@ export function TreinoCard({
     <Card className="cursor-pointer" onClick={() => router.push(`/treinos/${id}`)}>
       <CardContent className="flex flex-col gap-3 p-4">
         <div className="flex items-start justify-between gap-2">
-          <div className="flex flex-col">
-            <p className="font-medium">{nome}</p>
+          <div className="flex min-w-0 flex-col">
+            <p className="truncate font-medium">{nome}</p>
             {descricao && (
-              <p className="text-xs text-muted-foreground">{descricao}</p>
+              <p className="truncate text-xs text-muted-foreground">{descricao}</p>
             )}
           </div>
           <TreinoRowActions id={id} nome={nome} />

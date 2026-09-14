@@ -25,10 +25,10 @@ export function TreinoPacienteCard({
     <Card>
       <CardContent className="flex flex-col gap-4 p-4">
         <div className="flex flex-wrap items-start justify-between gap-2">
-          <div>
-            <p className="font-medium">{treino.nome}</p>
+          <div className="min-w-0">
+            <p className="break-words font-medium">{treino.nome}</p>
             {treino.descricao && (
-              <p className="text-sm text-muted-foreground">{treino.descricao}</p>
+              <p className="break-words text-sm text-muted-foreground">{treino.descricao}</p>
             )}
           </div>
           <TreinoPacienteRowActions
