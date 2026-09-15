@@ -28,3 +28,7 @@ export const MODALIDADES_COM_HORARIO_FIXO: ModalidadeAgendamento[] = [
 export function temHorarioFixo(modalidade: ModalidadeAgendamento) {
   return MODALIDADES_COM_HORARIO_FIXO.includes(modalidade);
 }
+
+/** Duração padrão (minutos) de um atendimento de horário livre (sem grade fixa) —
+ * Avaliação/Terapia Manual na grade recorrente, e agendamento manual de Serviço. */
+export const DURACAO_HORARIO_LIVRE_MIN = 50;

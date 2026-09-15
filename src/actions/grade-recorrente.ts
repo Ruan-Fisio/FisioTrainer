@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { combinarDataHora } from "@/lib/validations/agendamento";
 import { getConfigFuncionamento, validarFuncionamento } from "@/lib/funcionamento-config";
 import { diaSemanaDeYmd } from "@/lib/funcionamento";
-import { temHorarioFixo } from "@/lib/salas";
+import { temHorarioFixo, DURACAO_HORARIO_LIVRE_MIN } from "@/lib/salas";
 import { inicioDoMes, fimDoMes } from "@/lib/datas-brasilia";
 import { toDateInputValue } from "@/lib/format";
 import {
@@ -28,8 +28,6 @@ import {
 } from "@/lib/validations/grade-recorrente";
 import { MODALIDADE_AGENDAMENTO_LABEL } from "@/components/agendamentos/agendamento-labels";
 import type { DiaSemana, ModalidadeAgendamento } from "@/generated/prisma/enums";
-
-const DURACAO_HORARIO_LIVRE_MIN = 50;
 
 /** Modalidades que um plano pode cobrir (via `Plano.tipos`). */
 const MODALIDADE_POR_TIPO_PLANO: Record<string, ModalidadeAgendamento> = {
