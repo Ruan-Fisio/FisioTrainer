@@ -40,19 +40,24 @@ import {
 import { tipoPlanoLabels } from "@/lib/validations/plano";
 import { formatarDataHoraExtenso } from "@/lib/format";
 import { AgendamentoAssistidoDialog } from "@/components/pacientes/agendamento-assistido-dialog";
+import { AgendamentoServicoDialog } from "@/components/pacientes/agendamento-servico-dialog";
 import { GradeRecorrenteDialog } from "@/components/pacientes/grade-recorrente-dialog";
 import { RemarcarDialog } from "@/components/agendamentos/remarcar-dialog";
 import {
   atualizarStatusAgendamento,
   desmarcarAgendamentoPeloPaciente,
   getConsumoPlanoPaciente,
+  listAgendamentosServicoPaciente,
 } from "@/actions/agendamentos";
 import type { getGradeRecorrenteContexto } from "@/actions/grade-recorrente";
+import type { listAllServicos } from "@/actions/servicos";
 import type { ModalidadePlano } from "@/components/plano-atribuicoes/grade-section";
 
 type Resumo = Awaited<ReturnType<typeof getConsumoPlanoPaciente>>;
 type PlanoResumo = Resumo[number];
 type GradeContexto = Awaited<ReturnType<typeof getGradeRecorrenteContexto>>;
+type AgendamentosServico = Awaited<ReturnType<typeof listAgendamentosServicoPaciente>>;
+type Servico = Awaited<ReturnType<typeof listAllServicos>>[number];
 type StatusMarcado = "COMPARECEU" | "FALTOU" | "AGENDADO" | "CANCELADO";
 
 function ordinal(n: number) {
@@ -85,6 +90,8 @@ export function PacienteAgendamentosTab({
   mesInicial,
   somenteLeitura = false,
   gradeContexto,
+  agendamentosServicoInicial = [],
+  servicos = [],
 }: {
   pacienteId: string;
   resumoInicial: Resumo;
@@ -94,11 +101,20 @@ export function PacienteAgendamentosTab({
   somenteLeitura?: boolean;
   /** Contexto p/ o diálogo "Editar grade" (só lado clínica); ausente no portal. */
   gradeContexto?: GradeContexto;
+  /** Agendamentos avulsos de Serviço customizado (Psicologia, Nutrição...) do mês inicial.
+   * Lado clínica apenas — a criação manual de serviço não é exposta no portal por enquanto. */
+  agendamentosServicoInicial?: AgendamentosServico;
+  /** Serviços ativos cadastrados, para o diálogo "Novo agendamento de serviço". */
+  servicos?: Servico[];
 }) {
   const [mesRef, setMesRef] = useState(
     () => new Date(anoInicial, mesInicial - 1, 1),
   );
-  const [outroMes, setOutroMes] = useState<{ chave: string; dados: Resumo } | null>(null);
+  const [outroMes, setOutroMes] = useState<{
+    chave: string;
+    dados: Resumo;
+    servicos: AgendamentosServico;
+  } | null>(null);
   const [carregando, startTransition] = useTransition();
 
   const [statusOverride, setStatusOverride] = useState<Record<string, StatusMarcado>>({});
@@ -125,6 +141,12 @@ export function PacienteAgendamentosTab({
       ? outroMes.dados
       : null;
 
+  const agendamentosServico: AgendamentosServico | null = ehMesInicial
+    ? agendamentosServicoInicial
+    : outroMes?.chave === chaveMes
+      ? outroMes.servicos
+      : null;
+
   // `resumoInicial` é recalculado no servidor (nova referência) toda vez que a rota é
   // revalidada — salvar a grade, remarcar ou desmarcar disparam `router.refresh()`/
   // `revalidatePath` em algum componente desta aba. Isso já chega fresco pro mês inicial
@@ -139,14 +161,17 @@ export function PacienteAgendamentosTab({
   useEffect(() => {
     if (ehMesInicial || outroMes?.chave === chaveMes) return;
     startTransition(async () => {
-      const dados = await getConsumoPlanoPaciente(
-        pacienteId,
-        mesRef.getFullYear(),
-        mesRef.getMonth() + 1,
-      );
-      setOutroMes({ chave: chaveMes, dados });
+      const ano = mesRef.getFullYear();
+      const mes = mesRef.getMonth() + 1;
+      const [dados, servicosDoMes] = somenteLeitura
+        ? [await getConsumoPlanoPaciente(pacienteId, ano, mes), []]
+        : await Promise.all([
+            getConsumoPlanoPaciente(pacienteId, ano, mes),
+            listAgendamentosServicoPaciente(pacienteId, ano, mes),
+          ]);
+      setOutroMes({ chave: chaveMes, dados, servicos: servicosDoMes });
     });
-  }, [ehMesInicial, outroMes, chaveMes, mesRef, pacienteId]);
+  }, [ehMesInicial, outroMes, chaveMes, mesRef, pacienteId, somenteLeitura]);
 
   function marcar(agId: string, status: "COMPARECEU" | "FALTOU" | "AGENDADO") {
     setStatusOverride((prev) => ({ ...prev, [agId]: status }));
@@ -260,6 +285,18 @@ export function PacienteAgendamentosTab({
             marcar={marcar}
           />
         ))
+      )}
+
+      {!somenteLeitura && (
+        <ServicosAvulsosSection
+          pacienteId={pacienteId}
+          servicos={servicos}
+          agendamentos={agendamentosServico}
+          carregando={carregando}
+          statusOverride={statusOverride}
+          marcando={marcando}
+          marcar={marcar}
+        />
       )}
 
       {somenteLeitura ? (
@@ -556,6 +593,115 @@ function PlanoAgendamentosDetalhe({
             );
           })}
         </ol>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Serviços customizados (Psicologia, Nutrição etc.) agendados avulsamente neste mês —
+ * fora do fluxo de Plano, sem orçamento/limite. Lado clínica apenas.
+ */
+function ServicosAvulsosSection({
+  pacienteId,
+  servicos,
+  agendamentos,
+  carregando,
+  statusOverride,
+  marcando,
+  marcar,
+}: {
+  pacienteId: string;
+  servicos: Servico[];
+  agendamentos: AgendamentosServico | null;
+  carregando: boolean;
+  statusOverride: Record<string, StatusMarcado>;
+  marcando: boolean;
+  marcar: (agId: string, status: "COMPARECEU" | "FALTOU" | "AGENDADO") => void;
+}) {
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-3 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="font-medium">Serviços avulsos</p>
+            <p className="text-xs text-muted-foreground">
+              Agendamentos pontuais fora do plano (Psicologia, Nutrição etc.).
+            </p>
+          </div>
+          <AgendamentoServicoDialog pacienteId={pacienteId} servicos={servicos} />
+        </div>
+
+        {carregando || agendamentos == null ? (
+          <p className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" /> Carregando…
+          </p>
+        ) : agendamentos.length === 0 ? (
+          <p className="py-4 text-center text-sm text-muted-foreground">
+            Nenhum agendamento avulso neste mês.
+          </p>
+        ) : (
+          <ol className="flex flex-col gap-2">
+            {agendamentos.map((ag) => {
+              const statusAtual = statusOverride[ag.id] ?? ag.status;
+              const statusInfo = STATUS_AGENDAMENTO_LABEL[statusAtual];
+              return (
+                <li
+                  key={ag.id}
+                  className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-2.5"
+                >
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="text-sm font-medium">{ag.servicoNome}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {quandoLabel(ag.dataInicio)}
+                      {ag.profissional ? ` · ${ag.profissional}` : ""}
+                      {ag.sala ? ` · ${ag.sala}` : ""}
+                    </span>
+                  </div>
+
+                  {statusAtual === "AGENDADO" ? (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={marcando}
+                        onClick={() => marcar(ag.id, "COMPARECEU")}
+                      >
+                        <Check className="size-4" />
+                        Compareceu
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={marcando}
+                        onClick={() => marcar(ag.id, "FALTOU")}
+                      >
+                        <X className="size-4" />
+                        Faltou
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="outline" className={statusInfo.className}>
+                        {statusInfo.label}
+                      </Badge>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={marcando}
+                        onClick={() => marcar(ag.id, "AGENDADO")}
+                        title="Reverter para agendado"
+                      >
+                        <RotateCcw className="size-4" />
+                        <span className="sr-only">Reverter</span>
+                      </Button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        )}
       </CardContent>
     </Card>
   );

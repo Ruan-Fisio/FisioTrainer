@@ -3,7 +3,19 @@ export const MODALIDADE_AGENDAMENTO_LABEL: Record<string, string> = {
   FISIOTERAPIA: "Fisioterapia",
   AVALIACAO: "Avaliação",
   TERAPIA_MANUAL: "Terapia Manual",
+  OUTRO: "Outro",
 };
+
+/**
+ * Rótulo de exibição de um agendamento de Serviço customizado (`modalidade === "OUTRO"`):
+ * usa o nome do serviço (ex. "Psicologia") em vez do rótulo genérico "Outro", que só
+ * aparece como fallback (serviço excluído/sem relação carregada) ou nos filtros
+ * agregados (`MODALIDADE_AGENDAMENTO_LABEL`, que não sabe qual serviço específico é).
+ */
+export function modalidadeAgendamentoLabel(modalidade: string, servicoNome?: string | null) {
+  if (modalidade === "OUTRO") return servicoNome ?? MODALIDADE_AGENDAMENTO_LABEL.OUTRO;
+  return MODALIDADE_AGENDAMENTO_LABEL[modalidade] ?? modalidade;
+}
 
 export const STATUS_AGENDAMENTO_LABEL: Record<string, { label: string; className: string }> = {
   AGENDADO: {

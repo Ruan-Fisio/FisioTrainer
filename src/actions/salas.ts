@@ -75,6 +75,16 @@ export async function deleteSala(id: string) {
     );
   }
 
+  const emUsoServico = await prisma.salaServico.findFirst({
+    where: { salaId: id },
+    select: { servico: { select: { nome: true } } },
+  });
+  if (emUsoServico) {
+    throw new Error(
+      `Esta sala está cadastrada no serviço "${emUsoServico.servico.nome}" e não pode ser excluída. Remova-a do serviço primeiro.`,
+    );
+  }
+
   await prisma.sala.delete({ where: { id } });
   revalidar();
 }

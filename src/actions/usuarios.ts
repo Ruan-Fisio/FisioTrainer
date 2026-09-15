@@ -7,6 +7,13 @@ import { usuarioSchema, usuarioUpdateSchema } from "@/lib/validations/usuario";
 
 const PAGE_SIZE = 10;
 
+export async function listAllUsuarios() {
+  return prisma.user.findMany({
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  });
+}
+
 export async function listUsuarios(filters: { q?: string }, page: number) {
   const where = filters.q
     ? {

@@ -24,6 +24,7 @@ import {
 import {
   gradeRecorrenteSchema,
   type GradeRecorrenteLinha,
+  type ModalidadeGradeRecorrente,
 } from "@/lib/validations/grade-recorrente";
 import { MODALIDADE_AGENDAMENTO_LABEL } from "@/components/agendamentos/agendamento-labels";
 import type { DiaSemana, ModalidadeAgendamento } from "@/generated/prisma/enums";
@@ -89,7 +90,14 @@ export async function getLinhasGradeRecorrente(atribuicaoId: string) {
       profissionalId: true,
     },
   });
-  return linhas.map((l) => ({ ...l, profissionalId: l.profissionalId ?? undefined }));
+  // A grade recorrente nunca é gerada com modalidade OUTRO (serviço customizado é
+  // sempre pontual, sem grade) — a asserção só estreita o tipo lido do banco de volta
+  // ao que `GradeRecorrenteLinha` espera.
+  return linhas.map((l) => ({
+    ...l,
+    modalidade: l.modalidade as ModalidadeGradeRecorrente,
+    profissionalId: l.profissionalId ?? undefined,
+  }));
 }
 
 /**
@@ -121,6 +129,7 @@ export async function getGradeRecorrenteContexto(pacienteId: string) {
   for (const a of atribuicoes) {
     linhasPorAtribuicao[a.id] = a.gradeRecorrente.map((l) => ({
       ...l,
+      modalidade: l.modalidade as ModalidadeGradeRecorrente,
       profissionalId: l.profissionalId ?? undefined,
     }));
   }

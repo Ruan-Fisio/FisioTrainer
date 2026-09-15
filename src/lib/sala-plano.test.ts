@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { escolherSalaComVaga, vagasTotais, type SalaCandidata } from "./sala-plano";
+import {
+  escolherSalaComVaga,
+  tipoOcupacaoAgendamento,
+  vagasTotais,
+  type SalaCandidata,
+} from "./sala-plano";
 
 const salas: SalaCandidata[] = [
   { salaId: "s2", nome: "Sala 2", capacidade: 1 },
@@ -67,5 +72,29 @@ describe("vagasTotais", () => {
     // Sala 2 (capacidade 1) bloqueada; só a Sala 3 (capacidade 2) entra na soma.
     expect(vagasTotais(salas, {}, new Set(["s2"]))).toBe(2);
     expect(vagasTotais(salas, {}, new Set(["s2", "s3"]))).toBe(0);
+  });
+});
+
+describe("tipoOcupacaoAgendamento", () => {
+  it("usa a própria modalidade como chave para as modalidades fixas", () => {
+    expect(tipoOcupacaoAgendamento("FISIOTERAPIA")).toBe("FISIOTERAPIA");
+    expect(tipoOcupacaoAgendamento("EDUCACAO_FISICA")).toBe("EDUCACAO_FISICA");
+    expect(tipoOcupacaoAgendamento("AVALIACAO")).toBe("AVALIACAO");
+  });
+
+  it("diferencia serviços customizados diferentes (OUTRO) pelo servicoId", () => {
+    const psicologia = tipoOcupacaoAgendamento("OUTRO", "servico-psicologia");
+    const nutricao = tipoOcupacaoAgendamento("OUTRO", "servico-nutricao");
+    expect(psicologia).not.toBe(nutricao);
+  });
+
+  it("dois agendamentos do mesmo serviço customizado têm a mesma chave", () => {
+    expect(tipoOcupacaoAgendamento("OUTRO", "servico-psicologia")).toBe(
+      tipoOcupacaoAgendamento("OUTRO", "servico-psicologia"),
+    );
+  });
+
+  it("nunca colide a chave de um serviço customizado com uma modalidade fixa", () => {
+    expect(tipoOcupacaoAgendamento("OUTRO", "FISIOTERAPIA")).not.toBe("FISIOTERAPIA");
   });
 });

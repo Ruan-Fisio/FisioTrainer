@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  MODALIDADE_AGENDAMENTO_LABEL,
+  modalidadeAgendamentoLabel,
   STATUS_AGENDAMENTO_LABEL,
 } from "@/components/agendamentos/agendamento-labels";
 import type { EventoCalendario } from "@/components/agendamentos/calendario/types";
@@ -88,7 +88,7 @@ export function EventoChip({
                 {STATUS_AGENDAMENTO_LABEL[evento.status]?.label ?? evento.status}
               </span>
               <span className="text-muted-foreground">
-                {MODALIDADE_AGENDAMENTO_LABEL[evento.modalidade] ?? evento.modalidade}
+                {modalidadeAgendamentoLabel(evento.modalidade, evento.servico?.nome)}
               </span>
             </div>
             {evento.profissional && (

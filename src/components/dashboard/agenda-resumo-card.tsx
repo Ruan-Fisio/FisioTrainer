@@ -18,7 +18,7 @@ import {
 import { RemarcarDialog } from "@/components/agendamentos/remarcar-dialog";
 import {
   STATUS_AGENDAMENTO_LABEL,
-  MODALIDADE_AGENDAMENTO_LABEL,
+  modalidadeAgendamentoLabel,
 } from "@/components/agendamentos/agendamento-labels";
 import { cn } from "@/lib/utils";
 import { formatarDataHora, formatarDataExtenso, formatarHora } from "@/lib/format";
@@ -209,7 +209,7 @@ export function AgendaResumoCard({
                               "bg-muted text-muted-foreground ring-border",
                           )}
                         >
-                          {MODALIDADE_AGENDAMENTO_LABEL[a.modalidade]}
+                          {modalidadeAgendamentoLabel(a.modalidade, a.servico?.nome)}
                         </span>
                         {a.profissional?.name && <span>{a.profissional.name}</span>}
                         {a.sala?.nome && <span>{a.sala.nome}</span>}

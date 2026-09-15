@@ -13,4 +13,5 @@ export type EventoCalendario = {
   pacientes: { id: string; nome: string }[];
   profissional: { id: string; name: string } | null;
   sala: { id: string; nome: string } | null;
+  servico: { id: string; nome: string } | null;
 };

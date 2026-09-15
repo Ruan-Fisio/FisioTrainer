@@ -51,3 +51,4 @@ export const gradeRecorrenteSchema = z
   });
 
 export type GradeRecorrenteLinha = z.infer<typeof gradeRecorrenteLinhaSchema>;
+export type ModalidadeGradeRecorrente = (typeof modalidadeAgendamentoValues)[number];

@@ -25,7 +25,11 @@ import { getAvaliacoesByPaciente } from "@/actions/exame-execucoes";
 import { getEvolucoesByPaciente } from "@/actions/evolucoes";
 import { getCobrancasByPaciente } from "@/actions/cobrancas";
 import { listPlanoAtribuicoesByPaciente } from "@/actions/plano-atribuicoes";
-import { getConsumoPlanoPaciente } from "@/actions/agendamentos";
+import {
+  getConsumoPlanoPaciente,
+  listAgendamentosServicoPaciente,
+} from "@/actions/agendamentos";
+import { listAllServicos } from "@/actions/servicos";
 import {
   getGradeRecorrenteContexto,
   materializarGradesPaciente,
@@ -59,9 +63,11 @@ async function EvolucoesListLoader({ pacienteId }: { pacienteId: string }) {
 async function AgendamentosTabLoader({ pacienteId }: { pacienteId: string }) {
   const { ano, mes } = anoMesBrasilia();
   await materializarGradesPaciente(pacienteId);
-  const [resumo, gradeContexto] = await Promise.all([
+  const [resumo, gradeContexto, agendamentosServico, servicos] = await Promise.all([
     getConsumoPlanoPaciente(pacienteId, ano, mes),
     getGradeRecorrenteContexto(pacienteId),
+    listAgendamentosServicoPaciente(pacienteId, ano, mes),
+    listAllServicos(),
   ]);
   return (
     <PacienteAgendamentosTab
@@ -70,6 +76,8 @@ async function AgendamentosTabLoader({ pacienteId }: { pacienteId: string }) {
       anoInicial={ano}
       mesInicial={mes}
       gradeContexto={gradeContexto}
+      agendamentosServicoInicial={agendamentosServico}
+      servicos={servicos}
     />
   );
 }

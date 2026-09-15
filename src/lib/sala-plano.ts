@@ -48,3 +48,18 @@ export function vagasTotais(
     return soma + Math.max(candidata.capacidade - ocupada, 0);
   }, 0);
 }
+
+/**
+ * Chave que identifica "o que está ocupando a sala" pra fins de exclusividade: cada
+ * modalidade fixa (Fisioterapia/Educação Física/Avaliação/Terapia Manual) é a própria
+ * chave; um serviço customizado (`OUTRO`) usa `outro:<servicoId>`, já que várias
+ * modalidades `OUTRO` (Psicologia, Nutrição, ...) não podem ser tratadas como uma coisa
+ * só. Duas ocupações com chaves diferentes nunca dividem a mesma sala no mesmo horário,
+ * mesmo com vaga numérica sobrando — ver `ocupacaoPorSala` em `agendamento-checagens.ts`.
+ */
+export function tipoOcupacaoAgendamento(
+  modalidade: string,
+  servicoId?: string | null,
+): string {
+  return modalidade === "OUTRO" ? `outro:${servicoId ?? ""}` : modalidade;
+}

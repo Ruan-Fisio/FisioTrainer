@@ -16,10 +16,12 @@ import {
   buscarConflito,
   mensagemConflito,
   validarProfissionalModalidade,
+  validarProfissionalServico,
   verificarCapacidade,
   getSalasCandidatasPlano,
   vagasDisponiveisPlano,
   resolverSalaPlano,
+  resolverSalaServico,
 } from "@/lib/agendamento-checagens";
 import { vagasTotais } from "@/lib/sala-plano";
 import { MODALIDADE_AGENDAMENTO_LABEL } from "@/components/agendamentos/agendamento-labels";
@@ -31,6 +33,7 @@ const includePadrao = {
   pacientes: { select: { id: true, nome: true } },
   profissional: { select: { id: true, name: true } },
   sala: { select: { id: true, nome: true } },
+  servico: { select: { id: true, nome: true } },
 };
 
 export async function listAgendamentos(
@@ -863,4 +866,104 @@ export async function getConsumoPlanoPaciente(
       })),
     };
   });
+}
+
+/* ------------------------------------------------------------------ *
+ * Agendamento manual de Serviço customizado (Psicologia, Nutrição, ...)
+ * Ver model `Servico`. Pontual, sem grade recorrente/orçamento de plano.
+ * ------------------------------------------------------------------ */
+
+export type AgendamentoServicoState = { error?: string; success?: boolean };
+
+/** Cria um agendamento avulso de Serviço customizado, com checagens de funcionamento/conflito/sala. */
+export async function criarAgendamentoServico(params: {
+  pacienteId: string;
+  servicoId: string;
+  profissionalId: string;
+  data: string; // YYYY-MM-DD
+  horaInicio: string; // HH:mm
+  horaFim: string; // HH:mm
+}): Promise<AgendamentoServicoState> {
+  const { pacienteId, servicoId, profissionalId, data, horaInicio, horaFim } = params;
+
+  if (!servicoId) return { error: "Selecione o serviço." };
+  if (!profissionalId) return { error: "Selecione o profissional." };
+  if (!data || !horaInicio || !horaFim) return { error: "Preencha data e horário." };
+
+  const dataInicio = combinarDataHora(data, horaInicio);
+  const dataFim = combinarDataHora(data, horaFim);
+  if (dataFim <= dataInicio) {
+    return { error: "Horário de término deve ser depois do início." };
+  }
+
+  const [paciente, servico, erroProfissional] = await Promise.all([
+    prisma.paciente.findUnique({ where: { id: pacienteId }, select: { nome: true } }),
+    prisma.servico.findUnique({ where: { id: servicoId }, select: { nome: true, ativo: true } }),
+    validarProfissionalServico(profissionalId, servicoId),
+  ]);
+
+  if (!paciente) return { error: "Paciente não encontrado." };
+  if (!servico || !servico.ativo) return { error: "Serviço não encontrado ou inativo." };
+  if (erroProfissional) return { error: erroProfissional };
+
+  const erroFuncionamento = await validarFuncionamento(dataInicio);
+  if (erroFuncionamento) return { error: erroFuncionamento };
+
+  const conflito = await buscarConflito({ profissionalId, dataInicio, dataFim });
+  if (conflito) return { error: mensagemConflito(conflito) };
+
+  const sala = await resolverSalaServico({ servicoId, dataInicio, dataFim });
+  if (!sala.ok) return { error: sala.error };
+
+  await prisma.agendamento.create({
+    data: {
+      titulo: `${servico.nome} — ${paciente.nome}`,
+      profissionalId,
+      dataInicio,
+      dataFim,
+      modalidade: "OUTRO",
+      servicoId,
+      status: "AGENDADO",
+      salaId: sala.salaId,
+      pacientes: { connect: { id: pacienteId } },
+    },
+  });
+
+  revalidar([pacienteId]);
+  return { success: true };
+}
+
+/** Agendamentos avulsos de Serviço customizado do paciente, num mês-calendário (Brasília). */
+export async function listAgendamentosServicoPaciente(
+  pacienteId: string,
+  ano: number,
+  mes: number, // 1-12
+) {
+  const inicioMes = dataBrasilia(ano, mes);
+  const fimMes = fimDoMes(inicioMes);
+
+  const agendamentos = await prisma.agendamento.findMany({
+    where: {
+      pacientes: { some: { id: pacienteId } },
+      modalidade: "OUTRO",
+      dataInicio: { gte: inicioMes, lte: fimMes },
+    },
+    orderBy: { dataInicio: "asc" },
+    include: {
+      servico: { select: { nome: true } },
+      profissional: { select: { name: true } },
+      sala: { select: { nome: true } },
+    },
+  });
+
+  return agendamentos.map((ag) => ({
+    id: ag.id,
+    titulo: ag.titulo,
+    dataInicio: ag.dataInicio,
+    dataFim: ag.dataFim,
+    status: ag.status,
+    servicoNome: ag.servico?.nome ?? "Serviço",
+    profissional: ag.profissional?.name ?? null,
+    sala: ag.sala?.nome ?? null,
+  }));
 }

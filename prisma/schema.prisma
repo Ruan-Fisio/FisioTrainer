@@ -29,6 +29,7 @@ model User {
   evolucoes          Evolucao[]
   agendamentos       Agendamento[]
   gradesRecorrentes  GradeRecorrenteAtendimento[] @relation("GradeRecorrenteProfissional")
+  servicos           UsuarioServico[]
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 }
@@ -351,6 +352,55 @@ enum ModalidadeAgendamento {
   FISIOTERAPIA
   AVALIACAO
   TERAPIA_MANUAL
+  /// Serviço customizado (ver model `Servico`) — a modalidade específica fica em
+  /// `Agendamento.servico`, não é mais um valor fixo deste enum.
+  OUTRO
+}
+
+/// Serviço cadastrável pela clínica além de Fisioterapia/Educação Física (ex. Psicologia,
+/// Nutrição). Usado só para agendamento pontual manual (sem grade recorrente/orçamento de
+/// plano) — ver `criarAgendamentoServico` em src/actions/agendamentos.ts. Sala/capacidade
+/// (`SalaServico`) e profissionais habilitados (`UsuarioServico`) são camadas novas e
+/// aditivas, paralelas às colunas fixas de `Sala`/`User` usadas por Fisioterapia/Educação
+/// Física — nunca as substituem, para não arriscar o fluxo de Plano já em produção.
+model Servico {
+  id            String           @id @default(cuid())
+  nome          String           @unique
+  ativo         Boolean          @default(true)
+  salas         SalaServico[]
+  profissionais UsuarioServico[]
+  agendamentos  Agendamento[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+/// Salas em que um Servico customizado pode ser executado, com capacidade própria —
+/// equivalente ao `PlanoSala`, mas para serviços fora do fluxo de Plano.
+model SalaServico {
+  id         String   @id @default(cuid())
+  salaId     String
+  sala       Sala     @relation(fields: [salaId], references: [id], onDelete: Cascade)
+  servicoId  String
+  servico    Servico  @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+  capacidade Int
+  descricao  String?
+  createdAt  DateTime @default(now())
+
+  @@unique([salaId, servicoId])
+  @@index([servicoId])
+}
+
+/// Profissionais habilitados a atender um Servico customizado — substitui, só para esses
+/// serviços novos, o padrão de booleans fixos (`User.atendeFisioterapia`/`atendeEducacaoFisica`).
+model UsuarioServico {
+  id        String  @id @default(cuid())
+  usuarioId String
+  usuario   User    @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  servicoId String
+  servico   Servico @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, servicoId])
+  @@index([servicoId])
 }
 
 enum StatusAgendamento {
@@ -385,6 +435,9 @@ model Agendamento {
   /// `MODALIDADE_SALA_PADRAO`) e para agendamentos antigos anteriores a esse recurso.
   salaId         String?
   sala           Sala?                 @relation(fields: [salaId], references: [id], onDelete: SetNull)
+  /// Preenchido só quando `modalidade === OUTRO` (serviço customizado, ver model `Servico`).
+  servicoId      String?
+  servico        Servico?              @relation(fields: [servicoId], references: [id], onDelete: SetNull)
   creditosRemarcacao CreditoRemarcacao[]
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt
@@ -396,6 +449,7 @@ model Agendamento {
   @@index([planoAtribuicaoId])
   @@index([gradeRecorrenteId])
   @@index([salaId])
+  @@index([servicoId])
 }
 
 enum OrigemRemarcacao {
@@ -446,6 +500,7 @@ model Sala {
   capacidadeEducacaoFisica Int           @default(0)
   capacidadeFisioterapia   Int           @default(0)
   planos                   PlanoSala[]
+  servicos                 SalaServico[]
   agendamentos             Agendamento[]
   createdAt                DateTime      @default(now())
   updatedAt                DateTime      @updatedAt

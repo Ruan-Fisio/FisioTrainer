@@ -6,7 +6,12 @@
  */
 import { prisma } from "@/lib/prisma";
 import { getConfigSalas } from "@/lib/salas-config";
-import { escolherSalaComVaga, vagasTotais, type SalaCandidata } from "@/lib/sala-plano";
+import {
+  escolherSalaComVaga,
+  tipoOcupacaoAgendamento,
+  vagasTotais,
+  type SalaCandidata,
+} from "@/lib/sala-plano";
 import { MODALIDADE_AGENDAMENTO_LABEL } from "@/components/agendamentos/agendamento-labels";
 import { formatarDiaMesHora } from "@/lib/format";
 import type { ModalidadeAgendamento } from "@/generated/prisma/enums";
@@ -183,7 +188,7 @@ export async function getSalasCandidatasPlano(
  */
 async function ocupacaoPorSala(
   salaIds: string[],
-  modalidade: ModalidadeAgendamento,
+  tipo: string,
   dataInicio: Date,
   dataFim: Date,
   excludeId?: string | string[],
@@ -205,7 +210,7 @@ async function ocupacaoPorSala(
   const bloqueadas = new Set<string>();
   for (const a of concorrentes) {
     if (!a.salaId) continue;
-    if (a.modalidade !== modalidade) {
+    if (tipoOcupacaoAgendamento(a.modalidade, a.servicoId) !== tipo) {
       bloqueadas.add(a.salaId);
       continue;
     }
@@ -229,7 +234,7 @@ export async function vagasDisponiveisPlano(params: {
   const candidatas = await getSalasCandidatasPlano(params.planoAtribuicaoId, params.modalidade);
   const { ocupacao, bloqueadas } = await ocupacaoPorSala(
     candidatas.map((c) => c.salaId),
-    params.modalidade,
+    tipoOcupacaoAgendamento(params.modalidade),
     params.dataInicio,
     params.dataFim,
     params.excludeId,
@@ -270,7 +275,7 @@ export async function resolverSalaPlano(params: {
 
   const { ocupacao, bloqueadas } = await ocupacaoPorSala(
     candidatas.map((c) => c.salaId),
-    params.modalidade,
+    tipoOcupacaoAgendamento(params.modalidade),
     params.dataInicio,
     params.dataFim,
     params.excludeId,
@@ -284,6 +289,80 @@ export async function resolverSalaPlano(params: {
       error: emUsoPorOutraModalidade
         ? `${nomes} já está em uso por outra modalidade nesse horário — uma sala não atende Fisioterapia e Educação Física ao mesmo tempo.`
         : `${nomes} lotada(s) nesse horário para ${modalidadeLabel}.`,
+    };
+  }
+  return { ok: true, salaId: escolhida.salaId, nome: escolhida.nome };
+}
+
+/* ------------------------------------------------------------------ *
+ * Sala/profissional pelo Serviço customizado (ver model `Servico`) — mesma mecânica
+ * de `sala-plano.ts`/`ocupacaoPorSala`, camada nova e independente da de Plano acima.
+ * ------------------------------------------------------------------ */
+
+/**
+ * Serviço customizado (Psicologia, Nutrição, ...) só filtra profissional quando há pelo
+ * menos 1 `UsuarioServico` cadastrado para ele — igual à sala, um serviço sem nenhum
+ * profissional habilitado configurado não restringe (qualquer usuário pode ser
+ * escolhido). Com a lista configurada, só quem está nela passa. Retorna a mensagem de
+ * erro ou `null`.
+ */
+export async function validarProfissionalServico(profissionalId: string | null, servicoId: string) {
+  if (!profissionalId) return null;
+
+  const [habilitado, algumConfigurado] = await Promise.all([
+    prisma.usuarioServico.findUnique({
+      where: { usuarioId_servicoId: { usuarioId: profissionalId, servicoId } },
+      select: { id: true },
+    }),
+    prisma.usuarioServico.findFirst({ where: { servicoId }, select: { id: true } }),
+  ]);
+
+  if (!algumConfigurado) return null;
+  return habilitado ? null : "Este profissional não atende esse serviço.";
+}
+
+/** Salas candidatas de um Serviço customizado (`SalaServico`), na ordem de `Sala.ordem`. */
+export async function getSalasCandidatasServico(servicoId: string): Promise<SalaCandidata[]> {
+  const salas = await prisma.salaServico.findMany({
+    where: { servicoId },
+    select: { salaId: true, capacidade: true, sala: { select: { nome: true, ordem: true } } },
+  });
+  return salas
+    .sort((a, b) => a.sala.ordem - b.sala.ordem)
+    .map((s) => ({ salaId: s.salaId, nome: s.sala.nome, capacidade: s.capacidade }));
+}
+
+/**
+ * Resolve qual sala usar para um agendamento de Serviço customizado: tenta as salas
+ * cadastradas no serviço em ordem e usa a primeira com vaga. Um serviço sem nenhuma
+ * `SalaServico` configurada não usa sala (`salaId: null`, sem checagem de capacidade) —
+ * ao contrário do Plano, sala não é obrigatória pra um serviço novo.
+ */
+export async function resolverSalaServico(params: {
+  servicoId: string;
+  dataInicio: Date;
+  dataFim: Date;
+  excludeId?: string | string[];
+}): Promise<ResolverSalaResultado | { ok: true; salaId: null; nome: null }> {
+  const candidatas = await getSalasCandidatasServico(params.servicoId);
+  if (candidatas.length === 0) return { ok: true, salaId: null, nome: null };
+
+  const { ocupacao, bloqueadas } = await ocupacaoPorSala(
+    candidatas.map((c) => c.salaId),
+    tipoOcupacaoAgendamento("OUTRO", params.servicoId),
+    params.dataInicio,
+    params.dataFim,
+    params.excludeId,
+  );
+  const escolhida = escolherSalaComVaga(candidatas, ocupacao, 1, bloqueadas);
+  if (!escolhida) {
+    const nomes = candidatas.map((c) => c.nome).join(", ");
+    const emUsoPorOutroServico = candidatas.every((c) => bloqueadas.has(c.salaId));
+    return {
+      ok: false,
+      error: emUsoPorOutroServico
+        ? `${nomes} já está em uso por outro serviço/modalidade nesse horário.`
+        : `${nomes} lotada(s) nesse horário.`,
     };
   }
   return { ok: true, salaId: escolhida.salaId, nome: escolhida.nome };

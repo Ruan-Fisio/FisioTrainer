@@ -45,6 +45,9 @@ export const MODULO_LABEL: Record<string, string> = {
   TreinoDia: "Dia de treino",
   TreinoDiaExercicio: "Exercício de treino",
   AcessoCompartilhadoPaciente: "Link de acesso do paciente",
+  Servico: "Serviço",
+  SalaServico: "Sala do serviço",
+  UsuarioServico: "Profissional do serviço",
 };
 
 export const ACAO_LABEL: Record<string, string> = {

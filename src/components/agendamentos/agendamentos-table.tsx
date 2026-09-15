@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/table";
 import {
   STATUS_AGENDAMENTO_LABEL,
-  MODALIDADE_AGENDAMENTO_LABEL,
+  modalidadeAgendamentoLabel,
 } from "@/components/agendamentos/agendamento-labels";
 import { PaginationControls } from "@/components/filters/pagination-controls";
 import { formatarDataHora } from "@/lib/format";
@@ -83,7 +83,7 @@ export async function AgendamentosTable({
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {formatarDataHora(agendamento.dataInicio)} ·{" "}
-                  {MODALIDADE_AGENDAMENTO_LABEL[agendamento.modalidade]}
+                  {modalidadeAgendamentoLabel(agendamento.modalidade, agendamento.servico?.nome)}
                   {agendamento.sala ? ` · ${agendamento.sala.nome}` : ""}
                 </p>
               </div>
@@ -122,7 +122,7 @@ export async function AgendamentosTable({
                   {formatarDataHora(agendamento.dataInicio)}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
-                  {MODALIDADE_AGENDAMENTO_LABEL[agendamento.modalidade]}
+                  {modalidadeAgendamentoLabel(agendamento.modalidade, agendamento.servico?.nome)}
                 </TableCell>
                 <TableCell className="text-muted-foreground">
                   {agendamento.sala?.nome ?? "—"}
