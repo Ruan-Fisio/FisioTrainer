@@ -34,6 +34,10 @@ export default async function EditarServicoPage({
         defaultValues={{
           nome: servico.nome,
           ativo: servico.ativo,
+          valorPadrao: servico.valorPadrao.toFixed(2).replace(".", ","),
+          taxaProfissionalPercentual: servico.taxaProfissionalPercentual
+            .toFixed(2)
+            .replace(".", ","),
           salas: servico.salas.map((s) => ({
             salaId: s.salaId,
             capacidade: String(s.capacidade),

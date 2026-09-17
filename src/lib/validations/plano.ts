@@ -27,7 +27,7 @@ export const periodicidadePlanoLabels: Record<
   TRIMESTRAL: "Trimestral",
 };
 
-const valorSchema = z
+export const valorSchema = z
   .string()
   .trim()
   .min(1, "Valor é obrigatório")

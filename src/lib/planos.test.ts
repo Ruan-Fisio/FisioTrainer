@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   aplicarTaxaNotaFiscal,
   calcularDesconto,
+  calcularTaxaProfissional,
   cartaoDaForma,
   formaEfetiva,
   gerarDatasVencimento,
@@ -125,6 +126,28 @@ describe("aplicarTaxaNotaFiscal", () => {
 
   it("arredonda para centavos", () => {
     expect(aplicarTaxaNotaFiscal(33.33, true)).toBeCloseTo(35.66, 2);
+  });
+});
+
+describe("calcularTaxaProfissional", () => {
+  it("percentual 0 não retém nada", () => {
+    expect(calcularTaxaProfissional(200, 0)).toBe(0);
+  });
+
+  it("percentual 100 retém o valor inteiro", () => {
+    expect(calcularTaxaProfissional(200, 100)).toBe(200);
+  });
+
+  it("calcula o percentual sobre o valor da parcela", () => {
+    expect(calcularTaxaProfissional(200, 20)).toBe(40);
+  });
+
+  it("arredonda em centavos", () => {
+    expect(calcularTaxaProfissional(33.33, 15)).toBeCloseTo(5, 2);
+  });
+
+  it("valor 0 não gera taxa mesmo com percentual configurado", () => {
+    expect(calcularTaxaProfissional(0, 50)).toBe(0);
   });
 });
 

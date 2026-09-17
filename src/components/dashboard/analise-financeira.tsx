@@ -8,6 +8,7 @@ import {
   Receipt,
   CalendarClock,
   ArrowUpRight,
+  HandCoins,
 } from "lucide-react";
 import {
   Area,
@@ -91,6 +92,12 @@ export function AnaliseFinanceira({ analise, atrasadas }: Props) {
       label: "Recebido em 12 meses",
       value: formatarMoeda(kpis.recebido12m),
       icon: TrendingUp,
+    },
+    {
+      label: "Retido de profissionais",
+      value: formatarMoeda(kpis.retidoProfissionaisMes),
+      hint: "Taxa da clínica sobre serviços avulsos pagos no mês",
+      icon: HandCoins,
     },
   ];
 

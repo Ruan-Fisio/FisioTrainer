@@ -103,6 +103,8 @@ export async function getAnaliseFinanceira() {
       pacienteId: true,
       paciente: { select: { nome: true } },
       planoAtribuicao: { select: { plano: { select: { tipos: true } } } },
+      servicoId: true,
+      taxaProfissional: true,
     },
   });
 
@@ -115,6 +117,8 @@ export async function getAnaliseFinanceira() {
     pacienteId: c.pacienteId,
     pacienteNome: c.paciente.nome,
     tipos: c.planoAtribuicao?.plano?.tipos ?? null,
+    servicoId: c.servicoId,
+    taxaProfissional: c.taxaProfissional == null ? null : Number(c.taxaProfissional),
   }));
 
   const atrasadas: CobrancaAtrasada[] = cobrancas

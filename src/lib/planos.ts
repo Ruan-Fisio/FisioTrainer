@@ -90,6 +90,18 @@ export function aplicarTaxaNotaFiscal(valor: number, notaFiscal: boolean): numbe
   return Math.round(valor * (1 + TAXA_NOTA_FISCAL / 100) * 100) / 100;
 }
 
+/**
+ * Valor retido pela clínica sobre uma cobrança de serviço avulso, a partir do
+ * percentual configurado no cadastro do `Servico` (`taxaProfissionalPercentual`).
+ * Só informativo pro dashboard — arredonda em centavos como o resto do arquivo.
+ */
+export function calcularTaxaProfissional(
+  valorParcela: number,
+  percentual: number,
+): number {
+  return Math.round(valorParcela * (percentual / 100) * 100) / 100;
+}
+
 export type DescontoTipo = "NENHUM" | "VALOR" | "PERCENTUAL" | "ALVO_PARCELA";
 
 /**

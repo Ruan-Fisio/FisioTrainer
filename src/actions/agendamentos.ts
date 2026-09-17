@@ -12,6 +12,8 @@ import { creditosDisponiveis, semCreditos } from "@/lib/remarcacao-creditos";
 import { totalAtendimentosPlano } from "@/lib/plano-renovacao";
 import { dataBrasilia, fimDoMes, inicioDoMes } from "@/lib/datas-brasilia";
 import { formatarDataHora, formatarMes } from "@/lib/format";
+import { calcularTaxaProfissional, gerarValoresParcelas } from "@/lib/planos";
+import { agendamentoServicoPagamentoSchema } from "@/lib/validations/servico";
 import {
   buscarConflito,
   mensagemConflito,
@@ -883,12 +885,24 @@ export async function criarAgendamentoServico(params: {
   data: string; // YYYY-MM-DD
   horaInicio: string; // HH:mm
   horaFim: string; // HH:mm
+  valor: number;
+  formaPagamento: "A_VISTA" | "ATE_3X_CARTAO";
+  vencimentos: string[];
 }): Promise<AgendamentoServicoState> {
   const { pacienteId, servicoId, profissionalId, data, horaInicio, horaFim } = params;
 
   if (!servicoId) return { error: "Selecione o serviço." };
   if (!profissionalId) return { error: "Selecione o profissional." };
   if (!data || !horaInicio || !horaFim) return { error: "Preencha data e horário." };
+
+  const pagamento = agendamentoServicoPagamentoSchema.safeParse({
+    valor: params.valor,
+    formaPagamento: params.formaPagamento,
+    vencimentos: params.vencimentos,
+  });
+  if (!pagamento.success) {
+    return { error: pagamento.error.issues[0]?.message ?? "Dados de pagamento inválidos." };
+  }
 
   const dataInicio = combinarDataHora(data, horaInicio);
   const dataFim = combinarDataHora(data, horaFim);
@@ -898,7 +912,10 @@ export async function criarAgendamentoServico(params: {
 
   const [paciente, servico, erroProfissional] = await Promise.all([
     prisma.paciente.findUnique({ where: { id: pacienteId }, select: { nome: true } }),
-    prisma.servico.findUnique({ where: { id: servicoId }, select: { nome: true, ativo: true } }),
+    prisma.servico.findUnique({
+      where: { id: servicoId },
+      select: { nome: true, ativo: true, taxaProfissionalPercentual: true },
+    }),
     validarProfissionalServico(profissionalId, servicoId),
   ]);
 
@@ -915,19 +932,40 @@ export async function criarAgendamentoServico(params: {
   const sala = await resolverSalaServico({ servicoId, dataInicio, dataFim });
   if (!sala.ok) return { error: sala.error };
 
-  await prisma.agendamento.create({
-    data: {
-      titulo: `${servico.nome} — ${paciente.nome}`,
-      profissionalId,
-      dataInicio,
-      dataFim,
-      modalidade: "OUTRO",
-      servicoId,
-      status: "AGENDADO",
-      salaId: sala.salaId,
-      pacientes: { connect: { id: pacienteId } },
-    },
-  });
+  const { valor, vencimentos } = pagamento.data;
+  const parcelas = gerarValoresParcelas(valor, vencimentos.length);
+  const percentualTaxa = Number(servico.taxaProfissionalPercentual);
+
+  await prisma.$transaction([
+    prisma.agendamento.create({
+      data: {
+        titulo: `${servico.nome} — ${paciente.nome}`,
+        profissionalId,
+        dataInicio,
+        dataFim,
+        modalidade: "OUTRO",
+        servicoId,
+        status: "AGENDADO",
+        salaId: sala.salaId,
+        pacientes: { connect: { id: pacienteId } },
+      },
+    }),
+    prisma.cobranca.createMany({
+      data: vencimentos.map((vencimento, i) => ({
+        pacienteId,
+        planoNome: servico.nome,
+        valorBase: valor,
+        valor: parcelas[i],
+        vencimento: new Date(`${vencimento}T12:00:00`),
+        status: "PENDENTE" as const,
+        numeroParcela: i + 1,
+        totalParcelas: vencimentos.length,
+        notaFiscal: true,
+        servicoId,
+        taxaProfissional: calcularTaxaProfissional(parcelas[i], percentualTaxa),
+      })),
+    }),
+  ]);
 
   revalidar([pacienteId]);
   return { success: true };

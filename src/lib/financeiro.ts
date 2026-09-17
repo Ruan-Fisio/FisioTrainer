@@ -19,12 +19,14 @@ export type CategoriaReceita =
   | "FISIOTERAPIA"
   | "EDUCACAO_FISICA"
   | "COMBINADO"
+  | "SERVICO"
   | "AVULSO";
 
 export const CATEGORIAS_RECEITA: CategoriaReceita[] = [
   "FISIOTERAPIA",
   "EDUCACAO_FISICA",
   "COMBINADO",
+  "SERVICO",
   "AVULSO",
 ];
 
@@ -32,6 +34,7 @@ export const LABEL_CATEGORIA_RECEITA: Record<CategoriaReceita, string> = {
   FISIOTERAPIA: "Fisioterapia",
   EDUCACAO_FISICA: "Educação Física",
   COMBINADO: "Combinado",
+  SERVICO: "Serviços avulsos",
   AVULSO: "Avulso",
 };
 
@@ -40,13 +43,21 @@ export const COR_CATEGORIA_RECEITA: Record<CategoriaReceita, string> = {
   FISIOTERAPIA: "var(--chart-1)",
   EDUCACAO_FISICA: "var(--chart-2)",
   COMBINADO: "#7c3aed",
+  SERVICO: "#0d9488",
   AVULSO: "var(--muted-foreground)",
 };
 
-/** null/[] → AVULSO (cobrança sem plano); 1 tipo → esse; ≥2 tipos → COMBINADO. */
+/**
+ * `servicoId` presente → SERVICO (cobrança de agendamento avulso de serviço
+ * customizado, tem prioridade — cobrança de plano nunca tem `servicoId`);
+ * null/[] tipos → AVULSO (cobrança sem plano nem serviço); 1 tipo → esse;
+ * ≥2 tipos → COMBINADO.
+ */
 export function categoriaReceita(
   tipos: string[] | null | undefined,
+  servicoId?: string | null,
 ): CategoriaReceita {
+  if (servicoId) return "SERVICO";
   if (!tipos || tipos.length === 0) return "AVULSO";
   if (tipos.length >= 2) return "COMBINADO";
   return tipos[0] === "EDUCACAO_FISICA" ? "EDUCACAO_FISICA" : "FISIOTERAPIA";
@@ -96,8 +107,12 @@ export type CobrancaLinha = {
   planoNome: string;
   pacienteId: string;
   pacienteNome: string;
-  /** planoAtribuicao.plano.tipos — null para cobrança avulsa. */
+  /** planoAtribuicao.plano.tipos — null para cobrança avulsa ou de serviço. */
   tipos: string[] | null;
+  /** Presente só em cobrança de agendamento avulso de serviço customizado. */
+  servicoId: string | null;
+  /** Snapshot do valor retido pela clínica (ver `Servico.taxaProfissionalPercentual`). */
+  taxaProfissional: number | null;
 };
 
 export type SerieModalidadeMes = { mes: string; label: string } & Record<
@@ -112,6 +127,8 @@ export type AnaliseFinanceira = {
     totalAtrasado: number;
     ticketMedio: number;
     recebido12m: number;
+    /** Taxa retida pela clínica sobre serviços avulsos, no mês corrente (só informativo). */
+    retidoProfissionaisMes: number;
   };
   receitaPorMes: { mes: string; label: string; recebido: number; qtd: number }[];
   receitaPorModalidadeMes: {
@@ -173,6 +190,13 @@ export function analisarFinanceiro(
         .map((l) => l.valor),
     ),
   );
+  const retidoProfissionaisMes = cent(
+    soma(
+      pagas
+        .filter((l) => mesReferencia(l.pagoEm) === mesAtual)
+        .map((l) => l.taxaProfissional ?? 0),
+    ),
+  );
 
   // A receber (cobranças PENDENTE ainda não vencidas), por mês
   const pendentesFuturas = pendentes.filter((l) => l.vencimento >= hoje);
@@ -201,7 +225,7 @@ export function analisarFinanceiro(
   // Split por modalidade — mês atual (realizado)
   const catMap = new Map<CategoriaReceita, number>();
   for (const l of pagas.filter((l) => mesReferencia(l.pagoEm) === mesAtual)) {
-    const c = categoriaReceita(l.tipos);
+    const c = categoriaReceita(l.tipos, l.servicoId);
     catMap.set(c, (catMap.get(c) ?? 0) + l.valor);
   }
   const totalCatMes = soma([...catMap.values()]);
@@ -235,7 +259,7 @@ export function analisarFinanceiro(
     const m = mesReferencia(l.pagoEm);
     const bucket = stackMap.get(m);
     if (!bucket) continue;
-    bucket[categoriaReceita(l.tipos)] += l.valor;
+    bucket[categoriaReceita(l.tipos, l.servicoId)] += l.valor;
   }
   const receitaModalidadePorMes: SerieModalidadeMes[] = meses6.map((mes) => {
     const bucket = stackMap.get(mes)!;
@@ -280,7 +304,14 @@ export function analisarFinanceiro(
     .slice(0, 8);
 
   return {
-    kpis: { recebidoMes, aReceberMes, totalAtrasado, ticketMedio, recebido12m },
+    kpis: {
+      recebidoMes,
+      aReceberMes,
+      totalAtrasado,
+      ticketMedio,
+      recebido12m,
+      retidoProfissionaisMes,
+    },
     receitaPorMes,
     receitaPorModalidadeMes,
     receitaModalidadePorMes,

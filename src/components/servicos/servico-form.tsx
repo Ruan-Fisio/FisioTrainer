@@ -31,6 +31,8 @@ export function ServicoForm({
   defaultValues?: {
     nome: string;
     ativo: boolean;
+    valorPadrao: string;
+    taxaProfissionalPercentual: string;
     salas: SalaServicoLinha[];
     profissionais: string[];
   };
@@ -109,6 +111,39 @@ export function ServicoForm({
         <Label htmlFor="ativo" className="font-normal">
           Serviço ativo (aparece para agendar)
         </Label>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label>Valor e taxa</Label>
+        <p className="text-xs text-muted-foreground">
+          O valor padrão é pré-preenchido no agendamento avulso deste serviço, mas pode
+          ser editado na hora. A taxa é o percentual que a clínica retém sobre cada
+          atendimento — só informativo no dashboard financeiro.
+        </p>
+        <div className="grid grid-cols-1 gap-4 rounded-lg border border-input p-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="valorPadrao">Valor padrão (R$)</Label>
+            <Input
+              id="valorPadrao"
+              name="valorPadrao"
+              inputMode="decimal"
+              defaultValue={defaultValues?.valorPadrao}
+              placeholder="150,00"
+              required
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="taxaProfissionalPercentual">Taxa retida do profissional (%)</Label>
+            <Input
+              id="taxaProfissionalPercentual"
+              name="taxaProfissionalPercentual"
+              inputMode="decimal"
+              defaultValue={defaultValues?.taxaProfissionalPercentual}
+              placeholder="20"
+              required
+            />
+          </div>
+        </div>
       </div>
 
       <div className="flex flex-col gap-2">

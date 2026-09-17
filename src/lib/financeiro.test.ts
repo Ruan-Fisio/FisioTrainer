@@ -18,6 +18,11 @@ describe("categoriaReceita", () => {
       "COMBINADO",
     );
   });
+
+  it("servicoId tem prioridade sobre tipos nulo", () => {
+    expect(categoriaReceita(null, "servico-1")).toBe("SERVICO");
+    expect(categoriaReceita([], "servico-1")).toBe("SERVICO");
+  });
 });
 
 describe("mesReferencia / rotuloMes", () => {
@@ -54,6 +59,8 @@ const linha = (o: Partial<CobrancaLinha>): CobrancaLinha => ({
   pacienteId: "p1",
   pacienteNome: "Fulano",
   tipos: ["FISIOTERAPIA"],
+  servicoId: null,
+  taxaProfissional: null,
   ...o,
 });
 
@@ -68,6 +75,7 @@ describe("analisarFinanceiro", () => {
       totalAtrasado: 0,
       ticketMedio: 0,
       recebido12m: 0,
+      retidoProfissionaisMes: 0,
     });
     expect(a.receitaPorMes).toHaveLength(12);
     expect(a.receitaPorMes.at(-1)).toMatchObject({ mes: "2026-03", recebido: 0 });
@@ -128,6 +136,32 @@ describe("analisarFinanceiro", () => {
     expect(cats.find((c) => c.categoria === "AVULSO")?.valor).toBe(200);
     expect(a.kpis.recebidoMes).toBe(1000);
     expect(a.kpis.ticketMedio).toBe(250);
+  });
+
+  it("cobrança de serviço avulso cai na categoria SERVICO e soma o KPI de taxa retida", () => {
+    const a = analisarFinanceiro(
+      [
+        linha({
+          tipos: null,
+          servicoId: "servico-1",
+          valor: 200,
+          taxaProfissional: 40,
+        }),
+        linha({ tipos: ["FISIOTERAPIA"], valor: 100, taxaProfissional: null }),
+      ],
+      AGORA,
+    );
+    const servico = a.receitaPorModalidadeMes.find((c) => c.categoria === "SERVICO");
+    expect(servico?.valor).toBe(200);
+    expect(a.kpis.retidoProfissionaisMes).toBe(40);
+  });
+
+  it("cobrança sem taxaProfissional (null) não quebra a soma do KPI", () => {
+    const a = analisarFinanceiro(
+      [linha({ servicoId: "servico-1", valor: 100, taxaProfissional: null })],
+      AGORA,
+    );
+    expect(a.kpis.retidoProfissionaisMes).toBe(0);
   });
 
   it("rankings de planos e pacientes ordenados por valor", () => {

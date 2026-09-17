@@ -1,5 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { CollapsibleSection } from "@/components/collapsible-section";
 import { CobrancaRowActions } from "@/components/cobrancas/cobranca-row-actions";
 import { formatarData, formatarMoeda } from "@/lib/format";
 import { montarMensagemCobranca } from "@/lib/whatsapp";
@@ -102,12 +103,16 @@ function GrupoCobrancas({
   titulo,
   subtitulo,
   statusBadge,
+  defaultOpen = true,
   cobrancas,
   ...cardProps
 }: {
   titulo: string;
   subtitulo?: string;
   statusBadge?: string;
+  /** Fechado por padrão para planos já concluídos/cancelados — deixa a lista mais
+   * compacta e reduz o scroll até as cobranças avulsas. */
+  defaultOpen?: boolean;
   cobrancas: Cobranca[];
   pacienteId: string;
   pacienteNome: string;
@@ -118,11 +123,12 @@ function GrupoCobrancas({
   const pagas = cobrancas.filter((c) => c.status === "PAGO").length;
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
+    <CollapsibleSection
+      defaultOpen={defaultOpen}
+      title={
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2">
-            <h3 className="font-semibold">{titulo}</h3>
+            <span className="font-semibold">{titulo}</span>
             {statusBadge && (
               <Badge
                 variant={statusBadge === "ATIVO" ? "secondary" : "outline"}
@@ -135,16 +141,19 @@ function GrupoCobrancas({
             <p className="text-xs text-muted-foreground">{subtitulo}</p>
           )}
         </div>
-        <p className="text-xs text-muted-foreground">
+      }
+      action={
+        <p className="shrink-0 text-xs text-muted-foreground">
           {pagas}/{cobrancas.length} pagas
         </p>
-      </div>
+      }
+    >
       <div className="flex flex-col gap-3">
         {cobrancas.map((cobranca) => (
           <CobrancaCard key={cobranca.id} cobranca={cobranca} {...cardProps} />
         ))}
       </div>
-    </div>
+    </CollapsibleSection>
   );
 }
 
@@ -190,20 +199,29 @@ export function PacienteCobrancasList({
     }))
     .filter((g) => g.cobrancas.length > 0);
 
+  // Ativos primeiro (o que importa no dia a dia), cobranças avulsas logo depois
+  // (destino frequente), e planos cancelados/concluídos por último, fechados —
+  // são os que menos se acessa.
+  const gruposAtivos = grupos.filter((g) => g.atribuicao.status === "ATIVO");
+  const gruposFinalizados = grupos.filter((g) => g.atribuicao.status !== "ATIVO");
+
   const avulsas = cobrancas.filter((c) => !c.planoAtribuicaoId);
+
+  const renderGrupo = ({ atribuicao, cobrancas }: (typeof grupos)[number]) => (
+    <GrupoCobrancas
+      key={atribuicao.id}
+      titulo={atribuicao.planoNome}
+      subtitulo={`${formaPagamentoPlanoLabels[atribuicao.formaPagamento]} · ${periodicidadePlanoLabels[atribuicao.periodicidade]} · ${formatarMoeda(atribuicao.valor)} em ${atribuicao.numeroParcelas}x`}
+      statusBadge={atribuicao.status}
+      defaultOpen={atribuicao.status === "ATIVO"}
+      cobrancas={cobrancas}
+      {...cardProps}
+    />
+  );
 
   return (
     <div className="flex flex-col gap-6">
-      {grupos.map(({ atribuicao, cobrancas }) => (
-        <GrupoCobrancas
-          key={atribuicao.id}
-          titulo={atribuicao.planoNome}
-          subtitulo={`${formaPagamentoPlanoLabels[atribuicao.formaPagamento]} · ${periodicidadePlanoLabels[atribuicao.periodicidade]} · ${formatarMoeda(atribuicao.valor)} em ${atribuicao.numeroParcelas}x`}
-          statusBadge={atribuicao.status}
-          cobrancas={cobrancas}
-          {...cardProps}
-        />
-      ))}
+      {gruposAtivos.map(renderGrupo)}
 
       {avulsas.length > 0 && (
         <GrupoCobrancas
@@ -212,6 +230,8 @@ export function PacienteCobrancasList({
           {...cardProps}
         />
       )}
+
+      {gruposFinalizados.map(renderGrupo)}
     </div>
   );
 }

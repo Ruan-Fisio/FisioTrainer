@@ -36,11 +36,21 @@ export async function listServicos(filters: { q?: string }, page: number) {
 
 /** Só serviços ativos, para popular selects (ex. agendamento manual de serviço). */
 export async function listAllServicos() {
-  return prisma.servico.findMany({
+  const servicos = await prisma.servico.findMany({
     where: { ativo: true },
     orderBy: { nome: "asc" },
-    select: { id: true, nome: true },
+    select: {
+      id: true,
+      nome: true,
+      valorPadrao: true,
+      taxaProfissionalPercentual: true,
+    },
   });
+  return servicos.map((s) => ({
+    ...s,
+    valorPadrao: Number(s.valorPadrao),
+    taxaProfissionalPercentual: Number(s.taxaProfissionalPercentual),
+  }));
 }
 
 /**
@@ -79,6 +89,8 @@ function parseForm(formData: FormData) {
   return servicoSchema.safeParse({
     nome: formData.get("nome"),
     ativo: formData.get("ativo") === "on",
+    valorPadrao: formData.get("valorPadrao"),
+    taxaProfissionalPercentual: formData.get("taxaProfissionalPercentual"),
     salas: formData.get("salas") ?? "[]",
     profissionais: formData.get("profissionais") ?? "[]",
   });

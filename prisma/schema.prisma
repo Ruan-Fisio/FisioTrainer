@@ -231,12 +231,20 @@ model Cobranca {
   numeroParcela     Int?
   totalParcelas     Int?
   notaFiscal        Boolean          @default(false)
+  /// Preenchido só para cobranças geradas por agendamento de serviço avulso
+  /// (ver `criarAgendamentoServico`) — nunca em conjunto com `planoAtribuicaoId`.
+  servicoId         String?
+  servico           Servico?         @relation(fields: [servicoId], references: [id], onDelete: SetNull)
+  /// Snapshot em R$ do valor retido pela clínica sobre esta parcela (Servico.taxaProfissionalPercentual
+  /// no momento da criação) — só informativo pro dashboard, nunca recalculado depois.
+  taxaProfissional  Decimal?         @db.Decimal(10, 2)
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
   @@index([vencimento])
   @@index([status])
   @@index([planoAtribuicaoId])
+  @@index([servicoId])
 }
 
 enum StatusPlanoAtribuicao {
@@ -367,9 +375,16 @@ model Servico {
   id            String           @id @default(cuid())
   nome          String           @unique
   ativo         Boolean          @default(true)
+  /// Valor padrão cobrado do paciente ao agendar este serviço — pré-preenchido no wizard
+  /// de agendamento avulso, mas editável naquele momento (não é um teto).
+  valorPadrao   Decimal          @default(0) @db.Decimal(10, 2)
+  /// Percentual retido pela clínica sobre o valor de cada atendimento deste serviço,
+  /// repassando o restante ao profissional — só informativo (ver `Cobranca.taxaProfissional`).
+  taxaProfissionalPercentual Decimal @default(0) @db.Decimal(5, 2)
   salas         SalaServico[]
   profissionais UsuarioServico[]
   agendamentos  Agendamento[]
+  cobrancas     Cobranca[]
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 }
