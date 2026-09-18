@@ -104,6 +104,13 @@ export function PlanoForm({
     );
   }
 
+  // Parcelamento estendido só faz sentido pro plano híbrido (Fisioterapia + Educação
+  // Física) — fora do híbrido o checkbox some e o valor efetivo enviado é sempre false,
+  // mesmo que o usuário tenha marcado antes de desmarcar um dos tipos.
+  const planoHibrido =
+    tipos.includes("FISIOTERAPIA") && tipos.includes("EDUCACAO_FISICA");
+  const permiteParcelamentoEstendidoEfetivo = planoHibrido && permiteParcelamentoEstendido;
+
   return (
     <form action={formAction} className="flex max-w-2xl flex-col gap-4 pb-24">
       {tipos.map((tipo) => (
@@ -113,7 +120,7 @@ export function PlanoForm({
       <input
         type="hidden"
         name="permiteParcelamentoEstendido"
-        value={permiteParcelamentoEstendido ? "on" : ""}
+        value={permiteParcelamentoEstendidoEfetivo ? "on" : ""}
       />
 
       <div className="flex flex-col gap-2">
@@ -250,27 +257,30 @@ export function PlanoForm({
         </p>
       </div>
 
-      <div className="flex flex-col gap-2">
-        <label
-          onClick={(e) => {
-            e.preventDefault();
-            setPermiteParcelamentoEstendido((v) => !v);
-          }}
-          className="flex min-h-8 cursor-pointer items-center gap-2 text-sm select-none"
-        >
-          <Checkbox
-            checked={permiteParcelamentoEstendido}
-            tabIndex={-1}
-            className="pointer-events-none"
-          />
-          Permite parcelamento estendido
-        </label>
-        <p className="text-xs text-muted-foreground">
-          Libera até 6x no cartão para o trimestral (em vez de 3x) e até 2x
-          para o mensal (em vez de sempre à vista). O valor total cadastrado é
-          o mesmo — só divide em mais parcelas.
-        </p>
-      </div>
+      {planoHibrido && (
+        <div className="flex flex-col gap-2">
+          <label
+            onClick={(e) => {
+              e.preventDefault();
+              setPermiteParcelamentoEstendido((v) => !v);
+            }}
+            className="flex min-h-8 cursor-pointer items-center gap-2 text-sm select-none"
+          >
+            <Checkbox
+              checked={permiteParcelamentoEstendido}
+              tabIndex={-1}
+              className="pointer-events-none"
+            />
+            Permite parcelamento estendido
+          </label>
+          <p className="text-xs text-muted-foreground">
+            Libera até 6x no cartão para o trimestral (em vez de 3x) e até 2x
+            para o mensal (em vez de sempre à vista). O valor total cadastrado
+            é o mesmo — só divide em mais parcelas. Só disponível pro plano
+            híbrido (Fisioterapia + Educação Física).
+          </p>
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         <Label>Valores</Label>

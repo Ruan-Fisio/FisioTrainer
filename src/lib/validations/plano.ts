@@ -93,4 +93,14 @@ export const planoSchema = z
   .refine((data) => data.salas.length > 0, {
     message: "Selecione ao menos uma sala para o plano.",
     path: ["salas"],
-  });
+  })
+  .refine(
+    (data) =>
+      !data.permiteParcelamentoEstendido ||
+      (data.tipos.includes("FISIOTERAPIA") && data.tipos.includes("EDUCACAO_FISICA")),
+    {
+      message:
+        "Parcelamento estendido só é permitido no plano híbrido (Fisioterapia + Educação Física).",
+      path: ["permiteParcelamentoEstendido"],
+    },
+  );

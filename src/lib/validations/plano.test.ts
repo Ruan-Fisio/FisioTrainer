@@ -114,11 +114,27 @@ describe("planoSchema", () => {
     if (parsed.success) expect(parsed.data.permiteParcelamentoEstendido).toBe(false);
   });
 
-  it("aceita permiteParcelamentoEstendido marcado", () => {
+  it("aceita permiteParcelamentoEstendido marcado só no plano híbrido", () => {
     const parsed = planoSchema.safeParse(
-      baseInput({ permiteParcelamentoEstendido: "on" }),
+      baseInput({
+        tipos: ["FISIOTERAPIA", "EDUCACAO_FISICA"],
+        permiteParcelamentoEstendido: "on",
+      }),
     );
     expect(parsed.success).toBe(true);
     if (parsed.success) expect(parsed.data.permiteParcelamentoEstendido).toBe(true);
+  });
+
+  it("rejeita permiteParcelamentoEstendido marcado num plano não-híbrido", () => {
+    expect(
+      planoSchema.safeParse(
+        baseInput({ tipos: ["FISIOTERAPIA"], permiteParcelamentoEstendido: "on" }),
+      ).success,
+    ).toBe(false);
+    expect(
+      planoSchema.safeParse(
+        baseInput({ tipos: ["EDUCACAO_FISICA"], permiteParcelamentoEstendido: "on" }),
+      ).success,
+    ).toBe(false);
   });
 });
