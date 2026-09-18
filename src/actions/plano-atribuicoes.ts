@@ -88,6 +88,19 @@ function parseForm(formData: FormData) {
   });
 }
 
+function mensagemMaxParcelas(
+  periodicidade: "MENSAL" | "TRIMESTRAL",
+  formaPagamento: "A_VISTA" | "ATE_3X_CARTAO",
+  maxParcelas: number,
+): string {
+  if (periodicidade === "MENSAL") {
+    return maxParcelas === 1
+      ? "Plano mensal não pode ser parcelado (parcela única)."
+      : `Plano mensal permite no máximo ${maxParcelas} parcelas.`;
+  }
+  return `Trimestral ${formaPagamento === "ATE_3X_CARTAO" ? `em até ${maxParcelas}x no cartão` : "à vista"} permite no máximo ${maxParcelas} parcela(s).`;
+}
+
 function gerarParcelasData(
   planoAtribuicaoId: string,
   pacienteId: string,
@@ -133,7 +146,20 @@ export async function createPlanoAtribuicao(
   const erroGrade = await validarLinhasGrade(gradeLinhas, plano.tipos, plano.atendimentos);
   if (erroGrade) return { error: erroGrade };
 
-  const forma = formaEfetiva(parsed.data.periodicidade, parsed.data.formaPagamento);
+  const maxParcelas = maxParcelasPlano(
+    parsed.data.periodicidade,
+    parsed.data.formaPagamento,
+    plano.permiteParcelamentoEstendido,
+  );
+  if (parsed.data.vencimentos.length > maxParcelas) {
+    return { error: mensagemMaxParcelas(parsed.data.periodicidade, parsed.data.formaPagamento, maxParcelas) };
+  }
+
+  const forma = formaEfetiva(
+    parsed.data.periodicidade,
+    parsed.data.formaPagamento,
+    plano.permiteParcelamentoEstendido,
+  );
   const cartao = cartaoDaForma(forma);
   const notaFiscal = true; // nota fiscal sempre inclusa
   const valorOriginal = valorPlano(plano, forma, parsed.data.periodicidade);
@@ -218,7 +244,20 @@ export async function updatePlanoAtribuicao(
   const erroGrade = await validarLinhasGrade(gradeLinhas, plano.tipos, plano.atendimentos);
   if (erroGrade) return { error: erroGrade };
 
-  const forma = formaEfetiva(parsed.data.periodicidade, parsed.data.formaPagamento);
+  const maxParcelas = maxParcelasPlano(
+    parsed.data.periodicidade,
+    parsed.data.formaPagamento,
+    plano.permiteParcelamentoEstendido,
+  );
+  if (parsed.data.vencimentos.length > maxParcelas) {
+    return { error: mensagemMaxParcelas(parsed.data.periodicidade, parsed.data.formaPagamento, maxParcelas) };
+  }
+
+  const forma = formaEfetiva(
+    parsed.data.periodicidade,
+    parsed.data.formaPagamento,
+    plano.permiteParcelamentoEstendido,
+  );
   const cartao = cartaoDaForma(forma);
   const notaFiscal = true; // nota fiscal sempre inclusa
   const valorOriginal = valorPlano(plano, forma, parsed.data.periodicidade);
@@ -325,7 +364,7 @@ export async function listPlanosRenovaveis() {
       paciente: { select: { id: true, nome: true } },
       cobrancas: { select: { status: true } },
       agendamentos: { select: { status: true } },
-      plano: { select: { id: true } },
+      plano: { select: { id: true, permiteParcelamentoEstendido: true } },
     },
   });
 
@@ -350,7 +389,11 @@ export async function listPlanosRenovaveis() {
       cobrancasPagas: a.cobrancas.length,
       dataInicio: a.dataInicio,
       temPlano: a.plano != null,
-      maxParcelas: maxParcelasPlano(a.periodicidade, a.formaPagamento),
+      maxParcelas: maxParcelasPlano(
+        a.periodicidade,
+        a.formaPagamento,
+        a.plano?.permiteParcelamentoEstendido ?? false,
+      ),
     }));
 }
 
@@ -403,7 +446,7 @@ export async function renovarPlanoAtribuicao(
   const plano = antiga.plano;
   const forma = antiga.formaPagamento;
   const periodicidade = antiga.periodicidade;
-  const maxParcelas = maxParcelasPlano(periodicidade, forma);
+  const maxParcelas = maxParcelasPlano(periodicidade, forma, plano.permiteParcelamentoEstendido);
   if (parsed.data.numeroParcelas > maxParcelas) {
     return { error: `Esta forma de pagamento permite no máximo ${maxParcelas} parcela(s).` };
   }

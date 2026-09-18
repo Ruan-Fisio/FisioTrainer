@@ -14,7 +14,7 @@ export const formaPagamentoPlanoLabels: Record<
   string
 > = {
   A_VISTA: "À vista",
-  ATE_3X_CARTAO: "Até 3x no cartão",
+  ATE_3X_CARTAO: "Parcelado no cartão",
 };
 
 export const periodicidadePlanoValues = ["MENSAL", "TRIMESTRAL"] as const;
@@ -81,6 +81,10 @@ export const planoSchema = z
         message: "Créditos de remarcação inválido",
       })
       .transform((v) => Number(v)),
+    permiteParcelamentoEstendido: z.preprocess(
+      (v) => v === "on" || v === true,
+      z.boolean(),
+    ),
     valorAVistaMensal: valorSchema,
     valorAVistaTrimestral: valorSchema,
     valorAte3xTrimestral: valorSchema,

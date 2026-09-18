@@ -275,6 +275,7 @@ model Plano {
   tipos                      TipoPlano[]
   atendimentos               Int
   creditosRemarcacao         Int                 @default(0)
+  permiteParcelamentoEstendido Boolean           @default(false)
   valorAVistaMensal          Decimal             @db.Decimal(10, 2)
   valorAVistaTrimestral      Decimal             @db.Decimal(10, 2)
   valorAte3xTrimestral       Decimal             @db.Decimal(10, 2)

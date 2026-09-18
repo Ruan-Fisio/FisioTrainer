@@ -52,6 +52,9 @@ export async function PlanosTable({
                       {tipoPlanoLabels[t]}
                     </Badge>
                   ))}
+                  {plano.permiteParcelamentoEstendido && (
+                    <Badge variant="secondary">Parcelamento estendido</Badge>
+                  )}
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {plano.atendimentos}x atendimentos ·{" "}
@@ -95,6 +98,9 @@ export async function PlanosTable({
                       {tipoPlanoLabels[t]}
                     </Badge>
                   ))}
+                  {plano.permiteParcelamentoEstendido && (
+                    <Badge variant="secondary">Parcelamento estendido</Badge>
+                  )}
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">
                   {plano.atendimentos}x

@@ -52,6 +52,7 @@ export function PlanoForm({
     tipos: string[];
     atendimentos: string;
     creditosRemarcacao: string;
+    permiteParcelamentoEstendido: boolean;
     valores: Valores;
     salas: PlanoSalaLinha[];
   };
@@ -69,6 +70,9 @@ export function PlanoForm({
   );
   const [salasSelecionadas, setSalasSelecionadas] = useState<PlanoSalaLinha[]>(
     defaultValues?.salas ?? [],
+  );
+  const [permiteParcelamentoEstendido, setPermiteParcelamentoEstendido] = useState(
+    defaultValues?.permiteParcelamentoEstendido ?? false,
   );
 
   function toggleSala(salaId: string) {
@@ -106,6 +110,11 @@ export function PlanoForm({
         <input key={tipo} type="hidden" name="tipos" value={tipo} />
       ))}
       <input type="hidden" name="salas" value={JSON.stringify(salasSelecionadas)} />
+      <input
+        type="hidden"
+        name="permiteParcelamentoEstendido"
+        value={permiteParcelamentoEstendido ? "on" : ""}
+      />
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="nome">Nome</Label>
@@ -242,10 +251,34 @@ export function PlanoForm({
       </div>
 
       <div className="flex flex-col gap-2">
+        <label
+          onClick={(e) => {
+            e.preventDefault();
+            setPermiteParcelamentoEstendido((v) => !v);
+          }}
+          className="flex min-h-8 cursor-pointer items-center gap-2 text-sm select-none"
+        >
+          <Checkbox
+            checked={permiteParcelamentoEstendido}
+            tabIndex={-1}
+            className="pointer-events-none"
+          />
+          Permite parcelamento estendido
+        </label>
+        <p className="text-xs text-muted-foreground">
+          Libera até 6x no cartão para o trimestral (em vez de 3x) e até 2x
+          para o mensal (em vez de sempre à vista). O valor total cadastrado é
+          o mesmo — só divide em mais parcelas.
+        </p>
+      </div>
+
+      <div className="flex flex-col gap-2">
         <Label>Valores</Label>
         <p className="text-xs text-muted-foreground">
-          O plano mensal não é parcelado. O trimestral pode ser pago à vista ou
-          em até 3x no cartão. Todos os valores já incluem a nota fiscal.
+          O trimestral pode ser pago à vista ou em até 3x no cartão (6x com
+          parcelamento estendido). O mensal é sempre à vista, exceto com
+          parcelamento estendido (até 2x). Todos os valores já incluem a nota
+          fiscal.
         </p>
         <div className="overflow-hidden rounded-lg border border-input">
           {CAMPOS_VALOR.map((campo, i) => (

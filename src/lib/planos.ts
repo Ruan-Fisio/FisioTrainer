@@ -47,22 +47,32 @@ export function cartaoDaForma(formaPagamento: FormaPagamentoPlano): boolean {
 
 /**
  * Máximo de parcelas: plano mensal nunca parcela (1); trimestral à vista = 1,
- * trimestral em até 3x no cartão = 3.
+ * trimestral em até 3x no cartão = 3. Planos com `permiteParcelamentoEstendido`
+ * (checkbox no cadastro do Plano) têm o teto ampliado: mensal até 2x, trimestral até 6x.
  */
 export function maxParcelasPlano(
   periodicidade: PeriodicidadePlano,
   formaPagamento: FormaPagamentoPlano,
+  permiteParcelamentoEstendido = false,
 ): number {
-  if (periodicidade === "MENSAL") return 1;
-  return formaPagamento === "ATE_3X_CARTAO" ? 3 : 1;
+  if (formaPagamento !== "ATE_3X_CARTAO") return 1;
+  if (periodicidade === "MENSAL") return permiteParcelamentoEstendido ? 2 : 1;
+  return permiteParcelamentoEstendido ? 6 : 3;
 }
 
-/** Forma de pagamento efetiva: plano mensal é sempre à vista. */
+/**
+ * Forma de pagamento efetiva: plano mensal é sempre à vista, exceto quando o plano
+ * permite parcelamento estendido (aí pode ir pro cartão, até 2x).
+ */
 export function formaEfetiva(
   periodicidade: PeriodicidadePlano,
   formaPagamento: FormaPagamentoPlano,
+  permiteParcelamentoEstendido = false,
 ): FormaPagamentoPlano {
-  return periodicidade === "MENSAL" ? "A_VISTA" : formaPagamento;
+  if (periodicidade === "MENSAL") {
+    return permiteParcelamentoEstendido ? formaPagamento : "A_VISTA";
+  }
+  return formaPagamento;
 }
 
 /** Divide o valor total em N parcelas, ajustando centavos de arredondamento na última parcela. */

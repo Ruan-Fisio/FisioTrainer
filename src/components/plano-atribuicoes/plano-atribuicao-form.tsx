@@ -63,6 +63,7 @@ type PlanoAtivo = {
   valorAVistaMensal: number;
   valorAVistaTrimestral: number;
   valorAte3xTrimestral: number;
+  permiteParcelamentoEstendido: boolean;
 };
 
 export function PlanoAtribuicaoForm({
@@ -148,8 +149,24 @@ export function PlanoAtribuicaoForm({
   }, [state.success, mode, pacienteId, router]);
 
   const planoSelecionado = planosAtivos.find((p) => p.id === planoId);
-  const formaEfetivaAtual = formaEfetiva(periodicidade, formaPagamento);
-  const maxParcelas = maxParcelasPlano(periodicidade, formaEfetivaAtual);
+  const permiteParcelamentoEstendido = planoSelecionado?.permiteParcelamentoEstendido ?? false;
+  const formaEfetivaAtual = formaEfetiva(
+    periodicidade,
+    formaPagamento,
+    permiteParcelamentoEstendido,
+  );
+  const maxParcelas = maxParcelasPlano(
+    periodicidade,
+    formaEfetivaAtual,
+    permiteParcelamentoEstendido,
+  );
+
+  const maxParcelasCartao = maxParcelasPlano(
+    periodicidade,
+    "ATE_3X_CARTAO",
+    permiteParcelamentoEstendido,
+  );
+  const labelAteXCartao = `Até ${maxParcelasCartao}x no cartão`;
 
   const modalidadesGrade = useMemo<ModalidadePlano[]>(
     () =>
@@ -322,7 +339,7 @@ export function PlanoAtribuicaoForm({
               >
                 <span className="flex items-center gap-2">
                   <RadioGroupItem value={forma} />
-                  {formaPagamentoPlanoLabels[forma]}
+                  {forma === "ATE_3X_CARTAO" ? labelAteXCartao : formaPagamentoPlanoLabels[forma]}
                 </span>
                 {planoSelecionado && (
                   <span className="font-medium text-muted-foreground">
@@ -332,6 +349,36 @@ export function PlanoAtribuicaoForm({
               </label>
             ))}
           </RadioGroup>
+        </div>
+      ) : permiteParcelamentoEstendido ? (
+        <div className="flex flex-col gap-2">
+          <Label>Forma de pagamento</Label>
+          <RadioGroup
+            value={formaPagamento}
+            onValueChange={(v) => setFormaPagamento(v as FormaPagamentoPlano)}
+            className="flex flex-col gap-2"
+          >
+            {formaPagamentoPlanoValues.map((forma) => (
+              <label
+                key={forma}
+                className="flex min-h-8 cursor-pointer items-center justify-between gap-2 rounded-lg border border-input p-2 text-sm select-none"
+              >
+                <span className="flex items-center gap-2">
+                  <RadioGroupItem value={forma} />
+                  {forma === "ATE_3X_CARTAO" ? labelAteXCartao : formaPagamentoPlanoLabels[forma]}
+                </span>
+                {planoSelecionado && (
+                  <span className="font-medium text-muted-foreground">
+                    {formatarMoeda(valorPlano(planoSelecionado, forma, periodicidade))}
+                  </span>
+                )}
+              </label>
+            ))}
+          </RadioGroup>
+          <p className="text-xs text-muted-foreground">
+            O mesmo valor mensal, dividido em até 2 parcelas quando pago no
+            cartão.
+          </p>
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">

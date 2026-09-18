@@ -67,6 +67,7 @@ function parseForm(formData: FormData) {
     tipos: formData.getAll("tipos"),
     atendimentos: formData.get("atendimentos"),
     creditosRemarcacao: formData.get("creditosRemarcacao"),
+    permiteParcelamentoEstendido: formData.get("permiteParcelamentoEstendido"),
     valorAVistaMensal: formData.get("valorAVistaMensal"),
     valorAVistaTrimestral: formData.get("valorAVistaTrimestral"),
     valorAte3xTrimestral: formData.get("valorAte3xTrimestral"),

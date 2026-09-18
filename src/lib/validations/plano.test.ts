@@ -8,6 +8,7 @@ function baseInput(overrides: Record<string, unknown> = {}) {
     tipos: ["FISIOTERAPIA"],
     atendimentos: "4",
     creditosRemarcacao: "2",
+    permiteParcelamentoEstendido: "",
     valorAVistaMensal: "400,00",
     valorAVistaTrimestral: "1.080,00",
     valorAte3xTrimestral: "1.188,00",
@@ -105,5 +106,19 @@ describe("planoSchema", () => {
 
   it("rejeita JSON de salas malformado", () => {
     expect(planoSchema.safeParse(baseInput({ salas: "{not json" })).success).toBe(false);
+  });
+
+  it("permiteParcelamentoEstendido é false por padrão quando ausente/vazio", () => {
+    const parsed = planoSchema.safeParse(baseInput());
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.permiteParcelamentoEstendido).toBe(false);
+  });
+
+  it("aceita permiteParcelamentoEstendido marcado", () => {
+    const parsed = planoSchema.safeParse(
+      baseInput({ permiteParcelamentoEstendido: "on" }),
+    );
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.permiteParcelamentoEstendido).toBe(true);
   });
 });

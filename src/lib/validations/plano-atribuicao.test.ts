@@ -39,45 +39,45 @@ describe("planoAtribuicaoSchema", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("aceita até 3 parcelas para trimestral em até 3x no cartão", () => {
+  // O teto exato de parcelas por plano (mensal nunca parcela / trimestral até 3x,
+  // ou até 2x/6x com `Plano.permiteParcelamentoEstendido`) não é mais responsabilidade
+  // deste schema — ele só recebe `planoId` (string), sem o registro `Plano` pra saber
+  // se o flag está ligado. Esse teto exato é checado na server action
+  // (`createPlanoAtribuicao`/`updatePlanoAtribuicao` em `src/actions/plano-atribuicoes.ts`),
+  // depois que o `Plano` é buscado no banco — ver `maxParcelasPlano` em `planos.test.ts`.
+  // Aqui o schema só garante um teto genérico (o maior valor possível em todo o sistema).
+  it("aceita até o teto genérico (6 parcelas) independente de periodicidade/forma", () => {
     const parsed = planoAtribuicaoSchema.safeParse(
       baseInput({
         periodicidade: "TRIMESTRAL",
         formaPagamento: "ATE_3X_CARTAO",
-        vencimentos: ["2026-09-01", "2026-10-01", "2026-11-01"],
+        vencimentos: [
+          "2026-09-01",
+          "2026-10-01",
+          "2026-11-01",
+          "2026-12-01",
+          "2027-01-01",
+          "2027-02-01",
+        ],
       }),
     );
     expect(parsed.success).toBe(true);
   });
 
-  it("rejeita mais de 3 parcelas para trimestral em até 3x no cartão", () => {
+  it("rejeita mais de 6 parcelas (teto genérico)", () => {
     const parsed = planoAtribuicaoSchema.safeParse(
       baseInput({
         periodicidade: "TRIMESTRAL",
         formaPagamento: "ATE_3X_CARTAO",
-        vencimentos: ["2026-09-01", "2026-10-01", "2026-11-01", "2026-12-01"],
-      }),
-    );
-    expect(parsed.success).toBe(false);
-  });
-
-  it("rejeita parcelamento de plano mensal", () => {
-    const parsed = planoAtribuicaoSchema.safeParse(
-      baseInput({
-        periodicidade: "MENSAL",
-        formaPagamento: "ATE_3X_CARTAO",
-        vencimentos: ["2026-09-01", "2026-10-01"],
-      }),
-    );
-    expect(parsed.success).toBe(false);
-  });
-
-  it("rejeita mais de 1 parcela para trimestral à vista", () => {
-    const parsed = planoAtribuicaoSchema.safeParse(
-      baseInput({
-        periodicidade: "TRIMESTRAL",
-        formaPagamento: "A_VISTA",
-        vencimentos: ["2026-09-01", "2026-10-01"],
+        vencimentos: [
+          "2026-09-01",
+          "2026-10-01",
+          "2026-11-01",
+          "2026-12-01",
+          "2027-01-01",
+          "2027-02-01",
+          "2027-03-01",
+        ],
       }),
     );
     expect(parsed.success).toBe(false);

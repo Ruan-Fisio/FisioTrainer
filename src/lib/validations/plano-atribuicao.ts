@@ -1,6 +1,13 @@
 import { z } from "zod";
 import { formaPagamentoPlanoValues, periodicidadePlanoValues } from "./plano";
-import { maxParcelasPlano } from "../planos";
+
+/**
+ * Maior número de parcelas possível em todo o sistema (trimestral com parcelamento
+ * estendido). O schema só garante essa faixa genérica; o teto exato por plano
+ * (`maxParcelasPlano`, que depende de `Plano.permiteParcelamentoEstendido`) é checado
+ * na server action, depois que o `Plano` é buscado no banco.
+ */
+export const MAX_PARCELAS_PLANO_HARD_CAP = 6;
 
 const dataSchema = z
   .string()
@@ -61,14 +68,10 @@ export const planoAtribuicaoSchema = z
     },
   )
   .superRefine((data, ctx) => {
-    const max = maxParcelasPlano(data.periodicidade, data.formaPagamento);
-    if (data.vencimentos.length > max) {
+    if (data.vencimentos.length > MAX_PARCELAS_PLANO_HARD_CAP) {
       ctx.addIssue({
         code: "custom",
-        message:
-          data.periodicidade === "MENSAL"
-            ? "Plano mensal não pode ser parcelado (parcela única)"
-            : `Trimestral ${data.formaPagamento === "ATE_3X_CARTAO" ? "em até 3x no cartão" : "à vista"} permite no máximo ${max} parcela(s)`,
+        message: `No máximo ${MAX_PARCELAS_PLANO_HARD_CAP} parcelas.`,
         path: ["vencimentos"],
       });
     }

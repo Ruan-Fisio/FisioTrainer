@@ -409,7 +409,9 @@ export function AgendamentoServicoDialog({
                     className="flex min-h-8 cursor-pointer items-center gap-2 rounded-lg border border-input p-2 text-sm select-none"
                   >
                     <RadioGroupItem value={forma} />
-                    {formaPagamentoPlanoLabels[forma]}
+                    {forma === "ATE_3X_CARTAO"
+                      ? `Até ${maxParcelasPlano("TRIMESTRAL", "ATE_3X_CARTAO")}x no cartão`
+                      : formaPagamentoPlanoLabels[forma]}
                   </label>
                 ))}
               </RadioGroup>

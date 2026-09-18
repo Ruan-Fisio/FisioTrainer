@@ -33,6 +33,7 @@ export default async function EditarPlanoPage({
           tipos: plano.tipos,
           atendimentos: String(plano.atendimentos),
           creditosRemarcacao: String(plano.creditosRemarcacao),
+          permiteParcelamentoEstendido: plano.permiteParcelamentoEstendido,
           valores: {
             valorAVistaMensal: plano.valorAVistaMensal.toFixed(2).replace(".", ","),
             valorAVistaTrimestral: plano.valorAVistaTrimestral

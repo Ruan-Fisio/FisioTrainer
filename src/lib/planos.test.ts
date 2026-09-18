@@ -56,7 +56,7 @@ describe("cartaoDaForma", () => {
 });
 
 describe("formaEfetiva", () => {
-  it("mensal é sempre à vista", () => {
+  it("mensal é sempre à vista sem parcelamento estendido", () => {
     expect(formaEfetiva("MENSAL", "ATE_3X_CARTAO")).toBe("A_VISTA");
     expect(formaEfetiva("MENSAL", "A_VISTA")).toBe("A_VISTA");
   });
@@ -65,17 +65,36 @@ describe("formaEfetiva", () => {
     expect(formaEfetiva("TRIMESTRAL", "ATE_3X_CARTAO")).toBe("ATE_3X_CARTAO");
     expect(formaEfetiva("TRIMESTRAL", "A_VISTA")).toBe("A_VISTA");
   });
+
+  it("mensal com parcelamento estendido respeita a forma escolhida", () => {
+    expect(formaEfetiva("MENSAL", "ATE_3X_CARTAO", true)).toBe("ATE_3X_CARTAO");
+    expect(formaEfetiva("MENSAL", "A_VISTA", true)).toBe("A_VISTA");
+  });
+
+  it("trimestral não muda com ou sem parcelamento estendido", () => {
+    expect(formaEfetiva("TRIMESTRAL", "ATE_3X_CARTAO", true)).toBe("ATE_3X_CARTAO");
+  });
 });
 
 describe("maxParcelasPlano", () => {
-  it("mensal nunca parcela", () => {
+  it("mensal nunca parcela sem parcelamento estendido", () => {
     expect(maxParcelasPlano("MENSAL", "A_VISTA")).toBe(1);
     expect(maxParcelasPlano("MENSAL", "ATE_3X_CARTAO")).toBe(1);
   });
 
-  it("trimestral à vista = 1, em até 3x no cartão = 3", () => {
+  it("trimestral à vista = 1, em até 3x no cartão = 3, sem parcelamento estendido", () => {
     expect(maxParcelasPlano("TRIMESTRAL", "A_VISTA")).toBe(1);
     expect(maxParcelasPlano("TRIMESTRAL", "ATE_3X_CARTAO")).toBe(3);
+  });
+
+  it("mensal com parcelamento estendido permite até 2x no cartão", () => {
+    expect(maxParcelasPlano("MENSAL", "A_VISTA", true)).toBe(1);
+    expect(maxParcelasPlano("MENSAL", "ATE_3X_CARTAO", true)).toBe(2);
+  });
+
+  it("trimestral com parcelamento estendido permite até 6x no cartão (à vista continua 1)", () => {
+    expect(maxParcelasPlano("TRIMESTRAL", "A_VISTA", true)).toBe(1);
+    expect(maxParcelasPlano("TRIMESTRAL", "ATE_3X_CARTAO", true)).toBe(6);
   });
 });
 
