@@ -8,6 +8,7 @@ import {
 } from "@/lib/validations/plano-atribuicao";
 import {
   calcularDesconto,
+  calcularValorParcelado,
   cartaoDaForma,
   formaEfetiva,
   gerarDatasVencimento,
@@ -15,6 +16,7 @@ import {
   maxParcelasPlano,
   valorPlano,
 } from "@/lib/planos";
+import { getTaxaParcelamentoCartao } from "@/actions/configuracao-financeira";
 import {
   contarRealizados,
   planoRenovavel,
@@ -162,10 +164,17 @@ export async function createPlanoAtribuicao(
   );
   const cartao = cartaoDaForma(forma);
   const notaFiscal = true; // nota fiscal sempre inclusa
-  const valorOriginal = valorPlano(plano, forma, parsed.data.periodicidade);
   const vencimentosOrdenados = [...parsed.data.vencimentos].sort(
     (a, b) => a.getTime() - b.getTime(),
   );
+  const valorBase = valorPlano(plano, parsed.data.periodicidade);
+  const valorOriginal = cartao
+    ? calcularValorParcelado(
+        valorBase,
+        await getTaxaParcelamentoCartao(),
+        vencimentosOrdenados.length,
+      )
+    : valorBase;
   const { valor, desconto } = calcularDesconto(
     valorOriginal,
     parsed.data.descontoTipo,
@@ -260,10 +269,17 @@ export async function updatePlanoAtribuicao(
   );
   const cartao = cartaoDaForma(forma);
   const notaFiscal = true; // nota fiscal sempre inclusa
-  const valorOriginal = valorPlano(plano, forma, parsed.data.periodicidade);
   const vencimentosOrdenados = [...parsed.data.vencimentos].sort(
     (a, b) => a.getTime() - b.getTime(),
   );
+  const valorBase = valorPlano(plano, parsed.data.periodicidade);
+  const valorOriginal = cartao
+    ? calcularValorParcelado(
+        valorBase,
+        await getTaxaParcelamentoCartao(),
+        vencimentosOrdenados.length,
+      )
+    : valorBase;
   const { valor, desconto } = calcularDesconto(
     valorOriginal,
     parsed.data.descontoTipo,
@@ -457,7 +473,11 @@ export async function renovarPlanoAtribuicao(
   ).map((d) => new Date(`${d}T12:00:00`));
 
   const notaFiscal = true;
-  const valorOriginal = valorPlano(plano, forma, periodicidade);
+  const cartao = cartaoDaForma(forma);
+  const valorBase = valorPlano(plano, periodicidade);
+  const valorOriginal = cartao
+    ? calcularValorParcelado(valorBase, await getTaxaParcelamentoCartao(), vencimentos.length)
+    : valorBase;
   const { valor, desconto } = calcularDesconto(
     valorOriginal,
     "VALOR",
@@ -488,7 +508,7 @@ export async function renovarPlanoAtribuicao(
         valorOriginal,
         desconto,
         valor,
-        cartao: cartaoDaForma(forma),
+        cartao,
         notaFiscal,
         numeroParcelas: vencimentos.length,
         dataInicio: vencimentos[0],

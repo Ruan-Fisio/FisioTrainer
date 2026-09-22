@@ -70,7 +70,6 @@ function parseForm(formData: FormData) {
     permiteParcelamentoEstendido: formData.get("permiteParcelamentoEstendido"),
     valorAVistaMensal: formData.get("valorAVistaMensal"),
     valorAVistaTrimestral: formData.get("valorAVistaTrimestral"),
-    valorAte3xTrimestral: formData.get("valorAte3xTrimestral"),
     salas: formData.get("salas") ?? "[]",
   });
 }

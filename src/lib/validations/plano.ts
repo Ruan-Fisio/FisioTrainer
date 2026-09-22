@@ -87,7 +87,6 @@ export const planoSchema = z
     ),
     valorAVistaMensal: valorSchema,
     valorAVistaTrimestral: valorSchema,
-    valorAte3xTrimestral: valorSchema,
     salas: planoSalasSchema,
   })
   .refine((data) => data.salas.length > 0, {

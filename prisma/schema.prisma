@@ -278,7 +278,6 @@ model Plano {
   permiteParcelamentoEstendido Boolean           @default(false)
   valorAVistaMensal          Decimal             @db.Decimal(10, 2)
   valorAVistaTrimestral      Decimal             @db.Decimal(10, 2)
-  valorAte3xTrimestral       Decimal             @db.Decimal(10, 2)
   salas                      PlanoSala[]
   atribuicoes                PlanoAtribuicao[]
   createdAt                  DateTime            @default(now())
@@ -539,6 +538,20 @@ model Feriado {
   data      DateTime @unique @db.Date
   descricao String
   createdAt DateTime @default(now())
+}
+
+/// Taxas financeiras configuráveis, editáveis na aba "Financeiro" de /configuracoes.
+/// Lista extensível: cada linha é uma taxa identificada por `chave` (ex. o percentual
+/// aplicado por parcela no parcelamento no cartão de um Plano, ver
+/// `calcularValorParcelado` em src/lib/planos.ts). Novas taxas nascem por seed/migration
+/// e o usuário só ajusta o `percentual` pela tela.
+model ConfiguracaoTaxa {
+  id         String   @id @default(cuid())
+  chave      String   @unique
+  nome       String
+  percentual Decimal  @db.Decimal(5, 2)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 enum TipoExecucaoExame {

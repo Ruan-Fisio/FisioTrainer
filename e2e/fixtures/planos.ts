@@ -56,7 +56,6 @@ export async function criarPlano(
   await page.getByLabel("Créditos de remarcação por mês").fill(creditosRemarcacao);
   await page.getByLabel("Mensal (à vista)").fill("400,00");
   await page.getByLabel("Trimestral à vista").fill("1080,00");
-  await page.getByLabel("Trimestral em até 3x no cartão").fill("1188,00");
 
   for (const sala of salas) {
     await labelDaSala(page, sala).click();

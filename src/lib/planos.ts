@@ -2,19 +2,18 @@ export type FormaPagamentoPlano = "A_VISTA" | "ATE_3X_CARTAO";
 export type PeriodicidadePlano = "MENSAL" | "TRIMESTRAL";
 
 /**
- * Os 3 preços do Plano (nota fiscal sempre inclusa no valor cadastrado):
- * - mensal só à vista (não parcela);
- * - trimestral à vista ou em até 3x no cartão.
+ * Os 2 preços do Plano (nota fiscal sempre inclusa no valor cadastrado), sempre à vista:
+ * o parcelamento no cartão aplica a taxa configurável de `ConfiguracaoTaxa` em cima
+ * desses valores (ver `calcularValorParcelado`), não tem preço fixo próprio.
  */
 export const CAMPOS_VALOR_PLANO = [
   "valorAVistaMensal",
   "valorAVistaTrimestral",
-  "valorAte3xTrimestral",
 ] as const;
 
 export type CampoValorPlano = (typeof CAMPOS_VALOR_PLANO)[number];
 
-/** Converte os 8 campos de valor (Prisma `Decimal` ou string) para `number`. */
+/** Converte os campos de valor (Prisma `Decimal` ou string) para `number`. */
 export function planoValoresParaNumero<T extends Record<string, unknown>>(
   plano: T,
 ): Omit<T, CampoValorPlano> & Record<CampoValorPlano, number> {
@@ -24,18 +23,12 @@ export function planoValoresParaNumero<T extends Record<string, unknown>>(
   return { ...plano, ...valores };
 }
 
-/** Lê, no Plano, o valor correspondente à forma de pagamento e periodicidade escolhidas. */
+/** Lê, no Plano, o valor à vista correspondente à periodicidade escolhida. */
 export function valorPlano(
   plano: Record<string, unknown>,
-  formaPagamento: FormaPagamentoPlano,
   periodicidade: PeriodicidadePlano,
 ): number {
-  const campo =
-    periodicidade === "MENSAL"
-      ? "valorAVistaMensal"
-      : formaPagamento === "ATE_3X_CARTAO"
-        ? "valorAte3xTrimestral"
-        : "valorAVistaTrimestral";
+  const campo = periodicidade === "MENSAL" ? "valorAVistaMensal" : "valorAVistaTrimestral";
   const raw = plano[campo];
   return raw == null ? 0 : Number(raw);
 }
@@ -110,6 +103,22 @@ export function calcularTaxaProfissional(
   percentual: number,
 ): number {
   return Math.round(valorParcela * (percentual / 100) * 100) / 100;
+}
+
+/**
+ * Aplica a taxa de parcelamento no cartão (configurável em Configurações > Financeiro,
+ * `ConfiguracaoTaxa` de chave `PARCELAMENTO_CARTAO`) sobre o valor à vista de um Plano.
+ * Cumulativa por parcela: 2x = +1×taxa, 3x = +2×taxa, ... À vista (1 parcela ou menos)
+ * não tem taxa.
+ */
+export function calcularValorParcelado(
+  valorAVista: number,
+  percentualTaxa: number,
+  numeroParcelas: number,
+): number {
+  if (numeroParcelas <= 1) return valorAVista;
+  const fator = 1 + (percentualTaxa / 100) * numeroParcelas;
+  return Math.round(valorAVista * fator * 100) / 100;
 }
 
 export type DescontoTipo = "NENHUM" | "VALOR" | "PERCENTUAL" | "ALVO_PARCELA";

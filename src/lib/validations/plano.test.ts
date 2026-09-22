@@ -11,7 +11,6 @@ function baseInput(overrides: Record<string, unknown> = {}) {
     permiteParcelamentoEstendido: "",
     valorAVistaMensal: "400,00",
     valorAVistaTrimestral: "1.080,00",
-    valorAte3xTrimestral: "1.188,00",
     salas: JSON.stringify([{ salaId: "sala-1", descricao: "Uso de equipamentos" }]),
     ...overrides,
   };
@@ -24,7 +23,7 @@ describe("planoSchema", () => {
     if (parsed.success) {
       expect(parsed.data.atendimentos).toBe(4);
       expect(parsed.data.valorAVistaMensal).toBe(400);
-      expect(parsed.data.valorAte3xTrimestral).toBe(1188);
+      expect(parsed.data.valorAVistaTrimestral).toBe(1080);
     }
   });
 
@@ -57,9 +56,13 @@ describe("planoSchema", () => {
     expect(parsed.success).toBe(true);
   });
 
-  it("exige os 3 valores do plano", () => {
-    const parsed = planoSchema.safeParse(baseInput({ valorAte3xTrimestral: "" }));
-    expect(parsed.success).toBe(false);
+  it("exige os 2 valores do plano", () => {
+    expect(
+      planoSchema.safeParse(baseInput({ valorAVistaMensal: "" })).success,
+    ).toBe(false);
+    expect(
+      planoSchema.safeParse(baseInput({ valorAVistaTrimestral: "" })).success,
+    ).toBe(false);
   });
 
   it("rejeita valor inválido", () => {
@@ -72,12 +75,13 @@ describe("planoSchema", () => {
     expect(parsed.success).toBe(false);
   });
 
-  it("não tem mais os campos taxaCartao/opcoes", () => {
+  it("não tem mais os campos taxaCartao/opcoes/valorAte3xTrimestral", () => {
     const parsed = planoSchema.safeParse(baseInput());
     expect(parsed.success).toBe(true);
     if (parsed.success) {
       expect(parsed.data).not.toHaveProperty("taxaCartao");
       expect(parsed.data).not.toHaveProperty("opcoes");
+      expect(parsed.data).not.toHaveProperty("valorAte3xTrimestral");
     }
   });
 

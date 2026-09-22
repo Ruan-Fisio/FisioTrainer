@@ -8,7 +8,6 @@ async function preencherCamposBase(page: import("@playwright/test").Page) {
   await page.getByLabel("Créditos de remarcação por mês").fill("1");
   await page.getByLabel("Mensal (à vista)").fill("400,00");
   await page.getByLabel("Trimestral à vista").fill("1080,00");
-  await page.getByLabel("Trimestral em até 3x no cartão").fill("1188,00");
 }
 
 /** Sala criada pelo seed (`prisma/seed.ts`) — sempre existe no banco de teste. */
@@ -76,13 +75,12 @@ test.describe("planos", () => {
     await expect(page.getByText("Nenhum plano encontrado.")).toBeVisible();
   });
 
-  test("plano mensal não parcela; trimestral pode ir até 3x", async ({ page }) => {
+  test("cadastro de plano só pede os valores à vista", async ({ page }) => {
     await page.goto("/planos/novo");
-    // Mensal: não deve haver escolha de forma de pagamento (é sempre à vista) —
-    // essa opção só existe no form de atribuição de plano, não no cadastro do plano em si.
-    // Aqui conferimos só que os 3 campos de valor sempre aparecem, com os rótulos certos.
+    // O parcelamento no cartão não tem mais preço fixo próprio — a taxa é configurada
+    // em Configurações > Financeiro e aplicada sobre o valor à vista na atribuição.
     await expect(page.getByLabel("Mensal (à vista)")).toBeVisible();
     await expect(page.getByLabel("Trimestral à vista")).toBeVisible();
-    await expect(page.getByLabel("Trimestral em até 3x no cartão")).toBeVisible();
+    await expect(page.getByLabel("Trimestral em até 3x no cartão")).not.toBeVisible();
   });
 });

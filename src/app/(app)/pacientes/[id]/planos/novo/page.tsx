@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createPlanoAtribuicao } from "@/actions/plano-atribuicoes";
 import { listPlanosDisponiveis } from "@/actions/planos";
 import { getGradeRecorrenteOpcoes } from "@/actions/grade-recorrente";
+import { getTaxaParcelamentoCartao } from "@/actions/configuracao-financeira";
 import { PlanoAtribuicaoForm } from "@/components/plano-atribuicoes/plano-atribuicao-form";
 
 export default async function NovaAtribuicaoPlanoPage({
@@ -19,9 +20,10 @@ export default async function NovaAtribuicaoPlanoPage({
 
   if (!paciente) notFound();
 
-  const [planosAtivos, gradeOpcoes] = await Promise.all([
+  const [planosAtivos, gradeOpcoes, taxaParcelamentoCartao] = await Promise.all([
     listPlanosDisponiveis(),
     getGradeRecorrenteOpcoes(),
+    getTaxaParcelamentoCartao(),
   ]);
   const createPlanoAtribuicaoWithPaciente = createPlanoAtribuicao.bind(null, id);
 
@@ -39,6 +41,7 @@ export default async function NovaAtribuicaoPlanoPage({
         pacienteId={id}
         mode="create"
         gradeOpcoes={gradeOpcoes}
+        taxaParcelamentoCartao={taxaParcelamentoCartao}
       />
     </div>
   );

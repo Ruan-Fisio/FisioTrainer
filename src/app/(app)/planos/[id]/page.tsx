@@ -39,9 +39,6 @@ export default async function EditarPlanoPage({
             valorAVistaTrimestral: plano.valorAVistaTrimestral
               .toFixed(2)
               .replace(".", ","),
-            valorAte3xTrimestral: plano.valorAte3xTrimestral
-              .toFixed(2)
-              .replace(".", ","),
           },
           salas: plano.salas.map((s) => ({
             salaId: s.salaId,

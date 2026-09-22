@@ -79,6 +79,18 @@ async function main() {
     }
   }
 
+  // Taxa de parcelamento no cartão (Configurações → Financeiro), aplicada por parcela
+  // sobre o valor à vista de um Plano — ver calcularValorParcelado em src/lib/planos.ts.
+  await prisma.configuracaoTaxa.upsert({
+    where: { chave: "PARCELAMENTO_CARTAO" },
+    update: {},
+    create: {
+      chave: "PARCELAMENTO_CARTAO",
+      nome: "Parcelamento no cartão (por parcela)",
+      percentual: 2.3,
+    },
+  });
+
   console.log("Seed concluído: admin@admin.com criado/atualizado.");
 }
 

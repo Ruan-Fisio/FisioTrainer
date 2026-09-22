@@ -26,14 +26,13 @@ const initialState: PlanoActionState = {};
 const CAMPOS_VALOR = [
   { name: "valorAVistaMensal", label: "Mensal (à vista)" },
   { name: "valorAVistaTrimestral", label: "Trimestral à vista" },
-  { name: "valorAte3xTrimestral", label: "Trimestral em até 3x no cartão" },
 ] as const;
 
 type CampoValor = (typeof CAMPOS_VALOR)[number]["name"];
 type Valores = Record<CampoValor, string>;
 
 function valoresVazios(): Valores {
-  return { valorAVistaMensal: "", valorAVistaTrimestral: "", valorAte3xTrimestral: "" };
+  return { valorAVistaMensal: "", valorAVistaTrimestral: "" };
 }
 
 export function PlanoForm({
@@ -275,8 +274,7 @@ export function PlanoForm({
           </label>
           <p className="text-xs text-muted-foreground">
             Libera até 6x no cartão para o trimestral (em vez de 3x) e até 2x
-            para o mensal (em vez de sempre à vista). O valor total cadastrado
-            é o mesmo — só divide em mais parcelas. Só disponível pro plano
+            para o mensal (em vez de sempre à vista). Só disponível pro plano
             híbrido (Fisioterapia + Educação Física).
           </p>
         </div>
@@ -285,10 +283,10 @@ export function PlanoForm({
       <div className="flex flex-col gap-2">
         <Label>Valores</Label>
         <p className="text-xs text-muted-foreground">
-          O trimestral pode ser pago à vista ou em até 3x no cartão (6x com
-          parcelamento estendido). O mensal é sempre à vista, exceto com
-          parcelamento estendido (até 2x). Todos os valores já incluem a nota
-          fiscal.
+          Valores sempre à vista. Parcelamento no cartão aplica a taxa
+          configurável por parcela (Configurações → Financeiro) em cima
+          destes valores — quanto mais parcelas, maior o total. Todos os
+          valores já incluem a nota fiscal.
         </p>
         <div className="overflow-hidden rounded-lg border border-input">
           {CAMPOS_VALOR.map((campo, i) => (

@@ -3,6 +3,7 @@ import {
   aplicarTaxaNotaFiscal,
   calcularDesconto,
   calcularTaxaProfissional,
+  calcularValorParcelado,
   cartaoDaForma,
   formaEfetiva,
   gerarDatasVencimento,
@@ -33,18 +34,12 @@ describe("gerarValoresParcelas", () => {
 const planoExemplo = {
   valorAVistaMensal: 100,
   valorAVistaTrimestral: 270,
-  valorAte3xTrimestral: 297,
 };
 
 describe("valorPlano", () => {
-  it("mensal usa sempre o valor à vista mensal", () => {
-    expect(valorPlano(planoExemplo, "A_VISTA", "MENSAL")).toBe(100);
-    expect(valorPlano(planoExemplo, "ATE_3X_CARTAO", "MENSAL")).toBe(100);
-  });
-
-  it("trimestral distingue à vista e até 3x no cartão", () => {
-    expect(valorPlano(planoExemplo, "A_VISTA", "TRIMESTRAL")).toBe(270);
-    expect(valorPlano(planoExemplo, "ATE_3X_CARTAO", "TRIMESTRAL")).toBe(297);
+  it("lê o valor à vista de acordo com a periodicidade", () => {
+    expect(valorPlano(planoExemplo, "MENSAL")).toBe(100);
+    expect(valorPlano(planoExemplo, "TRIMESTRAL")).toBe(270);
   });
 });
 
@@ -167,6 +162,39 @@ describe("calcularTaxaProfissional", () => {
 
   it("valor 0 não gera taxa mesmo com percentual configurado", () => {
     expect(calcularTaxaProfissional(0, 50)).toBe(0);
+  });
+});
+
+describe("calcularValorParcelado", () => {
+  it("à vista (1 parcela) não tem taxa", () => {
+    expect(calcularValorParcelado(270, 2.3, 1)).toBe(270);
+  });
+
+  it("0 parcelas também não tem taxa (evita divisão/uso indevido)", () => {
+    expect(calcularValorParcelado(270, 2.3, 0)).toBe(270);
+  });
+
+  it("2x soma 2x o percentual sobre o valor à vista", () => {
+    // 270 * (1 + 0.023 * 2) = 270 * 1.046 = 282.42
+    expect(calcularValorParcelado(270, 2.3, 2)).toBeCloseTo(282.42, 2);
+  });
+
+  it("3x soma 3x o percentual sobre o valor à vista", () => {
+    // 270 * (1 + 0.023 * 3) = 270 * 1.069 = 288.63
+    expect(calcularValorParcelado(270, 2.3, 3)).toBeCloseTo(288.63, 2);
+  });
+
+  it("6x soma 6x o percentual sobre o valor à vista", () => {
+    // 270 * (1 + 0.023 * 6) = 270 * 1.138 = 307.26
+    expect(calcularValorParcelado(270, 2.3, 6)).toBeCloseTo(307.26, 2);
+  });
+
+  it("taxa 0% não altera o valor, mesmo parcelado", () => {
+    expect(calcularValorParcelado(270, 0, 3)).toBe(270);
+  });
+
+  it("arredonda em centavos", () => {
+    expect(calcularValorParcelado(33.33, 2.3, 2)).toBeCloseTo(34.86, 2);
   });
 });
 

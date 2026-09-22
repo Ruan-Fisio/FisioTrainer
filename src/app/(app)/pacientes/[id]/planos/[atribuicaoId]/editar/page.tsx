@@ -9,6 +9,7 @@ import {
   getLinhasGradeRecorrente,
 } from "@/actions/grade-recorrente";
 import { PlanoAtribuicaoForm } from "@/components/plano-atribuicoes/plano-atribuicao-form";
+import { getTaxaParcelamentoCartao } from "@/actions/configuracao-financeira";
 import { toDateInputValue } from "@/lib/format";
 
 export default async function EditarAtribuicaoPlanoPage({
@@ -22,10 +23,11 @@ export default async function EditarAtribuicaoPlanoPage({
 
   if (!atribuicao || atribuicao.pacienteId !== id) notFound();
 
-  const [planosAtivos, gradeOpcoes, gradeLinhas] = await Promise.all([
+  const [planosAtivos, gradeOpcoes, gradeLinhas, taxaParcelamentoCartao] = await Promise.all([
     listPlanosDisponiveis(),
     getGradeRecorrenteOpcoes(),
     getLinhasGradeRecorrente(atribuicaoId),
+    getTaxaParcelamentoCartao(),
   ]);
 
   const cobrancasBase = atribuicao.cobrancas.filter(
@@ -64,6 +66,7 @@ export default async function EditarAtribuicaoPlanoPage({
         pacienteId={id}
         mode="edit"
         gradeOpcoes={gradeOpcoes}
+        taxaParcelamentoCartao={taxaParcelamentoCartao}
       />
     </div>
   );

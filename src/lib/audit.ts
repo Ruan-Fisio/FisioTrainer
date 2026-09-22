@@ -48,6 +48,7 @@ export const MODULO_LABEL: Record<string, string> = {
   Servico: "Serviço",
   SalaServico: "Sala do serviço",
   UsuarioServico: "Profissional do serviço",
+  ConfiguracaoTaxa: "Taxa financeira",
 };
 
 export const ACAO_LABEL: Record<string, string> = {

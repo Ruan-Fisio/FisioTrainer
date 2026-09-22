@@ -29,6 +29,8 @@ import {
 } from "@/components/ui/dialog";
 import {
   calcularDesconto,
+  calcularValorParcelado,
+  cartaoDaForma,
   formaEfetiva,
   gerarDatasVencimento,
   gerarValoresParcelas,
@@ -62,7 +64,6 @@ type PlanoAtivo = {
   tipos: string[];
   valorAVistaMensal: number;
   valorAVistaTrimestral: number;
-  valorAte3xTrimestral: number;
   permiteParcelamentoEstendido: boolean;
 };
 
@@ -73,12 +74,15 @@ export function PlanoAtribuicaoForm({
   pacienteId,
   mode,
   gradeOpcoes,
+  taxaParcelamentoCartao,
 }: {
   action: (
     prevState: PlanoAtribuicaoActionState,
     formData: FormData,
   ) => Promise<PlanoAtribuicaoActionState>;
   planosAtivos: PlanoAtivo[];
+  /** Percentual configurado em Configurações → Financeiro, aplicado por parcela no cartão. */
+  taxaParcelamentoCartao: number;
   defaultValues?: {
     planoId: string;
     formaPagamento: FormaPagamentoPlano;
@@ -194,12 +198,14 @@ export function PlanoAtribuicaoForm({
     setWizardQuantidade((prev) => (Number(prev) > maxParcelas ? String(maxParcelas) : prev));
   }, [maxParcelas]);
 
+  const numeroParcelas = vencimentos.filter(Boolean).length;
+
   const valorOriginal = useMemo(() => {
     if (!planoSelecionado) return 0;
-    return valorPlano(planoSelecionado, formaEfetivaAtual, periodicidade);
-  }, [planoSelecionado, formaEfetivaAtual, periodicidade]);
-
-  const numeroParcelas = vencimentos.filter(Boolean).length;
+    const base = valorPlano(planoSelecionado, periodicidade);
+    if (!cartaoDaForma(formaEfetivaAtual)) return base;
+    return calcularValorParcelado(base, taxaParcelamentoCartao, numeroParcelas);
+  }, [planoSelecionado, formaEfetivaAtual, periodicidade, taxaParcelamentoCartao, numeroParcelas]);
 
   const sugestaoValorAlvoParcela =
     numeroParcelas > 0 && valorOriginal > 0
@@ -341,14 +347,20 @@ export function PlanoAtribuicaoForm({
                   <RadioGroupItem value={forma} />
                   {forma === "ATE_3X_CARTAO" ? labelAteXCartao : formaPagamentoPlanoLabels[forma]}
                 </span>
-                {planoSelecionado && (
+                {planoSelecionado && forma === "A_VISTA" && (
                   <span className="font-medium text-muted-foreground">
-                    {formatarMoeda(valorPlano(planoSelecionado, forma, periodicidade))}
+                    {formatarMoeda(valorPlano(planoSelecionado, periodicidade))}
                   </span>
                 )}
               </label>
             ))}
           </RadioGroup>
+          <p className="text-xs text-muted-foreground">
+            No cartão, cada parcela soma {taxaParcelamentoCartao.toFixed(1).replace(".", ",")}%
+            de taxa ao valor à vista (2x = +{(taxaParcelamentoCartao * 2).toFixed(1).replace(".", ",")}%,
+            3x = +{(taxaParcelamentoCartao * 3).toFixed(1).replace(".", ",")}%, ...). O total
+            aparece abaixo assim que as parcelas forem definidas.
+          </p>
         </div>
       ) : permiteParcelamentoEstendido ? (
         <div className="flex flex-col gap-2">
@@ -367,9 +379,9 @@ export function PlanoAtribuicaoForm({
                   <RadioGroupItem value={forma} />
                   {forma === "ATE_3X_CARTAO" ? labelAteXCartao : formaPagamentoPlanoLabels[forma]}
                 </span>
-                {planoSelecionado && (
+                {planoSelecionado && forma === "A_VISTA" && (
                   <span className="font-medium text-muted-foreground">
-                    {formatarMoeda(valorPlano(planoSelecionado, forma, periodicidade))}
+                    {formatarMoeda(valorPlano(planoSelecionado, periodicidade))}
                   </span>
                 )}
               </label>
@@ -377,14 +389,15 @@ export function PlanoAtribuicaoForm({
           </RadioGroup>
           <p className="text-xs text-muted-foreground">
             O mesmo valor mensal, dividido em até 2 parcelas quando pago no
-            cartão.
+            cartão — no cartão, cada parcela soma{" "}
+            {taxaParcelamentoCartao.toFixed(1).replace(".", ",")}% de taxa ao valor à vista.
           </p>
         </div>
       ) : (
         <p className="text-sm text-muted-foreground">
           Plano mensal é sempre à vista, em parcela única
           {planoSelecionado
-            ? ` (${formatarMoeda(valorPlano(planoSelecionado, "A_VISTA", "MENSAL"))})`
+            ? ` (${formatarMoeda(valorPlano(planoSelecionado, "MENSAL"))})`
             : ""}
           . A nota fiscal já está inclusa no valor.
         </p>

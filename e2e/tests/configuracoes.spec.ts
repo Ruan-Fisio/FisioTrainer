@@ -82,3 +82,27 @@ test.describe("configurações — funcionamento", () => {
     await expect(botaoRemover).toHaveCount(0);
   });
 });
+
+test.describe("configurações — financeiro", () => {
+  test("edita a taxa de parcelamento no cartão", async ({ page }) => {
+    await page.goto("/configuracoes?tab=financeiro");
+
+    const nomeTaxa = "Parcelamento no cartão (por parcela)";
+    await expect(page.getByText(nomeTaxa, { exact: true })).toBeVisible();
+    await expect(page.getByText("2,30%")).toBeVisible();
+
+    await page.getByRole("button", { name: `Editar ${nomeTaxa}` }).click();
+    await page.getByLabel("Percentual por parcela").fill("3,50");
+    await page.getByRole("button", { name: "Salvar alterações" }).click();
+
+    await expect(page.getByText("Taxa atualizada.")).toBeVisible();
+    await expect(page.getByText("3,50%")).toBeVisible();
+
+    // Devolve pro valor padrão pra não contaminar outros specs que assumem 2,3%.
+    await page.getByRole("button", { name: `Editar ${nomeTaxa}` }).click();
+    await page.getByLabel("Percentual por parcela").fill("2,30");
+    await page.getByRole("button", { name: "Salvar alterações" }).click();
+    await expect(page.getByText("Taxa atualizada.")).toBeVisible();
+    await expect(page.getByText("2,30%")).toBeVisible();
+  });
+});
