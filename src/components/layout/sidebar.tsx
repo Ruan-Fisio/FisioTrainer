@@ -10,19 +10,14 @@ export function Sidebar() {
           "linear-gradient(175deg, color-mix(in oklch, var(--sidebar), white 6%), var(--sidebar) 55%, color-mix(in oklch, var(--sidebar), black 15%))",
       }}
     >
-      <div className="flex h-20 items-center gap-2 border-b border-sidebar-border/60 px-6">
-        <div className="flex items-center justify-center rounded-lg bg-white p-1.5 shadow-sm">
-          <Image
-            src="/icone-marca.png"
-            alt="FisioTrainer"
-            width={3375}
-            height={3375}
-            className="h-9 w-9 object-contain"
-          />
-        </div>
-        <span className="text-lg font-semibold tracking-tight">
-          FisioTrainer
-        </span>
+      <div className="flex h-20 items-center justify-center border-b border-sidebar-border/60 px-6">
+        <Image
+          src="/logo-sidebar.png"
+          alt="FisioTrainer"
+          width={3176}
+          height={1572}
+          className="h-auto w-32 object-contain"
+        />
       </div>
       <div className="flex-1 overflow-y-auto px-3 py-4">
         <NavLinks />

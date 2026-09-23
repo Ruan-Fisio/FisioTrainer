@@ -33,18 +33,14 @@ export function MobileNav() {
         }}
       >
         <SheetHeader>
-          <SheetTitle className="flex items-center gap-2 text-sidebar-foreground">
-            <div className="flex items-center justify-center rounded-lg bg-white p-1 shadow-sm">
-              <Image
-                src="/icone-marca.png"
-                alt="FisioTrainer"
-                width={3375}
-                height={3375}
-                className="h-8 w-8 object-contain"
-              />
-            </div>
-            FisioTrainer
-          </SheetTitle>
+          <SheetTitle className="sr-only">FisioTrainer</SheetTitle>
+          <Image
+            src="/logo-sidebar.png"
+            alt="FisioTrainer"
+            width={3176}
+            height={1572}
+            className="h-auto w-36 object-contain px-2"
+          />
         </SheetHeader>
         <div className="px-3 py-2">
           <NavLinks onNavigate={() => setOpen(false)} />
