@@ -13,11 +13,11 @@ export function Sidebar() {
       <div className="flex h-20 items-center gap-2 border-b border-sidebar-border/60 px-6">
         <div className="flex items-center justify-center rounded-lg bg-white p-1.5 shadow-sm">
           <Image
-            src="/logo.png"
+            src="/icone-marca.png"
             alt="FisioTrainer"
-            width={523}
-            height={342}
-            className="h-auto w-9 object-contain"
+            width={3375}
+            height={3375}
+            className="h-9 w-9 object-contain"
           />
         </div>
         <span className="text-lg font-semibold tracking-tight">

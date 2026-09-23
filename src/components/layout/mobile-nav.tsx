@@ -34,13 +34,15 @@ export function MobileNav() {
       >
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2 text-sidebar-foreground">
-            <Image
-              src="/logo.png"
-              alt="FisioTrainer"
-              width={523}
-              height={342}
-              className="h-auto w-10 object-contain"
-            />
+            <div className="flex items-center justify-center rounded-lg bg-white p-1 shadow-sm">
+              <Image
+                src="/icone-marca.png"
+                alt="FisioTrainer"
+                width={3375}
+                height={3375}
+                className="h-8 w-8 object-contain"
+              />
+            </div>
             FisioTrainer
           </SheetTitle>
         </SheetHeader>
