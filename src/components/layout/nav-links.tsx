@@ -17,7 +17,7 @@ const linkClasses = (isActive: boolean) =>
     "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all",
     "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground",
     isActive &&
-      "bg-sidebar-accent text-sidebar-foreground shadow-sm shadow-black/10 [&_svg]:text-sidebar-primary",
+      "bg-sidebar-accent text-sidebar-primary shadow-sm shadow-black/10 [&_svg]:text-sidebar-primary",
   );
 
 function NavGroup({
