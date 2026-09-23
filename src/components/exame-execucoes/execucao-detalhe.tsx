@@ -5,7 +5,7 @@ import { parseSelecionadas } from "@/lib/multipla-escolha";
 
 export type Execucao = NonNullable<Awaited<ReturnType<typeof getExecucao>>>;
 
-function ValorColuna({
+export function ValorColuna({
   tipo,
   multiplaSelecao,
   valor,

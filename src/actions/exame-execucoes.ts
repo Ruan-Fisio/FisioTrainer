@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { exameExecucaoSchema } from "@/lib/validations/exame-execucao";
 import { montarComparativo } from "@/lib/relatorio-comparativo";
+import { montarLinhasComparacaoRapida } from "@/lib/comparacao-rapida";
 
 export async function listAllExamesCompletos() {
   return prisma.exame.findMany({
@@ -150,6 +151,55 @@ export async function getComparativo(avaliacaoId: string, retornoId: string) {
     },
     avaliacaoData: avaliacao.data,
     retornoData: retorno.data,
+    secoes,
+  };
+}
+
+export async function getComparacaoRapida(
+  avaliacaoId: string,
+  execucaoIds: string[],
+) {
+  const avaliacao = await prisma.exameExecucao.findUnique({
+    where: { id: avaliacaoId },
+    include: {
+      exame: {
+        include: {
+          secoes: {
+            orderBy: { ordem: "asc" },
+            include: {
+              campos: {
+                orderBy: { ordem: "asc" },
+                include: { colunas: { orderBy: { ordem: "asc" } } },
+              },
+            },
+          },
+        },
+      },
+      valores: true,
+    },
+  });
+
+  if (!avaliacao || avaliacao.tipo !== "AVALIACAO") return null;
+
+  const idsUnicos = Array.from(new Set(execucaoIds));
+
+  const retornos = await prisma.exameExecucao.findMany({
+    where: { id: { in: idsUnicos }, avaliacaoId },
+    include: { valores: true },
+  });
+
+  if (retornos.length !== idsUnicos.length) return null;
+
+  const execucoes = [
+    { id: avaliacao.id, tipo: avaliacao.tipo, data: avaliacao.data, valores: avaliacao.valores },
+    ...retornos.map((r) => ({ id: r.id, tipo: r.tipo, data: r.data, valores: r.valores })),
+  ].sort((a, b) => a.data.getTime() - b.data.getTime());
+
+  const secoes = montarLinhasComparacaoRapida(avaliacao.exame, execucoes);
+
+  return {
+    exame: { id: avaliacao.exame.id, nome: avaliacao.exame.nome },
+    execucoes: execucoes.map((e) => ({ id: e.id, tipo: e.tipo, data: e.data })),
     secoes,
   };
 }

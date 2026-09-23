@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ExecucaoDetailActions } from "@/components/exame-execucoes/execucao-detail-actions";
 import { ExecucaoValores } from "@/components/exame-execucoes/execucao-detalhe";
+import { ComparacaoRapidaDialog } from "@/components/exame-execucoes/comparacao-rapida-dialog";
 import { formatarDataHora } from "@/lib/format";
 
 export default async function ExecucaoDetailPage({
@@ -37,6 +38,13 @@ export default async function ExecucaoDetailPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {execucao.tipo === "AVALIACAO" && execucao.retornos.length > 0 && (
+            <ComparacaoRapidaDialog
+              avaliacaoId={execucaoId}
+              avaliacaoData={execucao.data}
+              retornos={execucao.retornos}
+            />
+          )}
           {execucao.tipo === "AVALIACAO" && (
             <Button asChild size="sm">
               <Link href={`/pacientes/${id}/exames/${execucaoId}/retorno`}>

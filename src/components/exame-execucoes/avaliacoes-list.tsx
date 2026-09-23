@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ComparacaoRapidaDialog } from "@/components/exame-execucoes/comparacao-rapida-dialog";
 import type { getAvaliacoesByPaciente } from "@/actions/exame-execucoes";
 import { formatarDataHora as formatarData } from "@/lib/format";
 
@@ -78,7 +79,14 @@ function AvaliacoesListContent({
               </div>
               <ChevronRight className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
             </Link>
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              {avaliacao.retornos.length > 0 && (
+                <ComparacaoRapidaDialog
+                  avaliacaoId={avaliacao.id}
+                  avaliacaoData={avaliacao.data}
+                  retornos={avaliacao.retornos}
+                />
+              )}
               <Button size="sm" asChild>
                 <Link
                   href={`/pacientes/${pacienteId}/exames/${avaliacao.id}/retorno`}
