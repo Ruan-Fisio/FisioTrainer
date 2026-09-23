@@ -29,6 +29,7 @@ export default async function EditarExamePage({
           nome: exame.nome,
           descricao: exame.descricao ?? "",
           tipo: exame.tipo,
+          sombra: exame.sombra,
           secoes: exame.secoes.map((secao) => ({
             id: secao.id,
             nome: secao.nome,

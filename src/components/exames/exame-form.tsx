@@ -637,6 +637,7 @@ export function ExameForm({
     nome: string;
     descricao: string;
     tipo: "FISIOTERAPIA" | "EDUCACAO_FISICA";
+    sombra: boolean;
     secoes: SecaoDraft[];
   };
   mode: "create" | "edit";
@@ -647,6 +648,7 @@ export function ExameForm({
   const [tipoExame, setTipoExame] = useState<
     "FISIOTERAPIA" | "EDUCACAO_FISICA"
   >(defaultValues?.tipo ?? "FISIOTERAPIA");
+  const [sombra, setSombra] = useState(defaultValues?.sombra ?? false);
   const [secoes, setSecoes] = useState<SecaoDraft[]>(
     defaultValues?.secoes && defaultValues.secoes.length > 0
       ? defaultValues.secoes
@@ -1025,6 +1027,7 @@ export function ExameForm({
       className="flex max-w-3xl flex-1 flex-col gap-6 pb-24"
     >
       <input type="hidden" name="secoes" value={JSON.stringify(secoes)} />
+      <input type="hidden" name="sombra" value={sombra ? "true" : "false"} />
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="nome">Nome do exame</Label>
@@ -1063,6 +1066,18 @@ export function ExameForm({
           <option value="EDUCACAO_FISICA">Educação Física</option>
         </select>
       </div>
+
+      <label
+        onClick={(e) => {
+          e.preventDefault();
+          setSombra((v) => !v);
+        }}
+        className="flex min-h-8 cursor-pointer items-center gap-2 text-sm select-none"
+      >
+        <Checkbox checked={sombra} tabIndex={-1} className="pointer-events-none" />
+        Exame sombra (retornos vêm pré-preenchidos com os valores do exame
+        anterior)
+      </label>
 
       {/* Mobile: uma seção por vez, como um passo-a-passo */}
       <div className="flex flex-col gap-4 md:hidden">

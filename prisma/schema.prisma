@@ -93,6 +93,7 @@ model Exame {
   nome          String
   descricao     String?
   tipo          TipoExame       @default(FISIOTERAPIA)
+  sombra        Boolean         @default(false)
   versaoAtual   Boolean         @default(true)
   exameOrigemId String?
   origem        Exame?          @relation("VersoesExame", fields: [exameOrigemId], references: [id], onDelete: SetNull)

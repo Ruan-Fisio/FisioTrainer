@@ -1,7 +1,12 @@
 import { notFound } from "next/navigation";
-import { createRetorno, getExecucao } from "@/actions/exame-execucoes";
+import {
+  createRetorno,
+  getExecucao,
+  getExecucaoAnteriorParaRetorno,
+} from "@/actions/exame-execucoes";
 import { listAllMovimentos } from "@/actions/movimentos";
 import { ExameExecucaoForm } from "@/components/exame-execucoes/exame-execucao-form";
+import { montarValoresSombra } from "@/lib/exame-sombra";
 import { parseGoniometriaValor } from "@/lib/goniometria";
 
 type Avaliacao = NonNullable<Awaited<ReturnType<typeof getExecucao>>>;
@@ -34,6 +39,12 @@ function valoresIniciaisRetorno(avaliacao: Avaliacao) {
     .filter((v) => v.valor !== "[]");
 }
 
+function colunasDoExame(avaliacao: Avaliacao) {
+  return avaliacao.exame.secoes.flatMap((secao) =>
+    secao.campos.flatMap((campo) => campo.colunas.map((coluna) => ({ id: coluna.id }))),
+  );
+}
+
 export default async function NovoRetornoPage({
   params,
 }: {
@@ -41,14 +52,22 @@ export default async function NovoRetornoPage({
 }) {
   const { id, execucaoId } = await params;
 
-  const [avaliacao, movimentos] = await Promise.all([
-    getExecucao(execucaoId),
-    listAllMovimentos(),
-  ]);
+  const avaliacao = await getExecucao(execucaoId);
 
   if (!avaliacao || avaliacao.pacienteId !== id || avaliacao.tipo !== "AVALIACAO") {
     notFound();
   }
+
+  const [execucaoAnterior, movimentos] = await Promise.all([
+    avaliacao.exame.sombra
+      ? getExecucaoAnteriorParaRetorno(id, avaliacao.exame.id)
+      : Promise.resolve(null),
+    listAllMovimentos(),
+  ]);
+
+  const defaultValores = avaliacao.exame.sombra
+    ? montarValoresSombra(execucaoAnterior?.valores ?? [], colunasDoExame(avaliacao))
+    : valoresIniciaisRetorno(avaliacao);
 
   const createRetornoWithIds = createRetorno.bind(null, id, execucaoId);
 
@@ -66,7 +85,8 @@ export default async function NovoRetornoPage({
         exames={[avaliacao.exame]}
         movimentos={movimentos}
         fixedExameId={avaliacao.exame.id}
-        defaultValores={valoresIniciaisRetorno(avaliacao)}
+        defaultValores={defaultValores}
+        valoresSombra={avaliacao.exame.sombra ? defaultValores : undefined}
         cancelHref={`/pacientes/${id}/exames/${execucaoId}`}
         successLabel="Retorno registrado com sucesso."
       />

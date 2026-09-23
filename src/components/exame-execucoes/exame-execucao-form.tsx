@@ -15,6 +15,7 @@ import {
   GoniometriaField,
   type MovimentoOption,
 } from "@/components/exame-execucoes/goniometria-field";
+import { valorPreenchido } from "@/lib/exame-sombra";
 import { parseGoniometriaValor } from "@/lib/goniometria";
 import { parseSelecionadas, toggleSelecionada } from "@/lib/multipla-escolha";
 
@@ -70,16 +71,23 @@ function chaveValor(colunaId: string, linhaId: string) {
 function construirEstadoInicial(
   exame: ExameCompleto | undefined,
   defaultValores: { colunaId: string; valor: string; linha: number }[] | undefined,
+  valoresSombra: { colunaId: string; valor: string; linha: number }[] | undefined,
 ) {
   const valores: Record<string, string> = {};
   const linhasPorCampo: Record<string, string[]> = {};
+  const chavesSombraIniciais = new Set<string>();
 
   if (!exame || !defaultValores || defaultValores.length === 0) {
-    return { valores, linhasPorCampo };
+    return { valores, linhasPorCampo, chavesSombraIniciais };
   }
 
   const valorPorColunaLinha = new Map(
     defaultValores.map((v) => [`${v.colunaId}::${v.linha}`, v.valor]),
+  );
+  const sombraColunaLinha = new Set(
+    (valoresSombra ?? [])
+      .filter((v) => valorPreenchido(v.valor))
+      .map((v) => `${v.colunaId}::${v.linha}`),
   );
 
   for (const secao of exame.secoes) {
@@ -102,16 +110,20 @@ function construirEstadoInicial(
       linhasOrdenadas.forEach((numeroLinha, idx) => {
         const linhaId = campo.repetivel ? linhaIds[idx] : LINHA_UNICA;
         for (const colunaId of colunaIds) {
-          const valor = valorPorColunaLinha.get(`${colunaId}::${numeroLinha}`);
+          const chaveOrigem = `${colunaId}::${numeroLinha}`;
+          const valor = valorPorColunaLinha.get(chaveOrigem);
           if (valor !== undefined) {
             valores[chaveValor(colunaId, linhaId)] = valor;
+            if (sombraColunaLinha.has(chaveOrigem)) {
+              chavesSombraIniciais.add(chaveValor(colunaId, linhaId));
+            }
           }
         }
       });
     }
   }
 
-  return { valores, linhasPorCampo };
+  return { valores, linhasPorCampo, chavesSombraIniciais };
 }
 
 function SecaoFields({
@@ -122,6 +134,8 @@ function SecaoFields({
   addLinha,
   removeLinha,
   movimentos,
+  camposSombraPendentes,
+  colunaOculta,
 }: {
   secao: Secao;
   linhasDoCampo: (campoId: string, repetivel: boolean) => string[];
@@ -130,14 +144,38 @@ function SecaoFields({
   addLinha: (campoId: string) => void;
   removeLinha: (campoId: string, linhaId: string) => void;
   movimentos: MovimentoOption[];
+  camposSombraPendentes: Set<string>;
+  colunaOculta: (colunaId: string, linhaId: string) => boolean;
 }) {
+  const campoTemColunaVisivel = (campo: Secao["campos"][number]) =>
+    linhasDoCampo(campo.id, campo.repetivel).some((linhaId) =>
+      campo.colunas.some((coluna) => !colunaOculta(coluna.id, linhaId)),
+    );
+  const camposVisiveis = secao.campos.filter(campoTemColunaVisivel);
+
+  if (camposVisiveis.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{secao.nome}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">
+            Nenhum campo com valor anterior nesta seção — use &quot;Mostrar
+            todos os campos&quot; para preencher do zero.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-base">{secao.nome}</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {secao.campos.map((campo) => {
+        {camposVisiveis.map((campo) => {
           const linhas = linhasDoCampo(campo.id, campo.repetivel);
           return (
             <div key={campo.id} className="flex flex-col gap-2">
@@ -145,7 +183,12 @@ function SecaoFields({
                 <Label className="text-sm font-medium">{campo.nome}</Label>
               )}
               <div className="flex flex-col gap-3">
-                {linhas.map((linhaId, linhaIndex) => (
+                {linhas.map((linhaId, linhaIndex) => {
+                  const colunasVisiveis = campo.colunas.filter(
+                    (coluna) => !colunaOculta(coluna.id, linhaId),
+                  );
+                  if (colunasVisiveis.length === 0) return null;
+                  return (
                   <div
                     key={linhaId}
                     className={
@@ -173,13 +216,18 @@ function SecaoFields({
                       </div>
                     )}
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      {campo.colunas.map((coluna) => {
-                        const valorAtual =
-                          valores[chaveValor(coluna.id, linhaId)] ?? "";
+                      {colunasVisiveis.map((coluna) => {
+                        const chave = chaveValor(coluna.id, linhaId);
+                        const valorAtual = valores[chave] ?? "";
+                        const ehSombra = camposSombraPendentes.has(chave);
                         return (
                           <div
                             key={coluna.id}
-                            className="flex flex-col gap-1.5"
+                            className={`flex flex-col gap-1.5 rounded-md ${
+                              ehSombra
+                                ? "border border-amber-500/40 bg-amber-500/5 p-2"
+                                : ""
+                            }`}
                           >
                             <Label className="text-xs text-muted-foreground">
                               {coluna.titulo}
@@ -301,12 +349,18 @@ function SecaoFields({
                                 }
                               />
                             )}
+                            {ehSombra && (
+                              <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                                Valor anterior — edite se mudou
+                              </p>
+                            )}
                           </div>
                         );
                       })}
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
               {campo.repetivel && (
                 <Button
@@ -333,6 +387,7 @@ export function ExameExecucaoForm({
   exames,
   fixedExameId,
   defaultValores,
+  valoresSombra,
   cancelHref,
   successLabel,
   movimentos,
@@ -344,6 +399,7 @@ export function ExameExecucaoForm({
   exames: ExameCompleto[];
   fixedExameId?: string;
   defaultValores?: { colunaId: string; valor: string; linha: number }[];
+  valoresSombra?: { colunaId: string; valor: string; linha: number }[];
   cancelHref: string;
   successLabel: string;
   movimentos: MovimentoOption[];
@@ -372,6 +428,7 @@ export function ExameExecucaoForm({
       construirEstadoInicial(
         exames.find((e) => e.id === exameId),
         defaultValores,
+        valoresSombra,
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
@@ -382,6 +439,10 @@ export function ExameExecucaoForm({
   const [linhasPorCampo, setLinhasPorCampo] = useState<
     Record<string, string[]>
   >(estadoInicial.linhasPorCampo);
+  const [camposSombraPendentes, setCamposSombraPendentes] = useState<
+    Set<string>
+  >(estadoInicial.chavesSombraIniciais);
+  const [ocultarSemHistorico, setOcultarSemHistorico] = useState(false);
 
   const exame = useMemo(
     () => exames.find((e) => e.id === exameId),
@@ -399,6 +460,7 @@ export function ExameExecucaoForm({
     setExameId(id);
     setValores({});
     setLinhasPorCampo({});
+    setCamposSombraPendentes(new Set());
     setPassoAtual(0);
   }
 
@@ -410,12 +472,43 @@ export function ExameExecucaoForm({
 
   function updateValor(colunaId: string, linhaId: string, value: string) {
     setValores((prev) => ({ ...prev, [chaveValor(colunaId, linhaId)]: value }));
+    setCamposSombraPendentes((prev) => {
+      const chave = chaveValor(colunaId, linhaId);
+      if (!prev.has(chave)) return prev;
+      const next = new Set(prev);
+      next.delete(chave);
+      return next;
+    });
   }
 
   function linhasDoCampo(campoId: string, repetivel: boolean) {
     if (!repetivel) return [LINHA_UNICA];
     return linhasPorCampo[campoId] ?? [LINHA_UNICA];
   }
+
+  // Baseado no snapshot inicial (estadoInicial), não em `valores` — ocultar não
+  // deve reagir ao que o usuário digita, só ao que a execução anterior tinha.
+  function colunaOculta(colunaId: string, linhaId: string) {
+    if (!ocultarSemHistorico) return false;
+    return !estadoInicial.chavesSombraIniciais.has(chaveValor(colunaId, linhaId));
+  }
+
+  const existeColunaSemHistorico = Boolean(
+    valoresSombra &&
+      valoresSombra.length > 0 &&
+      exame?.secoes.some((secao) =>
+        secao.campos.some((campo) =>
+          linhasDoCampo(campo.id, campo.repetivel).some((linhaId) =>
+            campo.colunas.some(
+              (coluna) =>
+                !estadoInicial.chavesSombraIniciais.has(
+                  chaveValor(coluna.id, linhaId),
+                ),
+            ),
+          ),
+        ),
+      ),
+  );
 
   function addLinha(campoId: string) {
     setLinhasPorCampo((prev) => ({
@@ -524,6 +617,20 @@ export function ExameExecucaoForm({
             </div>
           )}
 
+          {existeColunaSemHistorico && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-fit"
+              onClick={() => setOcultarSemHistorico((v) => !v)}
+            >
+              {ocultarSemHistorico
+                ? "Mostrar todos os campos"
+                : "Ocultar campos sem valor anterior"}
+            </Button>
+          )}
+
           {exame && secoes.length === 0 && (
         <p className="text-sm text-muted-foreground">
           Este exame não possui seções cadastradas.
@@ -546,6 +653,8 @@ export function ExameExecucaoForm({
             addLinha={addLinha}
             removeLinha={removeLinha}
             movimentos={movimentos}
+            camposSombraPendentes={camposSombraPendentes}
+            colunaOculta={colunaOculta}
           />
           {totalPassos > 1 && (
             <div className="flex items-center justify-between gap-2">
@@ -586,6 +695,8 @@ export function ExameExecucaoForm({
             addLinha={addLinha}
             removeLinha={removeLinha}
             movimentos={movimentos}
+            camposSombraPendentes={camposSombraPendentes}
+            colunaOculta={colunaOculta}
           />
         ))}
       </div>

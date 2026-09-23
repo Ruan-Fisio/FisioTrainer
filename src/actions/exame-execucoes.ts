@@ -65,6 +65,22 @@ export async function getExecucao(id: string) {
   });
 }
 
+/**
+ * Execução mais recente do paciente para um exame (Avaliação ou Retorno,
+ * o que for mais novo) — usada pra pré-preencher um novo Retorno de um
+ * "Exame Sombra" com os valores anteriores.
+ */
+export async function getExecucaoAnteriorParaRetorno(
+  pacienteId: string,
+  exameId: string,
+) {
+  return prisma.exameExecucao.findFirst({
+    where: { pacienteId, exameId },
+    orderBy: { data: "desc" },
+    include: { valores: true },
+  });
+}
+
 export async function getComparativo(avaliacaoId: string, retornoId: string) {
   const [avaliacao, retorno, movimentos] = await Promise.all([
     prisma.exameExecucao.findUnique({

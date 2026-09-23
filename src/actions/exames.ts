@@ -67,6 +67,7 @@ function parseExameForm(formData: FormData) {
   const nome = formData.get("nome");
   const descricao = formData.get("descricao");
   const tipo = formData.get("tipo");
+  const sombra = formData.get("sombra") === "true";
   const secoesRaw = formData.get("secoes");
 
   let secoes: unknown = [];
@@ -77,7 +78,7 @@ function parseExameForm(formData: FormData) {
     return null;
   }
 
-  return exameSchema.safeParse({ nome, descricao, tipo, secoes });
+  return exameSchema.safeParse({ nome, descricao, tipo, sombra, secoes });
 }
 
 const OPCOES_MEMBRO = ["Esquerdo", "Direito", "Bilateral"];
@@ -191,6 +192,7 @@ export async function createExame(
       nome: parsed.data.nome,
       descricao: parsed.data.descricao || null,
       tipo: parsed.data.tipo,
+      sombra: parsed.data.sombra,
       secoes: { create: secoesCreateData(parsed.data.secoes) },
     },
   });
@@ -291,6 +293,7 @@ async function updateExameInPlace(id: string, data: ExameFormData) {
       nome: data.nome,
       descricao: data.descricao || null,
       tipo: data.tipo,
+      sombra: data.sombra,
       secoes: {
         deleteMany:
           secoesMantidas.length > 0 ? { id: { notIn: secoesMantidas } } : {},
@@ -336,6 +339,7 @@ async function criarNovaVersaoExame(id: string, data: ExameFormData) {
         nome: data.nome,
         descricao: data.descricao || null,
         tipo: data.tipo,
+        sombra: data.sombra,
         versaoAtual: true,
         exameOrigemId: id,
         secoes: { create: secoesCreateData(data.secoes) },
