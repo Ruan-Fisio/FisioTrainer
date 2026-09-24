@@ -162,6 +162,7 @@ export async function getComparacaoRapida(
   const avaliacao = await prisma.exameExecucao.findUnique({
     where: { id: avaliacaoId },
     include: {
+      paciente: { select: { id: true, nome: true } },
       exame: {
         include: {
           secoes: {
@@ -198,6 +199,7 @@ export async function getComparacaoRapida(
   const secoes = montarLinhasComparacaoRapida(avaliacao.exame, execucoes);
 
   return {
+    paciente: avaliacao.paciente,
     exame: { id: avaliacao.exame.id, nome: avaliacao.exame.nome },
     execucoes: execucoes.map((e) => ({ id: e.id, tipo: e.tipo, data: e.data })),
     secoes,

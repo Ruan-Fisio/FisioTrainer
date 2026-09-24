@@ -1,3 +1,5 @@
+import { parseNumero } from "@/lib/relatorio-comparativo";
+
 export type ComparacaoRapidaColuna = {
   id: string;
   titulo: string;
@@ -117,4 +119,57 @@ export function montarLinhasComparacaoRapida(
 
     return { id: secao.id, nome: secao.nome, linhas };
   });
+}
+
+export type SerieNumericaPonto = {
+  execucaoId: string;
+  valor: number | null;
+};
+
+export type SerieNumerica = {
+  chave: string;
+  titulo: string;
+  unidade: string | null;
+  pontos: SerieNumericaPonto[];
+};
+
+/**
+ * Extrai, das linhas já montadas por `montarLinhasComparacaoRapida`, uma
+ * série por coluna do tipo NUMERO — pra desenhar um gráfico de linha da
+ * evolução daquele valor ao longo das execuções selecionadas. Ignora
+ * colunas sem nenhum valor numérico em nenhuma execução (nada pra
+ * mostrar). Não usa `numeroParaGrafico` (que também deriva número de
+ * SIM_NAO/múltipla escolha) — aqui só o que é literalmente numérico.
+ */
+export function montarSeriesNumericas(
+  secoes: SecaoComparacaoRapida[],
+  execucaoIds: string[],
+): SerieNumerica[] {
+  const series: SerieNumerica[] = [];
+
+  for (const secao of secoes) {
+    for (const linha of secao.linhas) {
+      if (linha.coluna.tipo !== "NUMERO") continue;
+
+      const pontos = execucaoIds.map((execucaoId) => ({
+        execucaoId,
+        valor: parseNumero(linha.valoresPorExecucaoId.get(execucaoId)),
+      }));
+
+      if (pontos.every((p) => p.valor === null)) continue;
+
+      const titulo = linha.campoNome
+        ? `${linha.campoNome} — ${linha.coluna.titulo}`
+        : linha.coluna.titulo;
+
+      series.push({
+        chave: `${linha.coluna.id}::${linha.linha}`,
+        titulo: linha.repetivel ? `${titulo} (Entrada ${linha.linha + 1})` : titulo,
+        unidade: linha.coluna.formatacao ?? null,
+        pontos,
+      });
+    }
+  }
+
+  return series;
 }

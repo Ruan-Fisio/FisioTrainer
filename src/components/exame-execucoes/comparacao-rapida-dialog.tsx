@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { Columns3 } from "lucide-react";
+import { useMemo, useState, useTransition } from "react";
+import { Columns3, Download } from "lucide-react";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -17,6 +17,8 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { getComparacaoRapida } from "@/actions/exame-execucoes";
 import { ValorColuna } from "@/components/exame-execucoes/execucao-detalhe";
+import { ComparacaoRapidaGrafico } from "@/components/exame-execucoes/comparacao-rapida-grafico";
+import { montarSeriesNumericas } from "@/lib/comparacao-rapida";
 import { formatarData } from "@/lib/format";
 
 type Retorno = { id: string; data: Date };
@@ -37,6 +39,11 @@ export function ComparacaoRapidaDialog({
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [pending, startTransition] = useTransition();
+
+  const series = useMemo(
+    () => (resultado ? montarSeriesNumericas(resultado.secoes, resultado.execucoes.map((e) => e.id)) : []),
+    [resultado],
+  );
 
   function toggleRetorno(id: string) {
     setSelecionados((prev) => {
@@ -197,6 +204,23 @@ export function ComparacaoRapidaDialog({
                   </div>
                 </div>
               ))}
+
+              {series.length > 0 && (
+                <div className="flex flex-col gap-2">
+                  <h3 className="text-sm font-semibold">
+                    Evolução dos valores numéricos
+                  </h3>
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {series.map((serie) => (
+                      <ComparacaoRapidaGrafico
+                        key={serie.chave}
+                        serie={serie}
+                        execucoes={resultado.execucoes}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             <DialogFooter>
@@ -206,6 +230,16 @@ export function ComparacaoRapidaDialog({
                 onClick={() => setStep("selecao")}
               >
                 Voltar
+              </Button>
+              <Button asChild variant="outline">
+                <a
+                  href={`/api/execucoes/${avaliacaoId}/comparacao-rapida-pdf?execucoes=${resultado.execucoes.filter((e) => e.id !== avaliacaoId).map((e) => e.id).join(",")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <Download />
+                  Baixar PDF
+                </a>
               </Button>
               <Button type="button" onClick={() => handleOpenChange(false)}>
                 Fechar
