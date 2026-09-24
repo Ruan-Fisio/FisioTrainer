@@ -157,10 +157,14 @@ function SecaoTabelaRapida({
 
 const CHART_WIDTH = 480;
 const CHART_HEIGHT = 90;
-const CHART_PAD_LEFT = 8;
 const CHART_PAD_RIGHT = 8;
 const CHART_PAD_TOP = 14;
 const CHART_LABEL_ALTURA = 16;
+const CHART_EIXO_TICK = 3;
+
+function arredondar(v: number) {
+  return Math.round(v * 100) / 100;
+}
 
 function GraficoLinha({
   serie,
@@ -177,12 +181,20 @@ function GraficoLinha({
   const max = Math.max(...preenchidos);
   const amplitude = max - min || 1;
   const n = valores.length;
-  const plotWidth = CHART_WIDTH - CHART_PAD_LEFT - CHART_PAD_RIGHT;
+  const sufixo = serie.unidade ? ` ${serie.unidade}` : "";
+
+  const ticksEixo = min === max ? [min] : [min, (min + max) / 2, max];
+  const rotulosEixo = ticksEixo.map((t) => `${arredondar(t)}${sufixo}`);
+  const maiorRotulo = Math.max(...rotulosEixo.map((r) => r.length));
+  // Régua de valores à esquerda: a largura reservada acompanha o rótulo
+  // mais longo (ex. unidade tipo "bpm" precisa de mais espaço que "%").
+  const padLeft = 12 + maiorRotulo * 3.3;
+  const plotWidth = CHART_WIDTH - padLeft - CHART_PAD_RIGHT;
 
   function coordX(i: number) {
     return n === 1
-      ? CHART_PAD_LEFT + plotWidth / 2
-      : CHART_PAD_LEFT + (i / (n - 1)) * plotWidth;
+      ? padLeft + plotWidth / 2
+      : padLeft + (i / (n - 1)) * plotWidth;
   }
   function coordY(v: number) {
     return CHART_PAD_TOP + CHART_HEIGHT - ((v - min) / amplitude) * CHART_HEIGHT;
@@ -202,7 +214,6 @@ function GraficoLinha({
   });
   if (atual.length > 0) segmentos.push(atual);
 
-  const sufixo = serie.unidade ? ` ${serie.unidade}` : "";
   const alturaSvg = CHART_PAD_TOP + CHART_HEIGHT + CHART_LABEL_ALTURA;
 
   /** Nos extremos, ancorar a partir da borda em vez de centralizar evita que
@@ -225,13 +236,45 @@ function GraficoLinha({
       </Text>
       <Svg width={CHART_WIDTH} height={alturaSvg}>
         <Line
-          x1={CHART_PAD_LEFT}
+          x1={padLeft}
           y1={CHART_PAD_TOP + CHART_HEIGHT}
           x2={CHART_WIDTH - CHART_PAD_RIGHT}
           y2={CHART_PAD_TOP + CHART_HEIGHT}
           stroke={CORES.borda}
           strokeWidth={1}
         />
+        <Line
+          x1={padLeft}
+          y1={CHART_PAD_TOP}
+          x2={padLeft}
+          y2={CHART_PAD_TOP + CHART_HEIGHT}
+          stroke={CORES.borda}
+          strokeWidth={1}
+        />
+        {ticksEixo.map((t, i) => {
+          const ty = coordY(t);
+          return (
+            <Line
+              key={`tick-${i}`}
+              x1={padLeft - CHART_EIXO_TICK}
+              y1={ty}
+              x2={padLeft}
+              y2={ty}
+              stroke={CORES.borda}
+              strokeWidth={1}
+            />
+          );
+        })}
+        {ticksEixo.map((t, i) => (
+          <Text
+            key={`tick-label-${i}`}
+            x={padLeft - CHART_EIXO_TICK - 2}
+            y={coordY(t) + 2}
+            style={{ fontSize: 6, fill: CORES.mutedTexto, textAnchor: "end" }}
+          >
+            {rotulosEixo[i]}
+          </Text>
+        ))}
         {segmentos.map((segmento, i) => (
           <Polyline
             key={i}
@@ -254,7 +297,7 @@ function GraficoLinha({
               y={coordY(v) - 6}
               style={{ fontSize: 6.5, fontWeight: 700, fill: CORES.primary, textAnchor: textAnchor(i) }}
             >
-              {`${Math.round(v * 100) / 100}${sufixo}`}
+              {`${arredondar(v)}${sufixo}`}
             </Text>
           ),
         )}

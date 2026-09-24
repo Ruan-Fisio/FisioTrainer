@@ -1,6 +1,6 @@
 "use client";
 
-import { CartesianGrid, Line, LineChart, XAxis } from "recharts";
+import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
 import {
   ChartContainer,
   ChartTooltip,
@@ -26,18 +26,13 @@ export function ComparacaoRapidaGrafico({
     valor: ponto.valor,
   }));
 
-  const valoresPreenchidos = serie.pontos
-    .map((p) => p.valor)
-    .filter((v): v is number => v !== null);
-  const min = Math.min(...valoresPreenchidos);
-  const max = Math.max(...valoresPreenchidos);
   const sufixo = serie.unidade ? ` ${serie.unidade}` : "";
 
   return (
     <div className="flex flex-col gap-1 rounded-md border p-3">
       <p className="text-xs font-medium">{serie.titulo}</p>
       <ChartContainer config={config} className="aspect-auto h-[160px] w-full">
-        <LineChart data={dados} margin={{ left: 4, right: 4, top: 8 }}>
+        <LineChart data={dados} margin={{ left: 0, right: 4, top: 8 }}>
           <CartesianGrid vertical={false} />
           <XAxis
             dataKey="data"
@@ -45,6 +40,13 @@ export function ComparacaoRapidaGrafico({
             axisLine={false}
             tickMargin={8}
             minTickGap={16}
+          />
+          <YAxis
+            tickLine={false}
+            axisLine={false}
+            width={sufixo ? 48 : 32}
+            tickMargin={4}
+            tickFormatter={(value) => `${value}${sufixo}`}
           />
           <ChartTooltip
             content={
@@ -67,13 +69,6 @@ export function ComparacaoRapidaGrafico({
           />
         </LineChart>
       </ChartContainer>
-      {valoresPreenchidos.length > 0 && (
-        <p className="text-right text-xs text-muted-foreground">
-          mín: {min}
-          {sufixo} · máx: {max}
-          {sufixo}
-        </p>
-      )}
     </div>
   );
 }
