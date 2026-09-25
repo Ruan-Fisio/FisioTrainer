@@ -12,13 +12,14 @@ import {
   sequenciaMeses,
   type CobrancaLinha,
 } from "@/lib/financeiro";
+import { whereFiltrosComuns, type FiltrosAgendamentoComuns } from "@/lib/agendamento-filtros";
 
 export type PeriodoProximos = "dia" | "semana" | "mes";
 
 /** Contagem de compromissos ainda por acontecer em cada janela, para o resumo do dashboard. */
-export async function getContagensAgenda() {
+export async function getContagensAgenda(filters: FiltrosAgendamentoComuns = {}) {
   const inicio = inicioDoDia();
-  const base = { status: "AGENDADO" as const };
+  const base = { status: "AGENDADO" as const, ...whereFiltrosComuns(filters) };
 
   const [dia, semana, mes] = await Promise.all([
     prisma.agendamento.count({
@@ -46,13 +47,20 @@ export async function getDashboardStats() {
 }
 
 /** Agendamentos futuros (retornos/reavaliações) ainda não realizados, dentro do período escolhido. */
-export async function getProximosAgendamentos(periodo: PeriodoProximos = "dia") {
+export async function getProximosAgendamentos(
+  periodo: PeriodoProximos = "dia",
+  filters: FiltrosAgendamentoComuns = {},
+) {
   const inicio = inicioDoDia();
   const fim =
     periodo === "dia" ? fimDoDia() : periodo === "semana" ? fimDaSemana() : fimDoMes();
 
   return prisma.agendamento.findMany({
-    where: { dataInicio: { gte: inicio, lte: fim }, status: { not: "CANCELADO" } },
+    where: {
+      dataInicio: { gte: inicio, lte: fim },
+      status: { not: "CANCELADO" },
+      ...whereFiltrosComuns(filters),
+    },
     orderBy: { dataInicio: "asc" },
     take: 200,
     include: {

@@ -1,9 +1,18 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Check, X, CalendarClock } from "lucide-react";
+import {
+  Check,
+  X,
+  CalendarClock,
+  ChevronDown,
+  Layers,
+  Stethoscope,
+  DoorOpen,
+  Briefcase,
+} from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,21 +24,38 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { RemarcarDialog } from "@/components/agendamentos/remarcar-dialog";
 import {
+  MODALIDADE_AGENDAMENTO_LABEL,
   STATUS_AGENDAMENTO_LABEL,
   modalidadeAgendamentoLabel,
 } from "@/components/agendamentos/agendamento-labels";
 import { cn } from "@/lib/utils";
 import { formatarDataHora, formatarDataExtenso, formatarHora } from "@/lib/format";
 import {
+  getContagensAgenda,
   getProximosAgendamentos,
   type PeriodoProximos,
 } from "@/actions/dashboard";
 import { atualizarStatusAgendamento } from "@/actions/agendamentos";
+import type { FiltrosAgendamentoComuns } from "@/lib/agendamento-filtros";
 
 type Agendamento = Awaited<ReturnType<typeof getProximosAgendamentos>>[number];
 type StatusMarcavel = "COMPARECEU" | "FALTOU";
+type Opcao = { id: string; label: string };
 
 const PERIODOS: { value: PeriodoProximos; label: string }[] = [
   { value: "dia", label: "Hoje" },
@@ -45,6 +71,93 @@ const MODALIDADE_COR: Record<string, string> = {
   TERAPIA_MANUAL: "bg-teal-500/10 text-teal-700 ring-teal-500/25 dark:text-teal-400",
 };
 
+const FILTROS_VAZIOS: FiltrosAgendamentoComuns = {
+  profissionalIds: [],
+  modalidades: [],
+  salaIds: [],
+  servicoIds: [],
+  planoHibrido: false,
+};
+
+/**
+ * Filtro multi-seleção do card do dashboard — mesma UX de `MultiSelectFilter`
+ * (`src/components/filters/`), mas controlado por estado local em vez da URL: o card já
+ * usa esse padrão pro seletor de período (`periodo`), então os novos filtros seguem o
+ * mesmo modelo em vez de misturar filtro por URL com filtro por estado no mesmo componente.
+ */
+function FiltroLocal({
+  label,
+  icon,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string;
+  icon?: ReactNode;
+  options: Opcao[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const selectedOptions = options.filter((o) => selected.includes(o.id));
+
+  function toggle(id: string) {
+    onChange(selected.includes(id) ? selected.filter((i) => i !== id) : [...selected, id]);
+  }
+
+  return (
+    <div className="flex shrink-0 flex-wrap items-center gap-2">
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="shrink-0 justify-between gap-2">
+            {icon}
+            {label}
+            {selected.length > 0 && (
+              <Badge variant="secondary" className="px-1.5">
+                {selected.length}
+              </Badge>
+            )}
+            <ChevronDown className="size-4 text-muted-foreground" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-64 p-0" align="start">
+          <Command>
+            <CommandInput placeholder="Buscar..." />
+            <CommandList>
+              <CommandEmpty>Nenhum resultado.</CommandEmpty>
+              <CommandGroup>
+                {options.map((option) => (
+                  <CommandItem
+                    key={option.id}
+                    data-checked={selected.includes(option.id)}
+                    onSelect={() => toggle(option.id)}
+                  >
+                    {option.label}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        </PopoverContent>
+      </Popover>
+
+      {selectedOptions.map((option) => (
+        <Badge key={option.id} variant="secondary" className="gap-1 pr-1">
+          {option.label}
+          <button
+            type="button"
+            onClick={() => toggle(option.id)}
+            className="rounded-full p-0.5 hover:bg-muted-foreground/20"
+          >
+            <X className="size-3" />
+            <span className="sr-only">Remover {option.label}</span>
+          </button>
+        </Badge>
+      ))}
+    </div>
+  );
+}
+
 function nomeParticipante(a: Agendamento) {
   return a.pacientes[0]?.nome ?? a.titulo;
 }
@@ -59,25 +172,48 @@ function chaveDia(d: Date) {
 
 export function AgendaResumoCard({
   agendamentosIniciais,
-  contagens,
+  contagens: contagensIniciais,
+  profissionais,
+  salas,
+  servicos,
 }: {
   agendamentosIniciais: Agendamento[];
   contagens: { dia: number; semana: number; mes: number };
+  profissionais: Opcao[];
+  salas: Opcao[];
+  servicos: Opcao[];
 }) {
   const [periodo, setPeriodo] = useState<PeriodoProximos>("dia");
+  const [filtros, setFiltros] = useState<FiltrosAgendamentoComuns>(FILTROS_VAZIOS);
   const [agendamentos, setAgendamentos] = useState(agendamentosIniciais);
+  const [contagens, setContagens] = useState(contagensIniciais);
   const [confirmacao, setConfirmacao] = useState<{
     agendamento: Agendamento;
     status: StatusMarcavel;
   } | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  function recarregar(novoPeriodo: PeriodoProximos, novosFiltros: FiltrosAgendamentoComuns) {
+    startTransition(async () => {
+      const [proximos, novasContagens] = await Promise.all([
+        getProximosAgendamentos(novoPeriodo, novosFiltros),
+        getContagensAgenda(novosFiltros),
+      ]);
+      setAgendamentos(proximos);
+      setContagens(novasContagens);
+    });
+  }
+
   function mudarPeriodo(novo: PeriodoProximos) {
     if (novo === periodo) return;
     setPeriodo(novo);
-    startTransition(async () => {
-      setAgendamentos(await getProximosAgendamentos(novo));
-    });
+    recarregar(novo, filtros);
+  }
+
+  function mudarFiltros(parcial: Partial<FiltrosAgendamentoComuns>) {
+    const novosFiltros = { ...filtros, ...parcial };
+    setFiltros(novosFiltros);
+    recarregar(periodo, novosFiltros);
   }
 
   function confirmarStatus() {
@@ -145,6 +281,50 @@ export function AgendaResumoCard({
               </button>
             );
           })}
+        </div>
+
+        <div className="-mx-4 flex items-center gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0 sm:pb-0">
+          <FiltroLocal
+            label="Profissional"
+            icon={<Stethoscope className="size-4 text-muted-foreground" />}
+            options={profissionais}
+            selected={filtros.profissionalIds ?? []}
+            onChange={(ids) => mudarFiltros({ profissionalIds: ids })}
+          />
+          <FiltroLocal
+            label="Modalidade"
+            icon={<CalendarClock className="size-4 text-muted-foreground" />}
+            options={Object.entries(MODALIDADE_AGENDAMENTO_LABEL).map(([id, label]) => ({
+              id,
+              label,
+            }))}
+            selected={filtros.modalidades ?? []}
+            onChange={(ids) => mudarFiltros({ modalidades: ids })}
+          />
+          <FiltroLocal
+            label="Sala"
+            icon={<DoorOpen className="size-4 text-muted-foreground" />}
+            options={salas}
+            selected={filtros.salaIds ?? []}
+            onChange={(ids) => mudarFiltros({ salaIds: ids })}
+          />
+          <FiltroLocal
+            label="Serviço"
+            icon={<Briefcase className="size-4 text-muted-foreground" />}
+            options={servicos}
+            selected={filtros.servicoIds ?? []}
+            onChange={(ids) => mudarFiltros({ servicoIds: ids })}
+          />
+          <Button
+            type="button"
+            variant={filtros.planoHibrido ? "default" : "outline"}
+            size="sm"
+            className={cn("shrink-0 gap-2", filtros.planoHibrido && "shadow-sm shadow-primary/20")}
+            onClick={() => mudarFiltros({ planoHibrido: !filtros.planoHibrido })}
+          >
+            <Layers className="size-4" />
+            Só planos híbridos
+          </Button>
         </div>
       </CardHeader>
 

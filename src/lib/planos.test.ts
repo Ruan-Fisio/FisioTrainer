@@ -9,8 +9,22 @@ import {
   gerarDatasVencimento,
   gerarValoresParcelas,
   maxParcelasPlano,
+  planoHibrido,
   valorPlano,
 } from "./planos";
+
+describe("planoHibrido", () => {
+  it("é híbrido quando tem os dois tipos fixos", () => {
+    expect(planoHibrido(["FISIOTERAPIA", "EDUCACAO_FISICA"])).toBe(true);
+    expect(planoHibrido(["EDUCACAO_FISICA", "FISIOTERAPIA"])).toBe(true);
+  });
+
+  it("não é híbrido com só 1 tipo ou nenhum", () => {
+    expect(planoHibrido(["FISIOTERAPIA"])).toBe(false);
+    expect(planoHibrido(["EDUCACAO_FISICA"])).toBe(false);
+    expect(planoHibrido([])).toBe(false);
+  });
+});
 
 describe("gerarValoresParcelas", () => {
   it("divide o valor igualmente quando é exato", () => {

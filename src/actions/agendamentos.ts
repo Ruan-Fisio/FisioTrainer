@@ -27,6 +27,7 @@ import {
 } from "@/lib/agendamento-checagens";
 import { vagasTotais } from "@/lib/sala-plano";
 import { MODALIDADE_AGENDAMENTO_LABEL } from "@/components/agendamentos/agendamento-labels";
+import { whereFiltrosComuns, type FiltrosAgendamentoComuns } from "@/lib/agendamento-filtros";
 import type { ModalidadeAgendamento } from "@/generated/prisma/enums";
 
 const PAGE_SIZE = 10;
@@ -39,10 +40,8 @@ const includePadrao = {
 };
 
 export async function listAgendamentos(
-  filters: {
+  filters: FiltrosAgendamentoComuns & {
     pacienteIds?: string[];
-    profissionalIds?: string[];
-    modalidades?: string[];
     status?: string[];
     de?: string;
     ate?: string;
@@ -54,14 +53,9 @@ export async function listAgendamentos(
   if (filters.ate) dataFilter.lte = new Date(`${filters.ate}T23:59:59`);
 
   const where = {
+    ...whereFiltrosComuns(filters),
     ...(filters.pacienteIds && filters.pacienteIds.length > 0
       ? { pacientes: { some: { id: { in: filters.pacienteIds } } } }
-      : {}),
-    ...(filters.profissionalIds && filters.profissionalIds.length > 0
-      ? { profissionalId: { in: filters.profissionalIds } }
-      : {}),
-    ...(filters.modalidades && filters.modalidades.length > 0
-      ? { modalidade: { in: filters.modalidades as ModalidadeAgendamento[] } }
       : {}),
     ...(filters.status && filters.status.length > 0
       ? {
@@ -97,18 +91,14 @@ export async function listAgendamentos(
   };
 }
 
-export async function listAgendamentosPorIntervalo(intervalo: {
-  inicio: Date;
-  fim: Date;
-  profissionalIds?: string[];
-}) {
+export async function listAgendamentosPorIntervalo(
+  intervalo: { inicio: Date; fim: Date } & FiltrosAgendamentoComuns,
+) {
   return prisma.agendamento.findMany({
     where: {
       dataInicio: { lte: intervalo.fim },
       dataFim: { gte: intervalo.inicio },
-      ...(intervalo.profissionalIds && intervalo.profissionalIds.length > 0
-        ? { profissionalId: { in: intervalo.profissionalIds } }
-        : {}),
+      ...whereFiltrosComuns(intervalo),
     },
     orderBy: { dataInicio: "asc" },
     include: includePadrao,

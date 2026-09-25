@@ -38,6 +38,9 @@ export async function AgendamentosTable({
   pacienteIds,
   profissionalIds,
   modalidades,
+  salaIds,
+  servicoIds,
+  planoHibrido,
   status,
   de,
   ate,
@@ -46,12 +49,25 @@ export async function AgendamentosTable({
   pacienteIds: string[];
   profissionalIds: string[];
   modalidades: string[];
+  salaIds: string[];
+  servicoIds: string[];
+  planoHibrido: boolean;
   status: string[];
   de?: string;
   ate?: string;
 }) {
   const { agendamentos, total, totalPages } = await listAgendamentos(
-    { pacienteIds, profissionalIds, modalidades, status, de, ate },
+    {
+      pacienteIds,
+      profissionalIds,
+      modalidades,
+      salaIds,
+      servicoIds,
+      planoHibrido,
+      status,
+      de,
+      ate,
+    },
     page,
   );
 

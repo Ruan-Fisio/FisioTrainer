@@ -1,7 +1,10 @@
 import { Wallet, CalendarDays } from "lucide-react";
+import { prisma } from "@/lib/prisma";
 import { PacienteTabs as PageTabs } from "@/components/pacientes/paciente-tabs";
 import { AgendaResumoCard } from "@/components/dashboard/agenda-resumo-card";
 import { AnaliseFinanceira } from "@/components/dashboard/analise-financeira";
+import { listSalas } from "@/actions/salas";
+import { listAllServicos } from "@/actions/servicos";
 import {
   getAnaliseFinanceira,
   getContagensAgenda,
@@ -9,10 +12,13 @@ import {
 } from "@/actions/dashboard";
 
 export default async function DashboardPage() {
-  const [proximos, contagens, financeiro] = await Promise.all([
+  const [proximos, contagens, financeiro, profissionais, salas, servicos] = await Promise.all([
     getProximosAgendamentos(),
     getContagensAgenda(),
     getAnaliseFinanceira(),
+    prisma.user.findMany({ orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    listSalas(),
+    listAllServicos(),
   ]);
 
   const { atrasadas, ...analise } = financeiro;
@@ -40,6 +46,9 @@ export default async function DashboardPage() {
                   .join("|")}
                 agendamentosIniciais={proximos}
                 contagens={contagens}
+                profissionais={profissionais.map((p) => ({ id: p.id, label: p.name ?? "Sem nome" }))}
+                salas={salas.map((s) => ({ id: s.id, label: s.nome }))}
+                servicos={servicos.map((s) => ({ id: s.id, label: s.nome }))}
               />
             ),
           },

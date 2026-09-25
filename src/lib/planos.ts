@@ -33,6 +33,11 @@ export function valorPlano(
   return raw == null ? 0 : Number(raw);
 }
 
+/** Um plano é "híbrido" quando atende as duas modalidades fixas ao mesmo tempo (Fisioterapia + Educação Física). */
+export function planoHibrido(tipos: string[]): boolean {
+  return tipos.includes("FISIOTERAPIA") && tipos.includes("EDUCACAO_FISICA");
+}
+
 /** Só "Até 3x no cartão" é pagamento no cartão. */
 export function cartaoDaForma(formaPagamento: FormaPagamentoPlano): boolean {
   return formaPagamento === "ATE_3X_CARTAO";
