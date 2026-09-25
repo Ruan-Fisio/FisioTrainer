@@ -48,12 +48,20 @@ export default async function EditarExamePage({
                     | "TEXTO"
                     | "MULTIPLA_ESCOLHA"
                     | "SIM_NAO"
-                    | "GONIOMETRIA",
+                    | "GONIOMETRIA"
+                    | "CALCULADO",
                   formatacao: coluna.formatacao ?? "",
                   opcoes: coluna.opcoes,
                   multiplaSelecao: coluna.multiplaSelecao,
+                  opcoesCondicionais: Array.isArray(coluna.opcoesCondicionais)
+                    ? (coluna.opcoesCondicionais as {
+                        opcao: string;
+                        formula: string;
+                      }[])
+                    : [],
                   valorIdeal: coluna.valorIdeal ?? "",
                   direcaoIdeal: coluna.direcaoIdeal ?? "PROXIMO_IDEAL",
+                  formula: coluna.formula ?? "",
                 })),
             })),
           })),

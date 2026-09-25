@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Sigma,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +27,11 @@ import {
 import { cn } from "@/lib/utils";
 import { FormActions } from "@/components/ui/form-actions";
 import type { ExameActionState } from "@/actions/exames";
+import {
+  extrairReferencias,
+  normalizarTitulo,
+  renomearReferenciaFormula,
+} from "@/lib/exame-formula";
 
 const initialState: ExameActionState = {};
 
@@ -34,7 +40,8 @@ type TipoColuna =
   | "TEXTO"
   | "MULTIPLA_ESCOLHA"
   | "SIM_NAO"
-  | "GONIOMETRIA";
+  | "GONIOMETRIA"
+  | "CALCULADO";
 type DirecaoIdeal = "MAIOR_MELHOR" | "MENOR_MELHOR" | "PROXIMO_IDEAL";
 type ColunaDraft = {
   id?: string;
@@ -43,8 +50,10 @@ type ColunaDraft = {
   formatacao: string;
   opcoes: string[];
   multiplaSelecao: boolean;
+  opcoesCondicionais: { opcao: string; formula: string }[];
   valorIdeal: string;
   direcaoIdeal: DirecaoIdeal;
+  formula: string;
 };
 type CampoDraft = {
   id?: string;
@@ -61,7 +70,153 @@ const TIPO_COLUNA_LABELS: Record<TipoColuna, string> = {
   MULTIPLA_ESCOLHA: "Múltipla escolha",
   SIM_NAO: "Sim/Não",
   GONIOMETRIA: "Recovery em Goniometria",
+  CALCULADO: "Calculado (fórmula)",
 };
+
+/** Nomes de colunas Número/Calculado de campos não-repetíveis definidas ANTES
+ * da posição indicada — é o que uma fórmula pode referenciar (ver regra de
+ * "só referência anterior" em src/lib/exame-formula.ts). */
+function colunasReferenciaveisAntes(
+  secoes: SecaoDraft[],
+  secaoIndex: number,
+  campoIndex: number,
+  colunaIndex: number,
+): string[] {
+  const nomes: string[] = [];
+  for (let si = 0; si <= secaoIndex; si++) {
+    const secao = secoes[si];
+    for (let ci = 0; ci < secao.campos.length; ci++) {
+      if (si === secaoIndex && ci > campoIndex) break;
+      const campo = secao.campos[ci];
+      for (let coi = 0; coi < campo.colunas.length; coi++) {
+        if (si === secaoIndex && ci === campoIndex && coi >= colunaIndex) break;
+        const coluna = campo.colunas[coi];
+        if (
+          !campo.repetivel &&
+          (coluna.tipo === "NUMERO" || coluna.tipo === "CALCULADO") &&
+          coluna.titulo.trim()
+        ) {
+          nomes.push(coluna.titulo.trim());
+        }
+      }
+    }
+  }
+  return nomes;
+}
+
+function FormulaEditor({
+  value,
+  onChange,
+  colunasDisponiveis,
+  incluirComparadores = false,
+  placeholder,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  colunasDisponiveis: string[];
+  incluirComparadores?: boolean;
+  placeholder?: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  function inserirNoCursor(texto: string) {
+    const input = inputRef.current;
+    if (!input) {
+      onChange(value + texto);
+      return;
+    }
+    const inicio = input.selectionStart ?? value.length;
+    const fim = input.selectionEnd ?? value.length;
+    const novoValor = value.slice(0, inicio) + texto + value.slice(fim);
+    onChange(novoValor);
+    requestAnimationFrame(() => {
+      input.focus();
+      const posicao = inicio + texto.length;
+      input.setSelectionRange(posicao, posicao);
+    });
+  }
+
+  const referenciasInvalidas = extrairReferencias(value).filter(
+    (nome) =>
+      !colunasDisponiveis.some((c) => normalizarTitulo(c) === normalizarTitulo(nome)),
+  );
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-violet-500/30 bg-violet-500/5 p-2">
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={
+          placeholder ??
+          (incluirComparadores
+            ? "Ex: {IMC} < 18.5"
+            : "Ex: {Peso} / ({Altura} * {Altura})")
+        }
+        className={selectClassName() + " font-mono"}
+      />
+      <div className="flex flex-wrap items-center gap-1.5">
+        {colunasDisponiveis.length === 0 ? (
+          <span className="text-xs text-muted-foreground">
+            Cadastre colunas do tipo Número antes desta para poder
+            referenciá-las
+          </span>
+        ) : (
+          colunasDisponiveis.map((nome) => (
+            <Button
+              key={nome}
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => inserirNoCursor(`{${nome}}`)}
+            >
+              {nome}
+            </Button>
+          ))
+        )}
+        <span className="mx-1 h-4 w-px bg-border" />
+        {(["+", "-", "×", "÷", "(", ")"] as const).map((op) => (
+          <Button
+            key={op}
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 px-0 text-xs"
+            onClick={() =>
+              inserirNoCursor(op === "×" ? "*" : op === "÷" ? "/" : op)
+            }
+          >
+            {op}
+          </Button>
+        ))}
+        {incluirComparadores && (
+          <>
+            <span className="mx-1 h-4 w-px bg-border" />
+            {(["<", "<=", ">", ">=", "==", "!="] as const).map((op) => (
+              <Button
+                key={op}
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-1.5 text-xs"
+                onClick={() => inserirNoCursor(` ${op} `)}
+              >
+                {op}
+              </Button>
+            ))}
+          </>
+        )}
+      </div>
+      {referenciasInvalidas.length > 0 && (
+        <p className="text-xs text-destructive">
+          Referencia {referenciasInvalidas.map((n) => `"${n}"`).join(", ")},
+          que ainda não existe (ou vem depois) neste exame.
+        </p>
+      )}
+    </div>
+  );
+}
 
 const DIRECAO_IDEAL_LABELS: Record<DirecaoIdeal, string> = {
   MAIOR_MELHOR: "Maior é melhor",
@@ -76,10 +231,13 @@ function novaColuna(): ColunaDraft {
     formatacao: "",
     opcoes: [],
     multiplaSelecao: false,
+    opcoesCondicionais: [],
     valorIdeal: "",
     direcaoIdeal: "PROXIMO_IDEAL",
+    formula: "",
   };
 }
+
 
 function novoCampo(): CampoDraft {
   return {
@@ -117,6 +275,7 @@ function selectClassName() {
 }
 
 type SecaoCardProps = {
+  secoes: SecaoDraft[];
   secao: SecaoDraft;
   secaoIndex: number;
   totalSecoes: number;
@@ -174,9 +333,22 @@ type SecaoCardProps = {
     colunaIndex: number,
     opcaoIndex: number,
   ) => void;
+  toggleOpcoesAutomaticas: (
+    secaoIndex: number,
+    campoIndex: number,
+    colunaIndex: number,
+  ) => void;
+  updateFormulaOpcao: (
+    secaoIndex: number,
+    campoIndex: number,
+    colunaIndex: number,
+    opcaoIndex: number,
+    formula: string,
+  ) => void;
 };
 
 function SecaoCard({
+  secoes,
   secao,
   secaoIndex,
   totalSecoes,
@@ -202,6 +374,8 @@ function SecaoCard({
   updateOpcao,
   addOpcao,
   removeOpcao,
+  toggleOpcoesAutomaticas,
+  updateFormulaOpcao,
 }: SecaoCardProps) {
   const aberta = !permitirRetrair || !retraida;
 
@@ -249,22 +423,40 @@ function SecaoCard({
               </Button>
             </div>
 
-            <label
-              onClick={(e) => {
-                e.preventDefault();
-                updateCampo(secaoIndex, campoIndex, {
-                  repetivel: !campo.repetivel,
-                });
-              }}
-              className="flex min-h-8 cursor-pointer items-center gap-2 text-xs text-muted-foreground select-none"
-            >
-              <Checkbox
-                checked={campo.repetivel}
-                tabIndex={-1}
-                className="pointer-events-none"
-              />
-              Permitir múltiplas entradas deste campo (ex: um por membro)
-            </label>
+            {(() => {
+              const temColunaCalculada = campo.colunas.some(
+                (c) => c.tipo === "CALCULADO",
+              );
+              return (
+                <label
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (temColunaCalculada) return;
+                    updateCampo(secaoIndex, campoIndex, {
+                      repetivel: !campo.repetivel,
+                    });
+                  }}
+                  className={cn(
+                    "flex min-h-8 items-center gap-2 text-xs text-muted-foreground select-none",
+                    temColunaCalculada
+                      ? "cursor-not-allowed opacity-60"
+                      : "cursor-pointer",
+                  )}
+                  title={
+                    temColunaCalculada
+                      ? "Campo com coluna calculada não pode ter múltiplas entradas"
+                      : undefined
+                  }
+                >
+                  <Checkbox
+                    checked={campo.repetivel}
+                    tabIndex={-1}
+                    className="pointer-events-none"
+                  />
+                  Permitir múltiplas entradas deste campo (ex: um por membro)
+                </label>
+              );
+            })()}
 
             {(campo.repetivel ||
               campo.colunas.some((c) => c.tipo === "GONIOMETRIA")) && (
@@ -338,19 +530,27 @@ function SecaoCard({
                               coluna.opcoes.length < 2
                                 ? ["", ""]
                                 : coluna.opcoes,
+                            opcoesCondicionais:
+                              tipo === "MULTIPLA_ESCOLHA"
+                                ? coluna.opcoesCondicionais
+                                : [],
                           });
                         }}
                       >
-                        {Object.entries(TIPO_COLUNA_LABELS).map(
-                          ([value, label]) => (
+                        {Object.entries(TIPO_COLUNA_LABELS)
+                          .filter(
+                            ([value]) =>
+                              value !== "CALCULADO" || !campo.repetivel,
+                          )
+                          .map(([value, label]) => (
                             <option key={value} value={value}>
                               {label}
                             </option>
-                          ),
-                        )}
+                          ))}
                       </select>
                       {(coluna.tipo === "NUMERO" ||
-                        coluna.tipo === "TEXTO") && (
+                        coluna.tipo === "TEXTO" ||
+                        coluna.tipo === "CALCULADO") && (
                         <Input
                           className="min-w-0 flex-1 sm:w-32 sm:flex-none"
                           value={coluna.formatacao}
@@ -413,47 +613,94 @@ function SecaoCard({
                         />
                         Permitir selecionar mais de uma opção
                       </label>
+                      <label
+                        onClick={(e) => {
+                          e.preventDefault();
+                          toggleOpcoesAutomaticas(
+                            secaoIndex,
+                            campoIndex,
+                            colunaIndex,
+                          );
+                        }}
+                        className="flex min-h-8 cursor-pointer items-center gap-2 text-xs text-muted-foreground select-none"
+                      >
+                        <Checkbox
+                          checked={coluna.opcoesCondicionais.length > 0}
+                          tabIndex={-1}
+                          className="pointer-events-none"
+                        />
+                        <Sigma className="size-3.5 text-violet-600 dark:text-violet-400" />
+                        Marcar opção automaticamente por fórmula (em vez de
+                        preenchimento manual)
+                      </label>
                       <Label className="text-xs text-muted-foreground">
                         Opções
                       </Label>
                       {coluna.opcoes.map((opcao, opcaoIndex) => (
                         <div
                           key={opcaoIndex}
-                          className="flex items-center gap-2"
+                          className="flex flex-col gap-1.5"
                         >
-                          <Input
-                            className="min-w-0 flex-1"
-                            value={opcao}
-                            onChange={(e) =>
-                              updateOpcao(
+                          <div className="flex items-center gap-2">
+                            <Input
+                              className="min-w-0 flex-1"
+                              value={opcao}
+                              onChange={(e) =>
+                                updateOpcao(
+                                  secaoIndex,
+                                  campoIndex,
+                                  colunaIndex,
+                                  opcaoIndex,
+                                  e.target.value,
+                                )
+                              }
+                              placeholder={`Opção ${opcaoIndex + 1}`}
+                              required
+                            />
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="shrink-0"
+                              onClick={() =>
+                                removeOpcao(
+                                  secaoIndex,
+                                  campoIndex,
+                                  colunaIndex,
+                                  opcaoIndex,
+                                )
+                              }
+                              disabled={coluna.opcoes.length <= 2}
+                            >
+                              <Trash2 className="size-3.5 text-destructive" />
+                              <span className="sr-only">Remover opção</span>
+                            </Button>
+                          </div>
+                          {coluna.opcoesCondicionais.length > 0 && (
+                            <FormulaEditor
+                              value={
+                                coluna.opcoesCondicionais[opcaoIndex]
+                                  ?.formula ?? ""
+                              }
+                              onChange={(formula) =>
+                                updateFormulaOpcao(
+                                  secaoIndex,
+                                  campoIndex,
+                                  colunaIndex,
+                                  opcaoIndex,
+                                  formula,
+                                )
+                              }
+                              colunasDisponiveis={colunasReferenciaveisAntes(
+                                secoes,
                                 secaoIndex,
                                 campoIndex,
                                 colunaIndex,
-                                opcaoIndex,
-                                e.target.value,
-                              )
-                            }
-                            placeholder={`Opção ${opcaoIndex + 1}`}
-                            required
-                          />
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="shrink-0"
-                            onClick={() =>
-                              removeOpcao(
-                                secaoIndex,
-                                campoIndex,
-                                colunaIndex,
-                                opcaoIndex,
-                              )
-                            }
-                            disabled={coluna.opcoes.length <= 2}
-                          >
-                            <Trash2 className="size-3.5 text-destructive" />
-                            <span className="sr-only">Remover opção</span>
-                          </Button>
+                              )}
+                              incluirComparadores
+                              placeholder={`Condição para marcar "${opcao || `Opção ${opcaoIndex + 1}`}" — ex: {IMC} < 18.5`}
+                            />
+                          )}
                         </div>
                       ))}
                       <Button
@@ -471,7 +718,31 @@ function SecaoCard({
                     </div>
                   )}
 
-                  {coluna.tipo === "NUMERO" && (
+                  {coluna.tipo === "CALCULADO" && (
+                    <div className="flex flex-col gap-2 pl-0 sm:pl-6">
+                      <Label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <Sigma className="size-3.5 text-violet-600 dark:text-violet-400" />
+                        Fórmula — referencie outras colunas numéricas clicando
+                        nos botões abaixo
+                      </Label>
+                      <FormulaEditor
+                        value={coluna.formula}
+                        onChange={(formula) =>
+                          updateColuna(secaoIndex, campoIndex, colunaIndex, {
+                            formula,
+                          })
+                        }
+                        colunasDisponiveis={colunasReferenciaveisAntes(
+                          secoes,
+                          secaoIndex,
+                          campoIndex,
+                          colunaIndex,
+                        )}
+                      />
+                    </div>
+                  )}
+
+                  {(coluna.tipo === "NUMERO" || coluna.tipo === "CALCULADO") && (
                     <div className="flex flex-col gap-2 pl-0 sm:flex-row sm:items-center sm:pl-6">
                       <div className="flex-1">
                         <Label className="text-xs text-muted-foreground">
@@ -809,8 +1080,11 @@ export function ExameForm({
     colunaIndex: number,
     patch: Partial<ColunaDraft>,
   ) {
-    setSecoes((prev) =>
-      prev.map((secao, si) =>
+    setSecoes((prev) => {
+      const tituloAntigo =
+        prev[secaoIndex]?.campos[campoIndex]?.colunas[colunaIndex]?.titulo;
+
+      const proximo = prev.map((secao, si) =>
         si !== secaoIndex
           ? secao
           : {
@@ -828,8 +1102,57 @@ export function ExameForm({
                     },
               ),
             },
-      ),
-    );
+      );
+
+      // Renomear uma coluna atualiza sozinho as fórmulas que a referenciavam
+      // pelo nome antigo — sem isso o usuário teria que caçar cada fórmula
+      // manualmente toda vez que renomeasse uma coluna Número/Calculado.
+      if (
+        typeof patch.titulo === "string" &&
+        tituloAntigo &&
+        patch.titulo.trim() &&
+        normalizarTitulo(patch.titulo) !== normalizarTitulo(tituloAntigo)
+      ) {
+        const tituloNovo = patch.titulo;
+        return proximo.map((secao) => ({
+          ...secao,
+          campos: secao.campos.map((campo) => ({
+            ...campo,
+            colunas: campo.colunas.map((coluna) => {
+              if (coluna.tipo === "CALCULADO" && coluna.formula) {
+                return {
+                  ...coluna,
+                  formula: renomearReferenciaFormula(
+                    coluna.formula,
+                    tituloAntigo,
+                    tituloNovo,
+                  ),
+                };
+              }
+              if (
+                coluna.tipo === "MULTIPLA_ESCOLHA" &&
+                coluna.opcoesCondicionais.length > 0
+              ) {
+                return {
+                  ...coluna,
+                  opcoesCondicionais: coluna.opcoesCondicionais.map((c) => ({
+                    ...c,
+                    formula: renomearReferenciaFormula(
+                      c.formula,
+                      tituloAntigo,
+                      tituloNovo,
+                    ),
+                  })),
+                };
+              }
+              return coluna;
+            }),
+          })),
+        }));
+      }
+
+      return proximo;
+    });
   }
 
   function addColuna(secaoIndex: number, campoIndex: number) {
@@ -929,6 +1252,19 @@ export function ExameForm({
                               opcoes: coluna.opcoes.map((opcao, oi) =>
                                 oi === opcaoIndex ? value : opcao,
                               ),
+                              // Enquanto o preenchimento automático está
+                              // ligado, opcoesCondicionais fica sempre
+                              // alinhado por índice com opcoes (mesmo
+                              // tamanho, mesma ordem) — renomear a opção
+                              // aqui já propaga pra condição dela.
+                              opcoesCondicionais:
+                                coluna.opcoesCondicionais.length > 0
+                                  ? coluna.opcoesCondicionais.map((c, oi) =>
+                                      oi === opcaoIndex
+                                        ? { ...c, opcao: value }
+                                        : c,
+                                    )
+                                  : coluna.opcoesCondicionais,
                             },
                       ),
                     },
@@ -957,7 +1293,17 @@ export function ExameForm({
                       colunas: campo.colunas.map((coluna, coi) =>
                         coi !== colunaIndex
                           ? coluna
-                          : { ...coluna, opcoes: [...coluna.opcoes, ""] },
+                          : {
+                              ...coluna,
+                              opcoes: [...coluna.opcoes, ""],
+                              opcoesCondicionais:
+                                coluna.opcoesCondicionais.length > 0
+                                  ? [
+                                      ...coluna.opcoesCondicionais,
+                                      { opcao: "", formula: "" },
+                                    ]
+                                  : coluna.opcoesCondicionais,
+                            },
                       ),
                     },
               ),
@@ -991,6 +1337,88 @@ export function ExameForm({
                               opcoes: coluna.opcoes.filter(
                                 (_, oi) => oi !== opcaoIndex,
                               ),
+                              opcoesCondicionais:
+                                coluna.opcoesCondicionais.length > 0
+                                  ? coluna.opcoesCondicionais.filter(
+                                      (_, oi) => oi !== opcaoIndex,
+                                    )
+                                  : coluna.opcoesCondicionais,
+                            },
+                      ),
+                    },
+              ),
+            },
+      ),
+    );
+  }
+
+  /** Liga/desliga o preenchimento automático por fórmula da coluna inteira —
+   * ao ligar, cria uma condição (vazia) alinhada a cada opção existente; ao
+   * desligar, descarta todas (volta a ser seleção manual). */
+  function toggleOpcoesAutomaticas(
+    secaoIndex: number,
+    campoIndex: number,
+    colunaIndex: number,
+  ) {
+    setSecoes((prev) =>
+      prev.map((secao, si) =>
+        si !== secaoIndex
+          ? secao
+          : {
+              ...secao,
+              campos: secao.campos.map((campo, ci) =>
+                ci !== campoIndex
+                  ? campo
+                  : {
+                      ...campo,
+                      colunas: campo.colunas.map((coluna, coi) =>
+                        coi !== colunaIndex
+                          ? coluna
+                          : {
+                              ...coluna,
+                              opcoesCondicionais:
+                                coluna.opcoesCondicionais.length > 0
+                                  ? []
+                                  : coluna.opcoes.map((opcao) => ({
+                                      opcao,
+                                      formula: "",
+                                    })),
+                            },
+                      ),
+                    },
+              ),
+            },
+      ),
+    );
+  }
+
+  function updateFormulaOpcao(
+    secaoIndex: number,
+    campoIndex: number,
+    colunaIndex: number,
+    opcaoIndex: number,
+    formula: string,
+  ) {
+    setSecoes((prev) =>
+      prev.map((secao, si) =>
+        si !== secaoIndex
+          ? secao
+          : {
+              ...secao,
+              campos: secao.campos.map((campo, ci) =>
+                ci !== campoIndex
+                  ? campo
+                  : {
+                      ...campo,
+                      colunas: campo.colunas.map((coluna, coi) =>
+                        coi !== colunaIndex
+                          ? coluna
+                          : {
+                              ...coluna,
+                              opcoesCondicionais: coluna.opcoesCondicionais.map(
+                                (c, oi) =>
+                                  oi === opcaoIndex ? { ...c, formula } : c,
+                              ),
                             },
                       ),
                     },
@@ -1018,6 +1446,8 @@ export function ExameForm({
     updateOpcao,
     addOpcao,
     removeOpcao,
+    toggleOpcoesAutomaticas,
+    updateFormulaOpcao,
   };
 
   return (
@@ -1097,6 +1527,7 @@ export function ExameForm({
 
         {secaoAtualMobile && (
           <SecaoCard
+            secoes={secoes}
             secao={secaoAtualMobile}
             secaoIndex={passoClamped}
             totalSecoes={secoes.length}
@@ -1147,6 +1578,7 @@ export function ExameForm({
         {secoes.map((secao, secaoIndex) => (
           <SecaoCard
             key={secaoIndex}
+            secoes={secoes}
             secao={secao}
             secaoIndex={secaoIndex}
             totalSecoes={secoes.length}
@@ -1213,9 +1645,12 @@ function ExamePreview({ nome, secoes }: { nome: string; secoes: SecaoDraft[] }) 
                 <div className="flex flex-col gap-2">
                   {campo.colunas.map((coluna, colunaIndex) => (
                     <div key={colunaIndex} className="flex flex-col gap-1">
-                      <Label className="text-xs text-muted-foreground">
+                      <Label className="flex items-center gap-1 text-xs text-muted-foreground">
                         {coluna.titulo || "Título da coluna"}
                         {coluna.formatacao ? ` (${coluna.formatacao})` : ""}
+                        {coluna.opcoesCondicionais.length > 0 && (
+                          <Sigma className="size-3 text-violet-600 dark:text-violet-400" />
+                        )}
                       </Label>
 
                       {coluna.tipo === "MULTIPLA_ESCOLHA" ? (
@@ -1254,6 +1689,13 @@ function ExamePreview({ nome, secoes }: { nome: string; secoes: SecaoDraft[] }) 
                         <div className="rounded-lg border border-input p-2 text-xs text-muted-foreground">
                           Multisseleção de movimentos (Biblioteca de
                           Movimento)
+                        </div>
+                      ) : coluna.tipo === "CALCULADO" ? (
+                        <div className="flex items-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-500/5 px-2.5 py-1.5 text-xs text-violet-700 dark:text-violet-300">
+                          <Sigma className="size-3.5 shrink-0" />
+                          <span className="truncate font-mono">
+                            {coluna.formula || "Fórmula não definida"}
+                          </span>
                         </div>
                       ) : (
                         <Input

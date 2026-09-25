@@ -104,9 +104,12 @@ function colunaData(coluna: ColunaInput, ordem: number) {
         : [],
     multiplaSelecao:
       coluna.tipo === "MULTIPLA_ESCOLHA" ? coluna.multiplaSelecao : false,
+    opcoesCondicionais:
+      coluna.tipo === "MULTIPLA_ESCOLHA" ? coluna.opcoesCondicionais : [],
     valorIdeal:
       coluna.tipo === "NUMERO" && coluna.valorIdeal ? coluna.valorIdeal : null,
     direcaoIdeal: coluna.tipo === "NUMERO" ? coluna.direcaoIdeal || null : null,
+    formula: coluna.tipo === "CALCULADO" ? coluna.formula || null : null,
   };
 }
 
@@ -130,6 +133,7 @@ function colunaMembroInput(id?: string): ColunaInput & { id?: string } {
     formatacao: "",
     opcoes: OPCOES_MEMBRO,
     multiplaSelecao: false,
+    opcoesCondicionais: [],
     valorIdeal: "",
     direcaoIdeal: undefined,
   };

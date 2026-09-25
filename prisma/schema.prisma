@@ -75,6 +75,10 @@ enum TipoCampoExame {
   SIM_NAO
   GONIOMETRIA
   MEMBRO
+  /// Nunca preenchida pela clínica — calculada ao carregar a tela a partir de
+  /// `formula` (ver src/lib/exame-formula.ts). Valor nunca é gravado em
+  /// `ExameExecucaoValor`. Só existe em campo não-repetível.
+  CALCULADO
 }
 
 enum DirecaoIdealCampo {
@@ -138,8 +142,15 @@ model ExameCampoColuna {
   formatacao   String?
   opcoes       String[]            @default([])
   multiplaSelecao Boolean          @default(false)
+  /// Preenchimento automático por opção (MULTIPLA_ESCOLHA): array de
+  /// `{opcao, formula}`. Só existe quando TODAS as opções têm condição — ver
+  /// `validarFormulasDoExame` em src/lib/exame-formula.ts. Vazio = coluna manual.
+  opcoesCondicionais Json          @default("[]")
   valorIdeal   String?
   direcaoIdeal DirecaoIdealCampo?
+  /// Fórmula da coluna CALCULADO, ex: "{Peso} / ({Altura} * {Altura})" —
+  /// referencia outras colunas do exame pelo título. Nula para os demais tipos.
+  formula      String?
   campoId      String
   campo        ExameCampo          @relation(fields: [campoId], references: [id], onDelete: Cascade)
   valores      ExameExecucaoValor[]

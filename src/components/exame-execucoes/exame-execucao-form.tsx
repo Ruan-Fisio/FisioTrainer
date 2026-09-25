@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Trash2, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, Trash2, ChevronLeft, ChevronRight, Sigma } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,7 +17,17 @@ import {
 } from "@/components/exame-execucoes/goniometria-field";
 import { valorPreenchido } from "@/lib/exame-sombra";
 import { parseGoniometriaValor } from "@/lib/goniometria";
-import { parseSelecionadas, toggleSelecionada } from "@/lib/multipla-escolha";
+import {
+  parseSelecionadas,
+  serializeSelecionadas,
+  toggleSelecionada,
+} from "@/lib/multipla-escolha";
+import {
+  calcularColunas,
+  formatarNumeroFormula,
+  parseOpcoesCondicionais,
+  type ResultadoOpcoesAutomaticas,
+} from "@/lib/exame-formula";
 
 const initialState: ExameExecucaoActionState = {};
 
@@ -44,10 +54,13 @@ export type ExameCompleto = {
           | "MULTIPLA_ESCOLHA"
           | "SIM_NAO"
           | "GONIOMETRIA"
-          | "MEMBRO";
+          | "MEMBRO"
+          | "CALCULADO";
         formatacao: string | null;
         opcoes: string[];
         multiplaSelecao: boolean;
+        opcoesCondicionais: unknown;
+        formula: string | null;
       }[];
     }[];
   }[];
@@ -136,6 +149,8 @@ function SecaoFields({
   movimentos,
   camposSombraPendentes,
   colunaOculta,
+  resultadosCalculados,
+  opcoesAutomaticas,
 }: {
   secao: Secao;
   linhasDoCampo: (campoId: string, repetivel: boolean) => string[];
@@ -146,10 +161,18 @@ function SecaoFields({
   movimentos: MovimentoOption[];
   camposSombraPendentes: Set<string>;
   colunaOculta: (colunaId: string, linhaId: string) => boolean;
+  resultadosCalculados: Map<string, { valor: number } | { erro: string }>;
+  opcoesAutomaticas: Map<string, ResultadoOpcoesAutomaticas>;
 }) {
+  // CALCULADO nunca é gravado, então nunca aparece no snapshot de sombra —
+  // "Ocultar campos sem valor anterior" nunca deve escondê-la por isso.
+  function ocultarColuna(coluna: { id: string; tipo: string }, linhaId: string) {
+    if (coluna.tipo === "CALCULADO") return false;
+    return colunaOculta(coluna.id, linhaId);
+  }
   const campoTemColunaVisivel = (campo: Secao["campos"][number]) =>
     linhasDoCampo(campo.id, campo.repetivel).some((linhaId) =>
-      campo.colunas.some((coluna) => !colunaOculta(coluna.id, linhaId)),
+      campo.colunas.some((coluna) => !ocultarColuna(coluna, linhaId)),
     );
   const camposVisiveis = secao.campos.filter(campoTemColunaVisivel);
 
@@ -185,7 +208,7 @@ function SecaoFields({
               <div className="flex flex-col gap-3">
                 {linhas.map((linhaId, linhaIndex) => {
                   const colunasVisiveis = campo.colunas.filter(
-                    (coluna) => !colunaOculta(coluna.id, linhaId),
+                    (coluna) => !ocultarColuna(coluna, linhaId),
                   );
                   if (colunasVisiveis.length === 0) return null;
                   return (
@@ -237,53 +260,95 @@ function SecaoFields({
                             </Label>
 
                             {coluna.tipo === "MULTIPLA_ESCOLHA" ? (
-                              <div className="flex flex-col gap-1.5 rounded-lg border border-input p-2">
-                                {coluna.opcoes.map((opcao) => {
-                                  const checked = coluna.multiplaSelecao
-                                    ? parseSelecionadas(valorAtual).includes(
-                                        opcao,
-                                      )
-                                    : valorAtual === opcao;
-                                  const handleToggle = () => {
-                                    if (coluna.multiplaSelecao) {
-                                      updateValor(
-                                        coluna.id,
-                                        linhaId,
-                                        toggleSelecionada(valorAtual, opcao),
+                              (() => {
+                                const automatico = opcoesAutomaticas.get(
+                                  coluna.id,
+                                );
+                                return (
+                                  <div
+                                    className={`flex flex-col gap-1.5 rounded-lg border p-2 ${
+                                      automatico
+                                        ? "border-violet-500/40 bg-violet-500/10"
+                                        : "border-input"
+                                    }`}
+                                  >
+                                    {automatico && (
+                                      <p className="flex items-center gap-1 text-[11px] text-violet-700 dark:text-violet-300">
+                                        <Sigma className="size-3 shrink-0" />
+                                        Marcado automaticamente pela fórmula
+                                      </p>
+                                    )}
+                                    {coluna.opcoes.map((opcao) => {
+                                      const checked = automatico
+                                        ? automatico.selecionadas.includes(
+                                            opcao,
+                                          )
+                                        : coluna.multiplaSelecao
+                                          ? parseSelecionadas(
+                                              valorAtual,
+                                            ).includes(opcao)
+                                          : valorAtual === opcao;
+                                      const handleToggle = () => {
+                                        if (automatico) return;
+                                        if (coluna.multiplaSelecao) {
+                                          updateValor(
+                                            coluna.id,
+                                            linhaId,
+                                            toggleSelecionada(
+                                              valorAtual,
+                                              opcao,
+                                            ),
+                                          );
+                                        } else {
+                                          updateValor(
+                                            coluna.id,
+                                            linhaId,
+                                            opcao,
+                                          );
+                                        }
+                                      };
+                                      const erro = automatico?.erros[opcao];
+                                      return (
+                                        <div key={opcao} className="flex flex-col">
+                                          <label
+                                            onClick={(e) => {
+                                              e.preventDefault();
+                                              handleToggle();
+                                            }}
+                                            className={`flex min-h-8 items-center gap-2 text-sm select-none ${
+                                              automatico
+                                                ? "cursor-default"
+                                                : "cursor-pointer"
+                                            }`}
+                                          >
+                                            {coluna.multiplaSelecao ? (
+                                              <Checkbox
+                                                checked={checked}
+                                                tabIndex={-1}
+                                                className="pointer-events-none"
+                                              />
+                                            ) : (
+                                              <input
+                                                type="radio"
+                                                readOnly
+                                                tabIndex={-1}
+                                                className="pointer-events-none size-4 accent-primary"
+                                                checked={checked}
+                                              />
+                                            )}
+                                            {opcao}
+                                          </label>
+                                          {erro && (
+                                            <p className="pl-6 text-[11px] text-muted-foreground">
+                                              {erro}
+                                            </p>
+                                          )}
+                                        </div>
                                       );
-                                    } else {
-                                      updateValor(coluna.id, linhaId, opcao);
-                                    }
-                                  };
-                                  return (
-                                    <label
-                                      key={opcao}
-                                      onClick={(e) => {
-                                        e.preventDefault();
-                                        handleToggle();
-                                      }}
-                                      className="flex min-h-8 cursor-pointer items-center gap-2 text-sm select-none"
-                                    >
-                                      {coluna.multiplaSelecao ? (
-                                        <Checkbox
-                                          checked={checked}
-                                          tabIndex={-1}
-                                          className="pointer-events-none"
-                                        />
-                                      ) : (
-                                        <input
-                                          type="radio"
-                                          readOnly
-                                          tabIndex={-1}
-                                          className="pointer-events-none size-4 accent-primary"
-                                          checked={checked}
-                                        />
-                                      )}
-                                      {opcao}
-                                    </label>
-                                  );
-                                })}
-                              </div>
+                                    })}
+                                  </div>
+                                );
+                              })()
                             ) : coluna.tipo === "GONIOMETRIA" ? (
                               <GoniometriaField
                                 options={movimentos}
@@ -334,6 +399,28 @@ function SecaoFields({
                                   </option>
                                 ))}
                               </select>
+                            ) : coluna.tipo === "CALCULADO" ? (
+                              (() => {
+                                const resultado = resultadosCalculados.get(
+                                  coluna.id,
+                                );
+                                return (
+                                  <div className="flex min-h-8 items-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-500/10 px-2.5 py-1">
+                                    <Sigma className="size-3.5 shrink-0 text-violet-600 dark:text-violet-400" />
+                                    {resultado && "valor" in resultado ? (
+                                      <span className="text-sm font-semibold text-violet-700 dark:text-violet-300">
+                                        {formatarNumeroFormula(resultado.valor)}
+                                      </span>
+                                    ) : (
+                                      <span className="text-xs text-muted-foreground">
+                                        {resultado && "erro" in resultado
+                                          ? resultado.erro
+                                          : "—"}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })()
                             ) : (
                               <Input
                                 type={
@@ -449,6 +536,62 @@ export function ExameExecucaoForm({
     [exames, exameId],
   );
 
+  const colunasEmOrdem = useMemo(
+    () =>
+      exame
+        ? exame.secoes.flatMap((secao) =>
+            secao.campos.flatMap((campo) =>
+              campo.colunas.map((coluna) => ({
+                id: coluna.id,
+                titulo: coluna.titulo,
+                tipo: coluna.tipo,
+                formula: coluna.formula,
+                repetivel: campo.repetivel,
+                opcoes: coluna.opcoes,
+                multiplaSelecao: coluna.multiplaSelecao,
+                opcoesCondicionais: parseOpcoesCondicionais(
+                  coluna.opcoesCondicionais,
+                ),
+              })),
+            ),
+          )
+        : [],
+    [exame],
+  );
+
+  const { calculados: resultadosCalculados, opcoesAutomaticas } = useMemo(
+    () =>
+      calcularColunas(
+        colunasEmOrdem,
+        (colunaId) => valores[chaveValor(colunaId, LINHA_UNICA)],
+      ),
+    [colunasEmOrdem, valores],
+  );
+
+  // Colunas MULTIPLA_ESCOLHA com preenchimento automático são travadas (como
+  // CALCULADO), mas — diferente de CALCULADO — o valor É persistido, então
+  // precisa ficar sincronizado em `valores` pra entrar no submit.
+  useEffect(() => {
+    const patches: [string, string][] = [];
+    for (const coluna of colunasEmOrdem) {
+      if (coluna.opcoesCondicionais.length === 0) continue;
+      const resultado = opcoesAutomaticas.get(coluna.id);
+      const novoValor = resultado
+        ? coluna.multiplaSelecao
+          ? serializeSelecionadas(resultado.selecionadas)
+          : (resultado.selecionadas[0] ?? "")
+        : "";
+      const chave = chaveValor(coluna.id, LINHA_UNICA);
+      if ((valores[chave] ?? "") !== novoValor) {
+        patches.push([chave, novoValor]);
+      }
+    }
+    if (patches.length > 0) {
+      setValores((prev) => ({ ...prev, ...Object.fromEntries(patches) }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [colunasEmOrdem, opcoesAutomaticas]);
+
   useEffect(() => {
     if (state.success) {
       toast.success(successLabel);
@@ -534,6 +677,9 @@ export function ExameExecucaoForm({
         const linhas = linhasDoCampo(campo.id, campo.repetivel);
         linhas.forEach((linhaId, linhaIndex) => {
           for (const coluna of campo.colunas) {
+            // CALCULADO nunca é gravado — é recomputado ao carregar a tela
+            // (ver src/lib/exame-formula.ts).
+            if (coluna.tipo === "CALCULADO") continue;
             entradas.push({
               colunaId: coluna.id,
               valor: valores[chaveValor(coluna.id, linhaId)] ?? "",
@@ -655,6 +801,8 @@ export function ExameExecucaoForm({
             movimentos={movimentos}
             camposSombraPendentes={camposSombraPendentes}
             colunaOculta={colunaOculta}
+            resultadosCalculados={resultadosCalculados}
+            opcoesAutomaticas={opcoesAutomaticas}
           />
           {totalPassos > 1 && (
             <div className="flex items-center justify-between gap-2">
@@ -697,6 +845,8 @@ export function ExameExecucaoForm({
             movimentos={movimentos}
             camposSombraPendentes={camposSombraPendentes}
             colunaOculta={colunaOculta}
+            resultadosCalculados={resultadosCalculados}
+            opcoesAutomaticas={opcoesAutomaticas}
           />
         ))}
       </div>

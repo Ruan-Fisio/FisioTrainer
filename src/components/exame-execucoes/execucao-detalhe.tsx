@@ -1,9 +1,32 @@
+import { Sigma } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { getExecucao } from "@/actions/exame-execucoes";
 import { parseGoniometriaValor } from "@/lib/goniometria";
 import { parseSelecionadas } from "@/lib/multipla-escolha";
+import {
+  calcularColunasFormula,
+  formatarNumeroFormula,
+  type ResultadoFormula,
+} from "@/lib/exame-formula";
 
 export type Execucao = NonNullable<Awaited<ReturnType<typeof getExecucao>>>;
+
+export function ValorCalculado({ resultado }: { resultado: ResultadoFormula | undefined }) {
+  return (
+    <div className="flex items-center gap-1.5 text-sm">
+      <Sigma className="size-3.5 shrink-0 text-violet-600 dark:text-violet-400" />
+      {resultado && "valor" in resultado ? (
+        <span className="font-semibold text-violet-700 dark:text-violet-300">
+          {formatarNumeroFormula(resultado.valor)}
+        </span>
+      ) : (
+        <span className="text-xs text-muted-foreground">
+          {resultado && "erro" in resultado ? resultado.erro : "—"}
+        </span>
+      )}
+    </div>
+  );
+}
 
 export function ValorColuna({
   tipo,
@@ -45,6 +68,22 @@ export function ExecucaoValores({ execucao }: { execucao: Execucao }) {
   const valores = execucao.valores;
   const valorPorChave = new Map(
     valores.map((v) => [`${v.colunaId}::${v.linha}`, v.valor]),
+  );
+
+  const colunasEmOrdem = execucao.exame.secoes.flatMap((secao) =>
+    secao.campos.flatMap((campo) =>
+      campo.colunas.map((coluna) => ({
+        id: coluna.id,
+        titulo: coluna.titulo,
+        tipo: coluna.tipo,
+        formula: coluna.formula,
+        repetivel: campo.repetivel,
+      })),
+    ),
+  );
+  const resultadosCalculados = calcularColunasFormula(
+    colunasEmOrdem,
+    (colunaId) => valorPorChave.get(`${colunaId}::0`),
   );
 
   function linhasDoCampo(campo: {
@@ -100,14 +139,21 @@ export function ExecucaoValores({ execucao }: { execucao: Execucao }) {
                                   ? ` (${coluna.formatacao})`
                                   : ""}
                               </p>
-                              <ValorColuna
-                                tipo={coluna.tipo}
-                                multiplaSelecao={coluna.multiplaSelecao}
-                                valor={
-                                  valorPorChave.get(`${coluna.id}::${linha}`) ||
-                                  ""
-                                }
-                              />
+                              {coluna.tipo === "CALCULADO" ? (
+                                <ValorCalculado
+                                  resultado={resultadosCalculados.get(coluna.id)}
+                                />
+                              ) : (
+                                <ValorColuna
+                                  tipo={coluna.tipo}
+                                  multiplaSelecao={coluna.multiplaSelecao}
+                                  valor={
+                                    valorPorChave.get(
+                                      `${coluna.id}::${linha}`,
+                                    ) || ""
+                                  }
+                                />
+                              )}
                             </div>
                           ))}
                         </div>
