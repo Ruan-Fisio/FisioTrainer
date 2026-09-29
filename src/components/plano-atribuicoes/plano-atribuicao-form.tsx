@@ -67,6 +67,29 @@ type PlanoAtivo = {
   permiteParcelamentoEstendido: boolean;
 };
 
+/** Total no cartão (com a taxa por parcela) + valor de cada parcela, para a opção de pagamento. */
+function ValorCartaoOpcao({
+  valorAVista,
+  taxa,
+  parcelas,
+}: {
+  valorAVista: number;
+  taxa: number;
+  parcelas: number;
+}) {
+  const total = calcularValorParcelado(valorAVista, taxa, parcelas);
+  return (
+    <>
+      {formatarMoeda(total)}
+      {parcelas > 1 && (
+        <span className="block text-xs font-normal">
+          {parcelas}x de {formatarMoeda(total / parcelas)}
+        </span>
+      )}
+    </>
+  );
+}
+
 export function PlanoAtribuicaoForm({
   action,
   planosAtivos,
@@ -347,9 +370,29 @@ export function PlanoAtribuicaoForm({
                   <RadioGroupItem value={forma} />
                   {forma === "ATE_3X_CARTAO" ? labelAteXCartao : formaPagamentoPlanoLabels[forma]}
                 </span>
-                {planoSelecionado && forma === "A_VISTA" && (
-                  <span className="font-medium text-muted-foreground">
-                    {formatarMoeda(valorPlano(planoSelecionado, periodicidade))}
+                {planoSelecionado && (
+                  <span className="text-right font-medium text-muted-foreground">
+                    {forma === "A_VISTA" ? (
+                      formatarMoeda(valorPlano(planoSelecionado, periodicidade))
+                    ) : (
+                      <>
+                        <ValorCartaoOpcao
+                          valorAVista={valorPlano(planoSelecionado, periodicidade)}
+                          taxa={taxaParcelamentoCartao}
+                          parcelas={
+                            cartaoDaForma(formaEfetivaAtual)
+                              ? Math.min(
+                                  Math.max(
+                                    (parcelasGeradas ? numeroParcelas : Number(wizardQuantidade)) || 1,
+                                    1,
+                                  ),
+                                  maxParcelasCartao,
+                                )
+                              : maxParcelasCartao
+                          }
+                        />
+                      </>
+                    )}
                   </span>
                 )}
               </label>
@@ -379,9 +422,29 @@ export function PlanoAtribuicaoForm({
                   <RadioGroupItem value={forma} />
                   {forma === "ATE_3X_CARTAO" ? labelAteXCartao : formaPagamentoPlanoLabels[forma]}
                 </span>
-                {planoSelecionado && forma === "A_VISTA" && (
-                  <span className="font-medium text-muted-foreground">
-                    {formatarMoeda(valorPlano(planoSelecionado, periodicidade))}
+                {planoSelecionado && (
+                  <span className="text-right font-medium text-muted-foreground">
+                    {forma === "A_VISTA" ? (
+                      formatarMoeda(valorPlano(planoSelecionado, periodicidade))
+                    ) : (
+                      <>
+                        <ValorCartaoOpcao
+                          valorAVista={valorPlano(planoSelecionado, periodicidade)}
+                          taxa={taxaParcelamentoCartao}
+                          parcelas={
+                            cartaoDaForma(formaEfetivaAtual)
+                              ? Math.min(
+                                  Math.max(
+                                    (parcelasGeradas ? numeroParcelas : Number(wizardQuantidade)) || 1,
+                                    1,
+                                  ),
+                                  maxParcelasCartao,
+                                )
+                              : maxParcelasCartao
+                          }
+                        />
+                      </>
+                    )}
                   </span>
                 )}
               </label>
