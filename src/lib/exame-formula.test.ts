@@ -307,6 +307,56 @@ describe("avaliarCondicaoOpcao", () => {
       erro: "Não foi possível calcular a condição (divisão por zero)",
     });
   });
+
+  describe("com && (E lógico, faixa mínimo/máximo)", () => {
+    it("verdadeiro só quando as duas cláusulas batem", () => {
+      const dentro = new Map([[normalizarTitulo("IMC"), 12]]);
+      const fora = new Map([[normalizarTitulo("IMC"), 20]]);
+      expect(
+        avaliarCondicaoOpcao("{IMC} < 16 && {IMC} > 10", dentro),
+      ).toEqual({ valor: true });
+      expect(
+        avaliarCondicaoOpcao("{IMC} < 16 && {IMC} > 10", fora),
+      ).toEqual({ valor: false });
+    });
+
+    it("no limite exato de uma cláusula com <=/>=", () => {
+      const valores = new Map([[normalizarTitulo("IMC"), 16]]);
+      expect(
+        avaliarCondicaoOpcao("{IMC} <= 16 && {IMC} > 10", valores),
+      ).toEqual({ valor: true });
+      expect(
+        avaliarCondicaoOpcao("{IMC} < 16 && {IMC} > 10", valores),
+      ).toEqual({ valor: false });
+    });
+
+    it("suporta mais de duas cláusulas encadeadas", () => {
+      const valores = new Map([
+        [normalizarTitulo("IMC"), 22],
+        [normalizarTitulo("Idade"), 30],
+      ]);
+      expect(
+        avaliarCondicaoOpcao(
+          "{IMC} >= 18.5 && {IMC} < 25 && {Idade} >= 18",
+          valores,
+        ),
+      ).toEqual({ valor: true });
+    });
+
+    it("propaga erro (campo faltando) de qualquer cláusula", () => {
+      const valores = new Map([[normalizarTitulo("IMC"), 12]]);
+      expect(
+        avaliarCondicaoOpcao("{IMC} < 16 && {Idade} > 10", valores),
+      ).toEqual({ erro: "Preencha Idade para calcular" });
+    });
+
+    it("&& não confunde com os comparadores existentes (<=, >=, ==, !=)", () => {
+      const valores = new Map([[normalizarTitulo("Nota"), 10]]);
+      expect(
+        avaliarCondicaoOpcao("{Nota} >= 5 && {Nota} <= 10", valores),
+      ).toEqual({ valor: true });
+    });
+  });
 });
 
 describe("calcularColunas — opções automáticas de MULTIPLA_ESCOLHA", () => {
@@ -533,6 +583,38 @@ describe("validarFormulasDoExame — opções automáticas de MULTIPLA_ESCOLHA",
       },
     ];
     expect(validarFormulasDoExame(colunas)).toMatch(/não pode referenciar a própria coluna/);
+  });
+
+  it("aceita condição de faixa com && (mínimo e máximo)", () => {
+    const colunas: ColunaValidavel[] = [
+      ...base,
+      {
+        titulo: "Classificação",
+        tipo: "MULTIPLA_ESCOLHA",
+        repetivel: false,
+        opcoes: ["Magreza grau III"],
+        opcoesCondicionais: [
+          { opcao: "Magreza grau III", formula: "{IMC} < 16 && {IMC} > 10" },
+        ],
+      },
+    ];
+    expect(validarFormulasDoExame(colunas)).toBeNull();
+  });
+
+  it("rejeita && com cláusula incompleta (erro de sintaxe)", () => {
+    const colunas: ColunaValidavel[] = [
+      ...base,
+      {
+        titulo: "Classificação",
+        tipo: "MULTIPLA_ESCOLHA",
+        repetivel: false,
+        opcoes: ["Baixo peso"],
+        opcoesCondicionais: [
+          { opcao: "Baixo peso", formula: "{IMC} < 16 && " },
+        ],
+      },
+    ];
+    expect(validarFormulasDoExame(colunas)).toMatch(/erro de sintaxe/);
   });
 
   it("coluna manual (sem opcoesCondicionais) não é afetada", () => {

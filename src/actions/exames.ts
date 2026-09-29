@@ -60,6 +60,11 @@ export async function getExame(id: string) {
 
 export type ExameActionState = {
   error?: string;
+  /** Path do issue de zod que gerou `error` (ex. `["secoes", 0, "campos", 1,
+   * "colunas", 2, "opcoesCondicionais", 0, "formula"]`) — a tela de cadastro
+   * usa isso pra rolar até o campo problemático em vez de só mostrar a
+   * mensagem solta no rodapé do formulário. */
+  errorPath?: (string | number)[];
   success?: boolean;
 };
 
@@ -186,8 +191,10 @@ export async function createExame(
   const parsed = parseExameForm(formData);
 
   if (!parsed || !parsed.success) {
+    const issue = parsed?.error.issues[0];
     return {
-      error: parsed?.error.issues[0]?.message ?? "Dados inválidos.",
+      error: issue?.message ?? "Dados inválidos.",
+      errorPath: issue?.path as (string | number)[] | undefined,
     };
   }
 
@@ -360,8 +367,10 @@ export async function updateExame(
   const parsed = parseExameForm(formData);
 
   if (!parsed || !parsed.success) {
+    const issue = parsed?.error.issues[0];
     return {
-      error: parsed?.error.issues[0]?.message ?? "Dados inválidos.",
+      error: issue?.message ?? "Dados inválidos.",
+      errorPath: issue?.path as (string | number)[] | undefined,
     };
   }
 

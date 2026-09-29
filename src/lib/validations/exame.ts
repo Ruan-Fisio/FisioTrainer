@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { validarFormulasDoExame } from "@/lib/exame-formula";
+import { validarFormulasDoExameDetalhado } from "@/lib/exame-formula";
 
 export const exameColunaSchema = z
   .object({
@@ -21,7 +21,12 @@ export const exameColunaSchema = z
       .array(
         z.object({
           opcao: z.string().trim().min(1),
-          formula: z.string().trim().min(1),
+          // Sem min(1) de propósito: uma condição vazia é um estado válido
+          // enquanto o usuário preenche o formulário. `validarFormulasDoExame`
+          // (chamada no superRefine de `exameSchema`) é quem barra o submit
+          // com uma mensagem que aponta a opção/coluna exatas — um min(1) aqui
+          // faria o zod falhar antes, com uma mensagem genérica e sem contexto.
+          formula: z.string().trim().optional().default(""),
         }),
       )
       .optional()
@@ -74,20 +79,54 @@ export const exameSchema = z
     secoes: z.array(exameSecaoSchema).min(1, "Adicione ao menos uma seção"),
   })
   .superRefine((exame, ctx) => {
-    const colunasEmOrdem = exame.secoes.flatMap((secao) =>
-      secao.campos.flatMap((campo) =>
-        campo.colunas.map((coluna) => ({
-          titulo: coluna.titulo,
-          tipo: coluna.tipo,
-          formula: coluna.formula,
-          repetivel: campo.repetivel,
-          opcoes: coluna.opcoes,
-          opcoesCondicionais: coluna.opcoesCondicionais,
-        })),
-      ),
-    );
-    const erro = validarFormulasDoExame(colunasEmOrdem);
+    // Mesma travessia (seção → campo → coluna) que gera `colunasEmOrdem" para
+    // o validador, guardando em paralelo as coordenadas de cada uma — assim
+    // dá pra converter o `colunaIndex`/`opcaoIndex` (posições no array achatado)
+    // de volta num `path` de zod que aponta pro campo exato na árvore de
+    // `secoes`, e a tela de cadastro rola até lá em vez de só mostrar a
+    // mensagem solta no rodapé do formulário.
+    const colunasEmOrdem: {
+      titulo: string;
+      tipo: string;
+      formula?: string;
+      repetivel: boolean;
+      opcoes: string[];
+      opcoesCondicionais: { opcao: string; formula: string }[];
+    }[] = [];
+    const coordenadas: { secaoIndex: number; campoIndex: number; colunaIndex: number }[] = [];
+
+    exame.secoes.forEach((secao, secaoIndex) => {
+      secao.campos.forEach((campo, campoIndex) => {
+        campo.colunas.forEach((coluna, colunaIndex) => {
+          colunasEmOrdem.push({
+            titulo: coluna.titulo,
+            tipo: coluna.tipo,
+            formula: coluna.formula,
+            repetivel: campo.repetivel,
+            opcoes: coluna.opcoes,
+            opcoesCondicionais: coluna.opcoesCondicionais,
+          });
+          coordenadas.push({ secaoIndex, campoIndex, colunaIndex });
+        });
+      });
+    });
+
+    const erro = validarFormulasDoExameDetalhado(colunasEmOrdem);
     if (erro) {
-      ctx.addIssue({ code: "custom", message: erro, path: ["secoes"] });
+      const coordenada = coordenadas[erro.colunaIndex];
+      const path: (string | number)[] = coordenada
+        ? [
+            "secoes",
+            coordenada.secaoIndex,
+            "campos",
+            coordenada.campoIndex,
+            "colunas",
+            coordenada.colunaIndex,
+            ...(erro.opcaoIndex !== undefined
+              ? ["opcoesCondicionais", erro.opcaoIndex, "formula"]
+              : []),
+          ]
+        : ["secoes"];
+      ctx.addIssue({ code: "custom", message: erro.mensagem, path });
     }
   });

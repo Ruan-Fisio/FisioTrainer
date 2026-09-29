@@ -198,12 +198,37 @@ function validarSintaxe(formula: string): boolean {
 }
 
 /**
- * Condição de opção automática (MULTIPLA_ESCOLHA), ex: `{IMC} < 18.5`.
- * Formato: `<expressão> <comparador> <expressão>`, um único comparador no
- * nível mais externo (fora de parênteses) — sem operadores lógicos (E/OU).
+ * Condição de opção automática (MULTIPLA_ESCOLHA), ex: `{IMC} < 18.5`, ou
+ * várias cláusulas unidas por `&&` (E lógico), ex:
+ * `{IMC} < 16 && {IMC} > 10` — cada cláusula é `<expressão> <comparador>
+ * <expressão>` (um único comparador no nível mais externo, fora de
+ * parênteses) e a condição inteira só é verdadeira se TODAS as cláusulas
+ * forem. Não há `||` (OU) — só E, que já cobre o caso comum de faixa
+ * (mínimo E máximo); um comparador só (sem `&&`) continua funcionando igual.
  */
 const COMPARADORES = ["<=", ">=", "==", "!=", "<", ">"] as const;
 type Comparador = (typeof COMPARADORES)[number];
+
+/** Divide no `&&` do nível mais externo (fora de parênteses) — cada pedaço é
+ * uma cláusula de comparação independente. Sem `&&` no nível externo, devolve
+ * a expressão inteira como cláusula única. */
+function separarClausulasE(expressao: string): string[] {
+  const clausulas: string[] = [];
+  let profundidade = 0;
+  let inicio = 0;
+  for (let i = 0; i < expressao.length; i++) {
+    const c = expressao[i];
+    if (c === "(") profundidade++;
+    else if (c === ")") profundidade--;
+    else if (profundidade === 0 && expressao.startsWith("&&", i)) {
+      clausulas.push(expressao.slice(inicio, i));
+      i++;
+      inicio = i + 1;
+    }
+  }
+  clausulas.push(expressao.slice(inicio));
+  return clausulas;
+}
 
 function encontrarComparador(
   expressao: string,
@@ -239,7 +264,7 @@ function avaliarComparador(op: Comparador, esquerda: number, direita: number): b
   }
 }
 
-function avaliarCondicaoSubstituida(expressao: string): ResultadoCondicao {
+function avaliarClausulaComparador(expressao: string): ResultadoCondicao {
   const comparador = encontrarComparador(expressao);
   if (!comparador) {
     return { erro: "A condição precisa de um comparador (<, <=, >, >=, ==, !=)" };
@@ -262,6 +287,18 @@ function avaliarCondicaoSubstituida(expressao: string): ResultadoCondicao {
   }
 
   return { valor: avaliarComparador(comparador.op, valorEsquerda, valorDireita) };
+}
+
+/** Avalia a condição inteira — uma cláusula só, ou várias unidas por `&&`
+ * (todas precisam ser verdadeiras). Para no primeiro erro/cláusula falsa. */
+function avaliarCondicaoSubstituida(expressao: string): ResultadoCondicao {
+  const clausulas = separarClausulasE(expressao);
+  for (const clausula of clausulas) {
+    const resultado = avaliarClausulaComparador(clausula);
+    if ("erro" in resultado) return resultado;
+    if (!resultado.valor) return { valor: false };
+  }
+  return { valor: true };
 }
 
 function validarSintaxeCondicao(formula: string): boolean {
@@ -429,42 +466,74 @@ export function calcularColunasFormula(
   return calcularColunas(colunas, valorBruto).calculados;
 }
 
+/** Erro de `validarFormulasDoExame` com a posição exata da coluna (índice em
+ * `colunas`, na mesma ordem de documento passada pro validador) e, quando o
+ * problema é de uma opção específica de MULTIPLA_ESCOLHA, o índice dela em
+ * `coluna.opcoesCondicionais` — usado pela tela de cadastro pra rolar até o
+ * campo problemático em vez de só mostrar a mensagem solta. */
+export type ErroValidacaoFormula = {
+  mensagem: string;
+  colunaIndex: number;
+  opcaoIndex?: number;
+};
+
 /**
  * Valida a estrutura de fórmulas do exame inteiro (cadastro): fórmula
  * obrigatória, só em campo não-repetível, só referências anteriores/
  * existentes, nomes de coluna numérica/calculada únicos, sintaxe válida.
  * `colunas` precisa vir em ordem de documento (seção → campo → coluna).
- * Devolve a primeira mensagem de erro encontrada, ou `null` se tudo ok.
+ * Devolve o primeiro erro encontrado (mensagem + posição), ou `null` se tudo ok.
  */
-export function validarFormulasDoExame(colunas: ColunaValidavel[]): string | null {
+export function validarFormulasDoExameDetalhado(
+  colunas: ColunaValidavel[],
+): ErroValidacaoFormula | null {
   const disponiveis = new Set<string>();
 
-  for (const coluna of colunas) {
+  for (let colunaIndex = 0; colunaIndex < colunas.length; colunaIndex++) {
+    const coluna = colunas[colunaIndex];
     if (coluna.tipo === "CALCULADO") {
       const formula = (coluna.formula ?? "").trim();
       if (!formula) {
-        return `A coluna calculada "${coluna.titulo}" precisa de uma fórmula`;
+        return {
+          mensagem: `A coluna calculada "${coluna.titulo}" precisa de uma fórmula`,
+          colunaIndex,
+        };
       }
       if (coluna.repetivel) {
-        return `A coluna calculada "${coluna.titulo}" não pode estar em um campo com múltiplas entradas`;
+        return {
+          mensagem: `A coluna calculada "${coluna.titulo}" não pode estar em um campo com múltiplas entradas`,
+          colunaIndex,
+        };
       }
 
       const referencias = extrairReferencias(formula);
       if (referencias.length === 0) {
-        return `A fórmula da coluna "${coluna.titulo}" não referencia nenhuma coluna`;
+        return {
+          mensagem: `A fórmula da coluna "${coluna.titulo}" não referencia nenhuma coluna`,
+          colunaIndex,
+        };
       }
 
       for (const nome of referencias) {
         if (normalizarTitulo(nome) === normalizarTitulo(coluna.titulo)) {
-          return `A fórmula da coluna "${coluna.titulo}" não pode referenciar ela mesma`;
+          return {
+            mensagem: `A fórmula da coluna "${coluna.titulo}" não pode referenciar ela mesma`,
+            colunaIndex,
+          };
         }
         if (!disponiveis.has(normalizarTitulo(nome))) {
-          return `A fórmula da coluna "${coluna.titulo}" referencia "${nome}", que não existe ou vem depois dela no exame`;
+          return {
+            mensagem: `A fórmula da coluna "${coluna.titulo}" referencia "${nome}", que não existe ou vem depois dela no exame`,
+            colunaIndex,
+          };
         }
       }
 
       if (!validarSintaxe(formula)) {
-        return `A fórmula da coluna "${coluna.titulo}" tem um erro de sintaxe`;
+        return {
+          mensagem: `A fórmula da coluna "${coluna.titulo}" tem um erro de sintaxe`,
+          colunaIndex,
+        };
       }
     }
 
@@ -482,31 +551,59 @@ export function validarFormulasDoExame(colunas: ColunaValidavel[]): string | nul
         opcoes.every((o) => setCondicionadas.has(o)) &&
         opcoesComCondicao.every((o) => setOpcoes.has(o));
       if (!cobreTodas) {
-        return `A coluna "${coluna.titulo}" precisa de uma condição para TODAS as opções (ou nenhuma) — não dá pra deixar só parte automática`;
+        return {
+          mensagem: `A coluna "${coluna.titulo}" precisa de uma condição para TODAS as opções (ou nenhuma) — não dá pra deixar só parte automática`,
+          colunaIndex,
+        };
       }
 
-      for (const { opcao, formula } of coluna.opcoesCondicionais) {
+      for (
+        let opcaoIndex = 0;
+        opcaoIndex < coluna.opcoesCondicionais.length;
+        opcaoIndex++
+      ) {
+        const { opcao, formula } = coluna.opcoesCondicionais[opcaoIndex];
         const f = formula.trim();
         if (!f) {
-          return `A condição da opção "${opcao}" da coluna "${coluna.titulo}" está vazia`;
+          return {
+            mensagem: `A condição da opção "${opcao}" da coluna "${coluna.titulo}" está vazia`,
+            colunaIndex,
+            opcaoIndex,
+          };
         }
 
         const referencias = extrairReferencias(f);
         if (referencias.length === 0) {
-          return `A condição da opção "${opcao}" da coluna "${coluna.titulo}" não referencia nenhuma coluna`;
+          return {
+            mensagem: `A condição da opção "${opcao}" da coluna "${coluna.titulo}" não referencia nenhuma coluna`,
+            colunaIndex,
+            opcaoIndex,
+          };
         }
 
         for (const nome of referencias) {
           if (normalizarTitulo(nome) === normalizarTitulo(coluna.titulo)) {
-            return `A condição da opção "${opcao}" da coluna "${coluna.titulo}" não pode referenciar a própria coluna`;
+            return {
+              mensagem: `A condição da opção "${opcao}" da coluna "${coluna.titulo}" não pode referenciar a própria coluna`,
+              colunaIndex,
+              opcaoIndex,
+            };
           }
           if (!disponiveis.has(normalizarTitulo(nome))) {
-            return `A condição da opção "${opcao}" da coluna "${coluna.titulo}" referencia "${nome}", que não existe ou vem depois dela no exame`;
+            return {
+              mensagem: `A condição da opção "${opcao}" da coluna "${coluna.titulo}" referencia "${nome}", que não existe ou vem depois dela no exame`,
+              colunaIndex,
+              opcaoIndex,
+            };
           }
         }
 
         if (!validarSintaxeCondicao(f)) {
-          return `A condição da opção "${opcao}" da coluna "${coluna.titulo}" tem um erro de sintaxe (use um comparador: <, <=, >, >=, ==, !=)`;
+          return {
+            mensagem: `A condição da opção "${opcao}" da coluna "${coluna.titulo}" tem um erro de sintaxe (use um comparador: <, <=, >, >=, ==, !=)`,
+            colunaIndex,
+            opcaoIndex,
+          };
         }
       }
     }
@@ -515,7 +612,10 @@ export function validarFormulasDoExame(colunas: ColunaValidavel[]): string | nul
       const chave = normalizarTitulo(coluna.titulo);
       if (chave) {
         if (disponiveis.has(chave)) {
-          return `Já existe uma coluna numérica chamada "${coluna.titulo}" neste exame — use nomes únicos para referenciá-las em fórmulas`;
+          return {
+            mensagem: `Já existe uma coluna numérica chamada "${coluna.titulo}" neste exame — use nomes únicos para referenciá-las em fórmulas`,
+            colunaIndex,
+          };
         }
         disponiveis.add(chave);
       }
@@ -523,4 +623,11 @@ export function validarFormulasDoExame(colunas: ColunaValidavel[]): string | nul
   }
 
   return null;
+}
+
+/** Mesma validação de `validarFormulasDoExameDetalhado`, mas devolvendo só a
+ * mensagem — mantido para quem só precisa do texto do erro (testes existentes,
+ * usos futuros fora do formulário de cadastro). */
+export function validarFormulasDoExame(colunas: ColunaValidavel[]): string | null {
+  return validarFormulasDoExameDetalhado(colunas)?.mensagem ?? null;
 }

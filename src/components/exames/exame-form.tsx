@@ -205,6 +205,17 @@ function FormulaEditor({
                 {op}
               </Button>
             ))}
+            <span className="mx-1 h-4 w-px bg-border" />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-1.5 text-xs font-mono"
+              title="E — a condição só vale se as duas partes forem verdadeiras (ex: faixa mínima e máxima)"
+              onClick={() => inserirNoCursor(" && ")}
+            >
+              &&
+            </Button>
           </>
         )}
       </div>
@@ -499,7 +510,8 @@ function SecaoCard({
               {campo.colunas.map((coluna, colunaIndex) => (
                 <div
                   key={colunaIndex}
-                  className="flex flex-col gap-2 rounded-lg border border-input bg-background p-2"
+                  id={`exame-coluna-${secaoIndex}-${campoIndex}-${colunaIndex}`}
+                  className="flex scroll-mt-24 flex-col gap-2 rounded-lg border border-input bg-background p-2 transition-shadow"
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                     <GripVertical className="hidden size-3.5 shrink-0 text-muted-foreground sm:block" />
@@ -639,7 +651,8 @@ function SecaoCard({
                       {coluna.opcoes.map((opcao, opcaoIndex) => (
                         <div
                           key={opcaoIndex}
-                          className="flex flex-col gap-1.5"
+                          id={`exame-opcao-${secaoIndex}-${campoIndex}-${colunaIndex}-${opcaoIndex}`}
+                          className="flex scroll-mt-24 flex-col gap-1.5 rounded-md transition-shadow"
                         >
                           <div className="flex items-center gap-2">
                             <Input
@@ -958,6 +971,71 @@ export function ExameForm({
       router.push("/exames");
     }
   }, [state.success, mode, router]);
+
+  // Notifica o erro de validação de forma destacada (toast, não só o texto
+  // discreto no rodapé) e leva o usuário até o campo problemático — expande a
+  // seção se estiver retraída (desktop) / troca de passo (mobile) e rola até
+  // a coluna ou opção exata, com um destaque temporário. Sem isso o usuário só
+  // via uma frase solta embaixo do formulário, sem saber onde no exame (que
+  // pode ter várias seções/campos) o problema estava.
+  useEffect(() => {
+    if (!state.error) return;
+    toast.error(state.error, { duration: 8000 });
+
+    const path = state.errorPath;
+    if (!path || path[0] !== "secoes" || typeof path[1] !== "number") return;
+    const secaoIndex = path[1];
+    const campoIndex = typeof path[3] === "number" ? path[3] : undefined;
+    const colunaIndex = typeof path[5] === "number" ? path[5] : undefined;
+    const opcaoIndex =
+      path[6] === "opcoesCondicionais" && typeof path[7] === "number"
+        ? path[7]
+        : undefined;
+
+    // setState roda dentro do timeout (não sincronamente no corpo do efeito)
+    // pra não disparar o lint de cascata de render — e de quebra já serve
+    // pra dar tempo do toast aparecer antes da seção mudar embaixo dele.
+    const timer = setTimeout(() => {
+      setSecoesRetraidas((prev) => {
+        if (!prev.has(secaoIndex)) return prev;
+        const next = new Set(prev);
+        next.delete(secaoIndex);
+        return next;
+      });
+      setPassoAtual(secaoIndex);
+
+      if (campoIndex === undefined || colunaIndex === undefined) return;
+      const elementId =
+        opcaoIndex !== undefined
+          ? `exame-opcao-${secaoIndex}-${campoIndex}-${colunaIndex}-${opcaoIndex}`
+          : `exame-coluna-${secaoIndex}-${campoIndex}-${colunaIndex}`;
+
+      // Espera dois paints (seção expandida / passo trocado já refletidos no
+      // DOM) antes de rolar até o elemento.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const el = document.getElementById(elementId);
+          if (!el) return;
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.classList.add(
+            "ring-2",
+            "ring-destructive",
+            "ring-offset-2",
+            "ring-offset-background",
+          );
+          setTimeout(() => {
+            el.classList.remove(
+              "ring-2",
+              "ring-destructive",
+              "ring-offset-2",
+              "ring-offset-background",
+            );
+          }, 2500);
+        });
+      });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [state]);
 
   function updateSecao(index: number, patch: Partial<SecaoDraft>) {
     setSecoes((prev) =>
