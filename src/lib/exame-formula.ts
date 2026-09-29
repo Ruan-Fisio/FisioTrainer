@@ -336,11 +336,20 @@ export function avaliarCondicaoOpcao(
   return avaliarCondicaoSubstituida(expressao);
 }
 
+/** Arredonda pra 1 casa decimal — resultado de CALCULADO já sai assim (não só
+ * na exibição), pra facilitar escrever condição/fórmula encadeada em cima
+ * dele sem precisar adivinhar quantas casas o cálculo anterior produziu. */
+function arredondarUmaCasa(valor: number): number {
+  return Math.round(valor * 10) / 10;
+}
+
 /**
  * Calcula uma fórmula contra os valores numéricos já resolvidos (chave =
  * `normalizarTitulo(titulo da coluna)`). Nunca lança — valor ausente/não
  * numérico ou divisão por zero viram `{ erro }` com mensagem pra exibir
- * junto ao campo calculado.
+ * junto ao campo calculado. O resultado é arredondado pra 1 casa decimal
+ * (`arredondarUmaCasa`) antes de ser devolvido — vale tanto pra exibição
+ * quanto pro valor usado em fórmulas/condições encadeadas.
  */
 export function avaliarFormula(
   formula: string,
@@ -375,7 +384,7 @@ export function avaliarFormula(
     return { erro: "Não foi possível calcular (divisão por zero)" };
   }
 
-  return { valor: resultado };
+  return { valor: arredondarUmaCasa(resultado) };
 }
 
 /** Arredonda pra exibição (2 casas, sem zero à toa) — nunca `toLocaleString` (banido fora de format.ts). */

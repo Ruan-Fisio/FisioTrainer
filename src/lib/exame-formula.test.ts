@@ -50,10 +50,7 @@ describe("avaliarFormula", () => {
       [normalizarTitulo("Altura"), 1.75],
     ]);
     const resultado = avaliarFormula("{Peso} / ({Altura} * {Altura})", valores);
-    expect(resultado).toHaveProperty("valor");
-    if ("valor" in resultado) {
-      expect(resultado.valor).toBeCloseTo(22.857, 2);
-    }
+    expect(resultado).toEqual({ valor: 22.9 });
   });
 
   it("retorna erro citando os campos faltando (um)", () => {
@@ -81,7 +78,7 @@ describe("avaliarFormula", () => {
   it("suporta encadeamento (fórmula referenciando outra calculada)", () => {
     const valores = new Map([[normalizarTitulo("IMC"), 22.86]]);
     const resultado = avaliarFormula("{IMC} * 2", valores);
-    expect(resultado).toEqual({ valor: 45.72 });
+    expect(resultado).toEqual({ valor: 45.7 });
   });
 
   it("nunca usa eval — expressão maliciosa vira erro de sintaxe, não execução", () => {
@@ -114,12 +111,9 @@ describe("calcularColunasFormula", () => {
     const resultados = calcularColunasFormula(colunas, (id) => brutos[id]);
 
     const imc = resultados.get("imc");
-    expect(imc && "valor" in imc && imc.valor).toBeCloseTo(22.857, 2);
+    expect(imc).toEqual({ valor: 22.9 });
     const classificacao = resultados.get("classificacao");
-    expect(classificacao && "valor" in classificacao && classificacao.valor).toBeCloseTo(
-      22.857,
-      2,
-    );
+    expect(classificacao).toEqual({ valor: 22.9 });
   });
 
   it("ignora colunas de campo repetível como origem de valor", () => {
