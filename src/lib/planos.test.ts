@@ -180,12 +180,13 @@ describe("calcularTaxaProfissional", () => {
 });
 
 describe("calcularValorParcelado", () => {
-  it("à vista (1 parcela) não tem taxa", () => {
-    expect(calcularValorParcelado(270, 2.3, 1)).toBe(270);
+  it("1 parcela no cartão já aplica a taxa", () => {
+    // 270 * 1.023 = 276.21
+    expect(calcularValorParcelado(270, 2.3, 1)).toBeCloseTo(276.21, 2);
   });
 
-  it("0 parcelas também não tem taxa (evita divisão/uso indevido)", () => {
-    expect(calcularValorParcelado(270, 2.3, 0)).toBe(270);
+  it("0 parcelas é tratado como 1 (evita uso indevido)", () => {
+    expect(calcularValorParcelado(270, 2.3, 0)).toBeCloseTo(276.21, 2);
   });
 
   it("2x soma 2x o percentual sobre o valor à vista", () => {

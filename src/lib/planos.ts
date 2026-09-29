@@ -113,16 +113,16 @@ export function calcularTaxaProfissional(
 /**
  * Aplica a taxa de parcelamento no cartão (configurável em Configurações > Financeiro,
  * `ConfiguracaoTaxa` de chave `PARCELAMENTO_CARTAO`) sobre o valor à vista de um Plano.
- * Cumulativa por parcela: 2x = +1×taxa, 3x = +2×taxa, ... À vista (1 parcela ou menos)
- * não tem taxa.
+ * A taxa incide por parcela, já desde a 1ª: 1x = +1×taxa, 2x = +2×taxa, 3x = +3×taxa, ...
+ * Quem chama só usa isto para pagamento no cartão (à vista/PIX/etc. não passa por aqui);
+ * menos de 1 parcela é tratado como 1.
  */
 export function calcularValorParcelado(
   valorAVista: number,
   percentualTaxa: number,
   numeroParcelas: number,
 ): number {
-  if (numeroParcelas <= 1) return valorAVista;
-  const fator = 1 + (percentualTaxa / 100) * numeroParcelas;
+  const fator = 1 + (percentualTaxa / 100) * Math.max(numeroParcelas, 1);
   return Math.round(valorAVista * fator * 100) / 100;
 }
 

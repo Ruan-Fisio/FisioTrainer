@@ -81,11 +81,9 @@ function ValorCartaoOpcao({
   return (
     <>
       {formatarMoeda(total)}
-      {parcelas > 1 && (
-        <span className="block text-xs font-normal">
-          {parcelas}x de {formatarMoeda(total / parcelas)}
-        </span>
-      )}
+      <span className="block text-xs font-normal">
+        {parcelas}x de {formatarMoeda(total / parcelas)}
+      </span>
     </>
   );
 }
@@ -221,7 +219,11 @@ export function PlanoAtribuicaoForm({
     setWizardQuantidade((prev) => (Number(prev) > maxParcelas ? String(maxParcelas) : prev));
   }, [maxParcelas]);
 
-  const numeroParcelas = vencimentos.filter(Boolean).length;
+  // Antes de "Gerar parcelas", vale a quantidade digitada no wizard — assim o valor com a
+  // taxa do cartão já reflete o que o usuário está simulando.
+  const numeroParcelas = parcelasGeradas
+    ? vencimentos.filter(Boolean).length
+    : Math.min(Math.max(Math.trunc(Number(wizardQuantidade)) || 1, 1), maxParcelas);
 
   const valorOriginal = useMemo(() => {
     if (!planoSelecionado) return 0;
@@ -380,15 +382,7 @@ export function PlanoAtribuicaoForm({
                           valorAVista={valorPlano(planoSelecionado, periodicidade)}
                           taxa={taxaParcelamentoCartao}
                           parcelas={
-                            cartaoDaForma(formaEfetivaAtual)
-                              ? Math.min(
-                                  Math.max(
-                                    (parcelasGeradas ? numeroParcelas : Number(wizardQuantidade)) || 1,
-                                    1,
-                                  ),
-                                  maxParcelasCartao,
-                                )
-                              : maxParcelasCartao
+                            cartaoDaForma(formaEfetivaAtual) ? numeroParcelas : maxParcelasCartao
                           }
                         />
                       </>
