@@ -203,8 +203,7 @@ function FormulaEditor({
             {op}
           </Button>
         ))}
-        {incluirComparadores && (
-          <>
+        <>
             <span className="mx-1 h-4 w-px bg-border" />
             {(["<", "<=", ">", ">=", "==", "!="] as const).map((op) => (
               <Button
@@ -229,8 +228,19 @@ function FormulaEditor({
             >
               &&
             </Button>
+            {!incluirComparadores && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs font-mono"
+                title="SE(condição; valor se verdadeiro; valor se falso) — ex: SE({Sexo} == 1; cálculo masculino; cálculo feminino)"
+                onClick={() => inserirNoCursor("SE(condição; se verdadeiro; se falso)")}
+              >
+                SE
+              </Button>
+            )}
           </>
-        )}
       </div>
       {referenciasInvalidas.length > 0 && (
         <p className="text-xs text-destructive">

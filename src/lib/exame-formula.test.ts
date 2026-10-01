@@ -699,3 +699,28 @@ describe("variáveis do paciente ({Idade}, {Sexo})", () => {
     expect(r.calculados.get("x")).toEqual({ valor: 20 });
   });
 });
+
+describe("SE(condição; verdadeiro; falso)", () => {
+  const v = (o: Record<string, number>) => new Map(Object.entries(o));
+  it("escolhe o ramo conforme a condição", () => {
+    const f = "SE({sexo} == 1; {peso} * 2; {peso} * 3)";
+    expect(avaliarFormula(f, v({ sexo: 1, peso: 10 }))).toEqual({ valor: 20 });
+    expect(avaliarFormula(f, v({ sexo: 0, peso: 10 }))).toEqual({ valor: 30 });
+  });
+  it("aceita && na condição, SE aninhado e uso dentro de expressão", () => {
+    const f = "1 + SE({i} > 10 && {i} < 20; 5; SE({i} >= 20; 7; 9))";
+    expect(avaliarFormula(f, v({ i: 15 }))).toEqual({ valor: 6 });
+    expect(avaliarFormula(f, v({ i: 25 }))).toEqual({ valor: 8 });
+    expect(avaliarFormula(f, v({ i: 5 }))).toEqual({ valor: 10 });
+  });
+  it("valida sintaxe: argumentos faltando e ramo inválido", () => {
+    const col = (formula: string) => [
+      { titulo: "A", tipo: "NUMERO", repetivel: false },
+      { titulo: "X", tipo: "CALCULADO", formula, repetivel: false },
+    ];
+    expect(validarFormulasDoExame(col("SE({A} > 1; 2; 3)"))).toBeNull();
+    expect(validarFormulasDoExame(col("SE({A} > 1; 2)"))).toMatch(/sintaxe/);
+    expect(validarFormulasDoExame(col("SE({A} > 1; 2; 3 +)"))).toMatch(/sintaxe/);
+    expect(validarFormulasDoExame(col("SE({A}; 2; 3)"))).toMatch(/sintaxe/);
+  });
+});

@@ -160,8 +160,44 @@ function avaliarExpressaoAritmetica(expressao: string): number {
     return Number(expressao.slice(inicio, pos));
   }
 
+  /** `SE(condição; valor_se_verdadeiro; valor_se_falso)` — os dois ramos são
+   * validados, mas só o escolhido vale (ramos podem ter outro SE). */
+  function parseSe(): number {
+    pos += 2;
+    skipSpaces();
+    pos++; // "("
+    const inicio = pos;
+    const partes: string[] = [];
+    let profundidade = 1;
+    let ini = pos;
+    while (pos < expressao.length && profundidade > 0) {
+      const c = expressao[pos];
+      if (c === "(") profundidade++;
+      else if (c === ")") {
+        profundidade--;
+        if (profundidade === 0) break;
+      } else if (c === ";" && profundidade === 1) {
+        partes.push(expressao.slice(ini, pos));
+        ini = pos + 1;
+      }
+      pos++;
+    }
+    if (profundidade !== 0) throw new Error("Parêntese não fechado");
+    partes.push(expressao.slice(ini, pos));
+    pos++; // ")"
+    if (partes.length !== 3 || inicio === pos) {
+      throw new Error("SE precisa de condição; valor se verdadeiro; valor se falso");
+    }
+    const condicao = avaliarCondicaoSubstituida(partes[0]);
+    if ("erro" in condicao) throw new Error(condicao.erro);
+    const seVerdadeiro = avaliarExpressaoAritmetica(partes[1]);
+    const seFalso = avaliarExpressaoAritmetica(partes[2]);
+    return condicao.valor ? seVerdadeiro : seFalso;
+  }
+
   function parseFator(): number {
     skipSpaces();
+    if (/^se\s*\(/i.test(expressao.slice(pos))) return parseSe();
     if (expressao[pos] === "(") {
       pos++;
       const valor = parseExpressao();
