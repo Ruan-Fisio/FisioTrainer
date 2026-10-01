@@ -42,7 +42,9 @@ export async function getExecucao(id: string) {
   return prisma.exameExecucao.findUnique({
     where: { id },
     include: {
-      paciente: { select: { id: true, nome: true } },
+      paciente: {
+        select: { id: true, nome: true, sexo: true, idade: true },
+      },
       exame: {
         include: {
           secoes: {

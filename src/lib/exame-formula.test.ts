@@ -633,3 +633,69 @@ describe("formatarNumeroFormula", () => {
     expect(formatarNumeroFormula(10.5)).toBe("10.5");
   });
 });
+
+describe("variáveis do paciente ({Idade}, {Sexo})", () => {
+  const colunas = [
+    { id: "peso", titulo: "Peso", tipo: "NUMERO", repetivel: false },
+    {
+      id: "calc",
+      titulo: "Ajustado",
+      tipo: "CALCULADO",
+      formula: "{Peso} + {Idade} + {Sexo} * 10",
+      repetivel: false,
+    },
+    {
+      id: "faixa",
+      titulo: "Faixa",
+      tipo: "MULTIPLA_ESCOLHA",
+      repetivel: false,
+      opcoes: ["Idoso", "Adulto"],
+      multiplaSelecao: false,
+      opcoesCondicionais: [
+        { opcao: "Idoso", formula: "{Idade} >= 60" },
+        { opcao: "Adulto", formula: "{Idade} < 60" },
+      ],
+    },
+  ];
+  const bruto = (id: string) => (id === "peso" ? "70" : undefined);
+
+  it("usa idade e sexo do paciente em CALCULADO e em condições", () => {
+    const r = calcularColunas(colunas, bruto, { idade: 65, sexo: "MASCULINO" });
+    expect(r.calculados.get("calc")).toEqual({ valor: 145 });
+    expect(r.opcoesAutomaticas.get("faixa")?.selecionadas).toEqual(["Idoso"]);
+    const f = calcularColunas(colunas, bruto, { idade: 30, sexo: "FEMININO" });
+    expect(f.calculados.get("calc")).toEqual({ valor: 100 });
+  });
+
+  it("pede o dado quando o paciente não tem idade/sexo", () => {
+    const r = calcularColunas(colunas, bruto, { idade: null, sexo: null });
+    expect(r.calculados.get("calc")).toEqual({ erro: "Preencha Idade e Sexo para calcular" });
+  });
+
+  it("validação aceita as variáveis e coluna com o mesmo nome continua válida", () => {
+    expect(
+      validarFormulasDoExame([
+        { titulo: "Peso", tipo: "NUMERO", repetivel: false },
+        { titulo: "X", tipo: "CALCULADO", formula: "{Peso} * {Idade}", repetivel: false },
+      ]),
+    ).toBeNull();
+    expect(
+      validarFormulasDoExame([
+        { titulo: "Idade", tipo: "NUMERO", repetivel: false },
+        { titulo: "X", tipo: "CALCULADO", formula: "{Idade} * 2", repetivel: false },
+      ]),
+    ).toBeNull();
+  });
+
+  it("coluna com nome Idade tem precedência sobre o perfil", () => {
+    const r = calcularColunas(
+      [
+        { id: "i", titulo: "Idade", tipo: "NUMERO", repetivel: false },
+        { id: "x", titulo: "X", tipo: "CALCULADO", formula: "{Idade} * 2", repetivel: false },
+      ],
+      (id) => (id === "i" ? "10" : undefined),
+      { idade: 50 },
+    );
+    expect(r.calculados.get("x")).toEqual({ valor: 20 });
+  });
+});

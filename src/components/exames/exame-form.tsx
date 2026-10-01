@@ -31,6 +31,7 @@ import {
   extrairReferencias,
   normalizarTitulo,
   renomearReferenciaFormula,
+  VARIAVEIS_PACIENTE,
 } from "@/lib/exame-formula";
 
 const initialState: ExameActionState = {};
@@ -138,7 +139,8 @@ function FormulaEditor({
 
   const referenciasInvalidas = extrairReferencias(value).filter(
     (nome) =>
-      !colunasDisponiveis.some((c) => normalizarTitulo(c) === normalizarTitulo(nome)),
+      !colunasDisponiveis.some((c) => normalizarTitulo(c) === normalizarTitulo(nome)) &&
+      !VARIAVEIS_PACIENTE.some((v) => normalizarTitulo(v) === normalizarTitulo(nome)),
   );
 
   return (
@@ -156,12 +158,24 @@ function FormulaEditor({
         className={selectClassName() + " font-mono"}
       />
       <div className="flex flex-wrap items-center gap-1.5">
-        {colunasDisponiveis.length === 0 ? (
-          <span className="text-xs text-muted-foreground">
-            Cadastre colunas do tipo Número antes desta para poder
-            referenciá-las
-          </span>
-        ) : (
+        {VARIAVEIS_PACIENTE.map((nome) => (
+          <Button
+            key={nome}
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 border-violet-500/40 px-2 text-xs"
+            title={
+              nome === "Sexo"
+                ? "Sexo do paciente: Masculino = 1, Feminino = 0"
+                : "Idade do paciente em anos"
+            }
+            onClick={() => inserirNoCursor(`{${nome}}`)}
+          >
+            {nome} (paciente)
+          </Button>
+        ))}
+        {colunasDisponiveis.length > 0 &&
           colunasDisponiveis.map((nome) => (
             <Button
               key={nome}
@@ -173,8 +187,7 @@ function FormulaEditor({
             >
               {nome}
             </Button>
-          ))
-        )}
+          ))}
         <span className="mx-1 h-4 w-px bg-border" />
         {(["+", "-", "×", "÷", "(", ")"] as const).map((op) => (
           <Button

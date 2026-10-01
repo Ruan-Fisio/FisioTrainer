@@ -158,9 +158,15 @@ model ExameCampoColuna {
   updatedAt    DateTime            @updatedAt
 }
 
+enum Sexo {
+  MASCULINO
+  FEMININO
+}
+
 model Paciente {
   id                    String          @id @default(cuid())
   nome                  String
+  sexo                  Sexo?
   idade                 Int?
   dataNascimento        DateTime?
   cpf                   String?         @unique

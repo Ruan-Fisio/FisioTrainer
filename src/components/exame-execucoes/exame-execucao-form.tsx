@@ -24,6 +24,7 @@ import {
 } from "@/lib/multipla-escolha";
 import {
   calcularColunas,
+  type DadosPacienteFormula,
   formatarNumeroFormula,
   parseOpcoesCondicionais,
   type ResultadoOpcoesAutomaticas,
@@ -478,6 +479,7 @@ export function ExameExecucaoForm({
   cancelHref,
   successLabel,
   movimentos,
+  paciente,
 }: {
   action: (
     prevState: ExameExecucaoActionState,
@@ -490,6 +492,8 @@ export function ExameExecucaoForm({
   cancelHref: string;
   successLabel: string;
   movimentos: MovimentoOption[];
+  /** Dados do perfil do paciente, referenciáveis como {Idade}/{Sexo} nas fórmulas. */
+  paciente?: DadosPacienteFormula;
 }) {
   const router = useRouter();
   const [state, formAction] = useActionState(action, initialState);
@@ -564,8 +568,9 @@ export function ExameExecucaoForm({
       calcularColunas(
         colunasEmOrdem,
         (colunaId) => valores[chaveValor(colunaId, LINHA_UNICA)],
+        paciente,
       ),
-    [colunasEmOrdem, valores],
+    [colunasEmOrdem, valores, paciente],
   );
 
   // Colunas MULTIPLA_ESCOLHA com preenchimento automático são travadas (como

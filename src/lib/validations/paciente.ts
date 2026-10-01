@@ -2,6 +2,7 @@ import { z } from "zod";
 
 export const pacienteSchema = z.object({
   nome: z.string().trim().min(2, "Nome deve ter ao menos 2 caracteres"),
+  sexo: z.enum(["MASCULINO", "FEMININO"]).optional(),
   idade: z.coerce.number().int().positive().optional(),
   dataNascimento: z.string().trim().optional(),
   cpf: z.string().trim().optional(),

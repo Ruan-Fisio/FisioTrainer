@@ -52,6 +52,7 @@ function parsePacienteForm(formData: FormData) {
 
   return pacienteSchema.safeParse({
     nome: formData.get("nome"),
+    sexo: formData.get("sexo") || undefined,
     idade: idadeRaw ? String(idadeRaw) : undefined,
     dataNascimento: formData.get("dataNascimento") || undefined,
     cpf: formData.get("cpf") || undefined,

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormActions } from "@/components/ui/form-actions";
@@ -23,6 +24,7 @@ export function PacienteForm({
   ) => Promise<PacienteActionState>;
   defaultValues?: {
     nome: string;
+    sexo: "MASCULINO" | "FEMININO" | null;
     idade: number | null;
     dataNascimento: string | null;
     cpf: string | null;
@@ -69,7 +71,19 @@ export function PacienteForm({
               required
             />
           </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="sexo">Sexo</Label>
+              <NativeSelect
+                id="sexo"
+                name="sexo"
+                defaultValue={defaultValues?.sexo ?? ""}
+              >
+                <option value="">Não informado</option>
+                <option value="MASCULINO">Masculino</option>
+                <option value="FEMININO">Feminino</option>
+              </NativeSelect>
+            </div>
             <div className="flex flex-col gap-2">
               <Label htmlFor="idade">Idade</Label>
               <Input

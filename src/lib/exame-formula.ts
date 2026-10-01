@@ -52,6 +52,32 @@ export type ColunaValidavel = {
 
 const TIPOS_REFERENCIAVEIS = new Set(["NUMERO", "CALCULADO"]);
 
+/**
+ * Variáveis do perfil do paciente, referenciáveis em qualquer fórmula/condição
+ * como se fossem uma coluna numérica: `{Idade}` (campo Idade do cadastro) e `{Sexo}`
+ * (Masculino = 1, Feminino = 0). Uma coluna do exame com o mesmo nome tem
+ * precedência (não quebra exames cadastrados antes desta feature).
+ */
+export const VARIAVEIS_PACIENTE = ["Idade", "Sexo"] as const;
+
+export type DadosPacienteFormula = {
+  sexo?: "MASCULINO" | "FEMININO" | null;
+  /** Idade em anos, do campo `idade` do cadastro do paciente. */
+  idade?: number | null;
+};
+
+/** Valores do perfil do paciente por título normalizado; dado ausente fica de fora
+ * (a fórmula mostra "Preencha Idade para calcular"). */
+export function variaveisDoPaciente(dados?: DadosPacienteFormula | null): Map<string, number> {
+  const mapa = new Map<string, number>();
+  if (!dados) return mapa;
+  if (dados.idade != null && Number.isFinite(dados.idade)) {
+    mapa.set(normalizarTitulo("Idade"), dados.idade);
+  }
+  if (dados.sexo) mapa.set(normalizarTitulo("Sexo"), dados.sexo === "MASCULINO" ? 1 : 0);
+  return mapa;
+}
+
 export function normalizarTitulo(titulo: string): string {
   return titulo.trim().toLowerCase();
 }
@@ -410,11 +436,12 @@ export function formatarNumeroFormula(valor: number): string {
 export function calcularColunas(
   colunas: ColunaCalculo[],
   valorBruto: (colunaId: string) => string | undefined,
+  paciente?: DadosPacienteFormula | null,
 ): {
   calculados: Map<string, ResultadoFormula>;
   opcoesAutomaticas: Map<string, ResultadoOpcoesAutomaticas>;
 } {
-  const valoresPorTitulo = new Map<string, number>();
+  const valoresPorTitulo = variaveisDoPaciente(paciente);
   const calculados = new Map<string, ResultadoFormula>();
   const opcoesAutomaticas = new Map<string, ResultadoOpcoesAutomaticas>();
 
@@ -471,8 +498,9 @@ export function calcularColunas(
 export function calcularColunasFormula(
   colunas: ColunaCalculo[],
   valorBruto: (colunaId: string) => string | undefined,
+  paciente?: DadosPacienteFormula | null,
 ): Map<string, ResultadoFormula> {
-  return calcularColunas(colunas, valorBruto).calculados;
+  return calcularColunas(colunas, valorBruto, paciente).calculados;
 }
 
 /** Erro de `validarFormulasDoExame` com a posição exata da coluna (índice em
@@ -496,7 +524,9 @@ export type ErroValidacaoFormula = {
 export function validarFormulasDoExameDetalhado(
   colunas: ColunaValidavel[],
 ): ErroValidacaoFormula | null {
-  const disponiveis = new Set<string>();
+  // Variáveis do paciente são referenciáveis, mas não entram na checagem de nome duplicado.
+  const disponiveis = new Set<string>(VARIAVEIS_PACIENTE.map(normalizarTitulo));
+  const nomesDeColunas = new Set<string>();
 
   for (let colunaIndex = 0; colunaIndex < colunas.length; colunaIndex++) {
     const coluna = colunas[colunaIndex];
@@ -620,12 +650,13 @@ export function validarFormulasDoExameDetalhado(
     if (TIPOS_REFERENCIAVEIS.has(coluna.tipo) && !coluna.repetivel) {
       const chave = normalizarTitulo(coluna.titulo);
       if (chave) {
-        if (disponiveis.has(chave)) {
+        if (nomesDeColunas.has(chave)) {
           return {
             mensagem: `Já existe uma coluna numérica chamada "${coluna.titulo}" neste exame — use nomes únicos para referenciá-las em fórmulas`,
             colunaIndex,
           };
         }
+        nomesDeColunas.add(chave);
         disponiveis.add(chave);
       }
     }

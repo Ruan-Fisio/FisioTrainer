@@ -84,6 +84,10 @@ export function ExecucaoValores({ execucao }: { execucao: Execucao }) {
   const resultadosCalculados = calcularColunasFormula(
     colunasEmOrdem,
     (colunaId) => valorPorChave.get(`${colunaId}::0`),
+    {
+      sexo: execucao.paciente.sexo,
+      idade: execucao.paciente.idade,
+    },
   );
 
   function linhasDoCampo(campo: {
