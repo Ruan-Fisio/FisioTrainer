@@ -5,6 +5,7 @@ import { parseGoniometriaValor } from "@/lib/goniometria";
 import { parseSelecionadas } from "@/lib/multipla-escolha";
 import {
   calcularColunasFormula,
+  parseVariaveis,
   formatarNumeroFormula,
   type ResultadoFormula,
 } from "@/lib/exame-formula";
@@ -88,6 +89,7 @@ export function ExecucaoValores({ execucao }: { execucao: Execucao }) {
       sexo: execucao.paciente.sexo,
       idade: execucao.paciente.idade,
     },
+    parseVariaveis(execucao.exame.variaveis),
   );
 
   function linhasDoCampo(campo: {

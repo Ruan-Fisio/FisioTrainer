@@ -27,6 +27,7 @@ import {
   type DadosPacienteFormula,
   formatarNumeroFormula,
   parseOpcoesCondicionais,
+  parseVariaveis,
   type ResultadoOpcoesAutomaticas,
 } from "@/lib/exame-formula";
 
@@ -38,6 +39,7 @@ export type ExameCompleto = {
   id: string;
   nome: string;
   tipo: "FISIOTERAPIA" | "EDUCACAO_FISICA";
+  variaveis?: unknown;
   secoes: {
     id: string;
     nome: string;
@@ -569,8 +571,9 @@ export function ExameExecucaoForm({
         colunasEmOrdem,
         (colunaId) => valores[chaveValor(colunaId, LINHA_UNICA)],
         paciente,
+        parseVariaveis(exame?.variaveis),
       ),
-    [colunasEmOrdem, valores, paciente],
+    [colunasEmOrdem, valores, paciente, exame],
   );
 
   // Colunas MULTIPLA_ESCOLHA com preenchimento automático são travadas (como

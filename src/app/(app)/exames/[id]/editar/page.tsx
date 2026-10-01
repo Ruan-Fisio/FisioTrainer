@@ -1,3 +1,4 @@
+import { parseVariaveis } from "@/lib/exame-formula";
 import { notFound } from "next/navigation";
 import { getExame, updateExame } from "@/actions/exames";
 import { ExameForm } from "@/components/exames/exame-form";
@@ -30,6 +31,7 @@ export default async function EditarExamePage({
           descricao: exame.descricao ?? "",
           tipo: exame.tipo,
           sombra: exame.sombra,
+          variaveis: parseVariaveis(exame.variaveis),
           secoes: exame.secoes.map((secao) => ({
             id: secao.id,
             nome: secao.nome,

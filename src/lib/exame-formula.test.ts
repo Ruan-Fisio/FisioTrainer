@@ -5,7 +5,10 @@ import {
   calcularColunas,
   calcularColunasFormula,
   extrairReferencias,
+  expandirVariaveis,
   formatarNumeroFormula,
+  parseVariaveis,
+  validarFormulasDoExameDetalhado,
   normalizarTitulo,
   parseOpcoesCondicionais,
   renomearReferenciaFormula,
@@ -722,5 +725,86 @@ describe("SE(condição; verdadeiro; falso)", () => {
     expect(validarFormulasDoExame(col("SE({A} > 1; 2)"))).toMatch(/sintaxe/);
     expect(validarFormulasDoExame(col("SE({A} > 1; 2; 3 +)"))).toMatch(/sintaxe/);
     expect(validarFormulasDoExame(col("SE({A}; 2; 3)"))).toMatch(/sintaxe/);
+  });
+});
+
+describe("variáveis do exame", () => {
+  const colunas = [
+    { id: "a", titulo: "Tríceps", tipo: "NUMERO", repetivel: false },
+    { id: "b", titulo: "Subescapular", tipo: "NUMERO", repetivel: false },
+    { id: "r", titulo: "Resultado", tipo: "CALCULADO", formula: "{Soma} * {Fator}", repetivel: false },
+  ];
+  const variaveis = [
+    { nome: "Soma", formula: "{Tríceps} + {Subescapular}" },
+    { nome: "Fator", formula: "0.5" },
+  ];
+  const bruto = (id: string) => ({ a: "10", b: "20" })[id as "a" | "b"];
+
+  it("expande constantes e sub-fórmulas (inclusive encadeadas)", () => {
+    expect(expandirVariaveis("{Soma} * {Fator}", variaveis)).toBe(
+      "({Tríceps} + {Subescapular}) * (0.5)",
+    );
+    expect(
+      expandirVariaveis("{B}", [
+        { nome: "A", formula: "2" },
+        { nome: "B", formula: "{A} * 3" },
+      ]),
+    ).toBe("((2) * 3)");
+  });
+
+  it("calcularColunas usa as variáveis em CALCULADO e em condições", () => {
+    const r = calcularColunas(colunas, bruto, null, variaveis);
+    expect(r.calculados.get("r")).toEqual({ valor: 15 });
+    const c = calcularColunas(
+      [
+        ...colunas.slice(0, 2),
+        {
+          id: "m",
+          titulo: "Faixa",
+          tipo: "MULTIPLA_ESCOLHA",
+          repetivel: false,
+          opcoes: ["Alta", "Baixa"],
+          opcoesCondicionais: [
+            { opcao: "Alta", formula: "{Soma} > 25" },
+            { opcao: "Baixa", formula: "{Soma} <= 25" },
+          ],
+        },
+      ],
+      bruto,
+      null,
+      variaveis,
+    );
+    expect(c.opcoesAutomaticas.get("m")?.selecionadas).toEqual(["Alta"]);
+  });
+
+  it("cadastro aceita variáveis válidas", () => {
+    expect(validarFormulasDoExame(colunas, variaveis)).toBeNull();
+  });
+
+  it("barra nome vazio, duplicado, em conflito, ciclo, referência inexistente e sintaxe", () => {
+    const v = (vs: { nome: string; formula: string }[]) => validarFormulasDoExame(colunas, vs);
+    expect(v([{ nome: " ", formula: "1" }])).toMatch(/precisa de um nome/);
+    expect(v([{ nome: "A", formula: "1" }, { nome: "a", formula: "2" }])).toMatch(/Já existe/);
+    expect(v([{ nome: "Idade", formula: "1" }])).toMatch(/do paciente/);
+    expect(v([{ nome: "tríceps", formula: "1" }])).toMatch(/nome de uma coluna/);
+    expect(v([{ nome: "A", formula: "{B}" }, { nome: "B", formula: "{A}" }])).toMatch(/ciclo/);
+    expect(v([{ nome: "A", formula: "{Nada}" }])).toMatch(/não existe/);
+    expect(v([{ nome: "A", formula: "1 +" }])).toMatch(/sintaxe/);
+    expect(v([{ nome: "A", formula: "" }])).toMatch(/precisa de uma fórmula/);
+  });
+
+  it("erro de variável aponta variavelIndex", () => {
+    const erro = validarFormulasDoExameDetalhado(colunas, [
+      { nome: "Ok", formula: "1" },
+      { nome: "Ruim", formula: "" },
+    ]);
+    expect(erro).toMatchObject({ colunaIndex: -1, variavelIndex: 1 });
+  });
+
+  it("parseVariaveis ignora formato inesperado", () => {
+    expect(parseVariaveis(null)).toEqual([]);
+    expect(parseVariaveis([{ nome: "A", formula: "1" }, { nome: 2 }, "x"])).toEqual([
+      { nome: "A", formula: "1" },
+    ]);
   });
 });

@@ -77,6 +77,17 @@ export const exameSchema = z
     tipo: z.enum(["FISIOTERAPIA", "EDUCACAO_FISICA"]),
     sombra: z.boolean().optional().default(false),
     secoes: z.array(exameSecaoSchema).min(1, "Adicione ao menos uma seção"),
+    // Sem validação de conteúdo aqui de propósito (ver nota em opcoesCondicionais):
+    // `validarFormulasDoExameDetalhado` barra com mensagem contextual.
+    variaveis: z
+      .array(
+        z.object({
+          nome: z.string().trim().optional().default(""),
+          formula: z.string().trim().optional().default(""),
+        }),
+      )
+      .optional()
+      .default([]),
   })
   .superRefine((exame, ctx) => {
     // Mesma travessia (seção → campo → coluna) que gera `colunasEmOrdem" para
@@ -111,8 +122,14 @@ export const exameSchema = z
       });
     });
 
-    const erro = validarFormulasDoExameDetalhado(colunasEmOrdem);
-    if (erro) {
+    const erro = validarFormulasDoExameDetalhado(colunasEmOrdem, exame.variaveis);
+    if (erro && erro.variavelIndex !== undefined) {
+      ctx.addIssue({
+        code: "custom",
+        message: erro.mensagem,
+        path: ["variaveis", erro.variavelIndex, "formula"],
+      });
+    } else if (erro) {
       const coordenada = coordenadas[erro.colunaIndex];
       const path: (string | number)[] = coordenada
         ? [

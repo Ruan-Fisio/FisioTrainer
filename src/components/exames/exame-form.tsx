@@ -32,7 +32,9 @@ import {
   normalizarTitulo,
   renomearReferenciaFormula,
   VARIAVEIS_PACIENTE,
+  type VariavelExame,
 } from "@/lib/exame-formula";
+import { FormulaDialog } from "@/components/exames/formula-dialog";
 
 const initialState: ExameActionState = {};
 
@@ -105,20 +107,65 @@ function colunasReferenciaveisAntes(
   return nomes;
 }
 
+/** Renomeia `{antigo}` → `{novo}` em toda fórmula e condição das colunas. */
+function renomearReferenciaEmSecoes(
+  secoes: SecaoDraft[],
+  antigo: string,
+  novo: string,
+): SecaoDraft[] {
+  return secoes.map((secao) => ({
+    ...secao,
+    campos: secao.campos.map((campo) => ({
+      ...campo,
+      colunas: campo.colunas.map((coluna) => {
+        if (coluna.tipo === "CALCULADO" && coluna.formula) {
+          return {
+            ...coluna,
+            formula: renomearReferenciaFormula(coluna.formula, antigo, novo),
+          };
+        }
+        if (
+          coluna.tipo === "MULTIPLA_ESCOLHA" &&
+          coluna.opcoesCondicionais.length > 0
+        ) {
+          return {
+            ...coluna,
+            opcoesCondicionais: coluna.opcoesCondicionais.map((c) => ({
+              ...c,
+              formula: renomearReferenciaFormula(c.formula, antigo, novo),
+            })),
+          };
+        }
+        return coluna;
+      }),
+    })),
+  }));
+}
+
 function FormulaEditor({
   value,
   onChange,
   colunasDisponiveis,
   incluirComparadores = false,
   placeholder,
+  titulo,
+  variaveis,
+  onVariaveisChange,
+  onRenomearVariavel,
 }: {
   value: string;
   onChange: (value: string) => void;
   colunasDisponiveis: string[];
   incluirComparadores?: boolean;
   placeholder?: string;
+  /** Contexto mostrado no cabeçalho do modal (coluna/opção sendo editada). */
+  titulo: string;
+  variaveis: VariavelExame[];
+  onVariaveisChange: (variaveis: VariavelExame[]) => void;
+  onRenomearVariavel: (antigo: string, novo: string) => void;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [modalAberto, setModalAberto] = useState(false);
 
   function inserirNoCursor(texto: string) {
     const input = inputRef.current;
@@ -140,7 +187,8 @@ function FormulaEditor({
   const referenciasInvalidas = extrairReferencias(value).filter(
     (nome) =>
       !colunasDisponiveis.some((c) => normalizarTitulo(c) === normalizarTitulo(nome)) &&
-      !VARIAVEIS_PACIENTE.some((v) => normalizarTitulo(v) === normalizarTitulo(nome)),
+      !VARIAVEIS_PACIENTE.some((v) => normalizarTitulo(v) === normalizarTitulo(nome)) &&
+      !variaveis.some((v) => normalizarTitulo(v.nome) === normalizarTitulo(nome)),
   );
 
   return (
@@ -158,6 +206,21 @@ function FormulaEditor({
         className={selectClassName() + " font-mono"}
       />
       <div className="flex flex-wrap items-center gap-1.5">
+        {variaveis
+          .filter((v) => v.nome.trim())
+          .map((v) => (
+            <Button
+              key={`var-${v.nome}`}
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 border-violet-500/40 px-2 text-xs"
+              title={v.formula}
+              onClick={() => inserirNoCursor(`{${v.nome.trim()}}`)}
+            >
+              {v.nome.trim()} (variável)
+            </Button>
+          ))}
         {VARIAVEIS_PACIENTE.map((nome) => (
           <Button
             key={nome}
@@ -242,6 +305,29 @@ function FormulaEditor({
             )}
           </>
       </div>
+      <Button
+        type="button"
+        variant="secondary"
+        size="sm"
+        className="h-7 self-start px-2 text-xs"
+        onClick={() => setModalAberto(true)}
+      >
+        <Sigma className="size-3.5" />
+        Abrir editor com autocomplete, variáveis e prévia
+      </Button>
+      {modalAberto && (
+        <FormulaDialog
+          titulo={titulo}
+          modo={incluirComparadores ? "condicao" : "formula"}
+          valorInicial={value}
+          colunasDisponiveis={colunasDisponiveis}
+          variaveis={variaveis}
+          onVariaveisChange={onVariaveisChange}
+          onRenomearVariavel={onRenomearVariavel}
+          onAplicar={onChange}
+          onFechar={() => setModalAberto(false)}
+        />
+      )}
       {referenciasInvalidas.length > 0 && (
         <p className="text-xs text-destructive">
           Referencia {referenciasInvalidas.map((n) => `"${n}"`).join(", ")},
@@ -309,6 +395,9 @@ function selectClassName() {
 }
 
 type SecaoCardProps = {
+  variaveis: VariavelExame[];
+  onVariaveisChange: (variaveis: VariavelExame[]) => void;
+  onRenomearVariavel: (antigo: string, novo: string) => void;
   secoes: SecaoDraft[];
   secao: SecaoDraft;
   secaoIndex: number;
@@ -382,6 +471,9 @@ type SecaoCardProps = {
 };
 
 function SecaoCard({
+  variaveis,
+  onVariaveisChange,
+  onRenomearVariavel,
   secoes,
   secao,
   secaoIndex,
@@ -734,6 +826,10 @@ function SecaoCard({
                                 colunaIndex,
                               )}
                               incluirComparadores
+                              titulo={`Condição da opção "${opcao || `Opção ${opcaoIndex + 1}`}" — coluna "${coluna.titulo || "sem título"}"`}
+                              variaveis={variaveis}
+                              onVariaveisChange={onVariaveisChange}
+                              onRenomearVariavel={onRenomearVariavel}
                               placeholder={`Condição para marcar "${opcao || `Opção ${opcaoIndex + 1}`}" — ex: {IMC} < 18.5`}
                             />
                           )}
@@ -774,6 +870,10 @@ function SecaoCard({
                           campoIndex,
                           colunaIndex,
                         )}
+                        titulo={`Coluna calculada "${coluna.titulo || "sem título"}"`}
+                        variaveis={variaveis}
+                        onVariaveisChange={onVariaveisChange}
+                        onRenomearVariavel={onRenomearVariavel}
                       />
                     </div>
                   )}
@@ -946,6 +1046,7 @@ export function ExameForm({
     tipo: "FISIOTERAPIA" | "EDUCACAO_FISICA";
     sombra: boolean;
     secoes: SecaoDraft[];
+    variaveis: VariavelExame[];
   };
   mode: "create" | "edit";
 }) {
@@ -956,6 +1057,13 @@ export function ExameForm({
     "FISIOTERAPIA" | "EDUCACAO_FISICA"
   >(defaultValues?.tipo ?? "FISIOTERAPIA");
   const [sombra, setSombra] = useState(defaultValues?.sombra ?? false);
+  const [variaveis, setVariaveis] = useState<VariavelExame[]>(
+    defaultValues?.variaveis ?? [],
+  );
+
+  function renomearVariavelNasColunas(antigo: string, novo: string) {
+    setSecoes((prev) => renomearReferenciaEmSecoes(prev, antigo, novo));
+  }
   const [secoes, setSecoes] = useState<SecaoDraft[]>(
     defaultValues?.secoes && defaultValues.secoes.length > 0
       ? defaultValues.secoes
@@ -1006,6 +1114,8 @@ export function ExameForm({
     toast.error(state.error, { duration: 8000 });
 
     const path = state.errorPath;
+    // Erro numa variável: o toast já traz a mensagem com o nome da variável.
+    if (path?.[0] === "variaveis") return;
     if (!path || path[0] !== "secoes" || typeof path[1] !== "number") return;
     const secaoIndex = path[1];
     const campoIndex = typeof path[3] === "number" ? path[3] : undefined;
@@ -1214,42 +1324,7 @@ export function ExameForm({
         patch.titulo.trim() &&
         normalizarTitulo(patch.titulo) !== normalizarTitulo(tituloAntigo)
       ) {
-        const tituloNovo = patch.titulo;
-        return proximo.map((secao) => ({
-          ...secao,
-          campos: secao.campos.map((campo) => ({
-            ...campo,
-            colunas: campo.colunas.map((coluna) => {
-              if (coluna.tipo === "CALCULADO" && coluna.formula) {
-                return {
-                  ...coluna,
-                  formula: renomearReferenciaFormula(
-                    coluna.formula,
-                    tituloAntigo,
-                    tituloNovo,
-                  ),
-                };
-              }
-              if (
-                coluna.tipo === "MULTIPLA_ESCOLHA" &&
-                coluna.opcoesCondicionais.length > 0
-              ) {
-                return {
-                  ...coluna,
-                  opcoesCondicionais: coluna.opcoesCondicionais.map((c) => ({
-                    ...c,
-                    formula: renomearReferenciaFormula(
-                      c.formula,
-                      tituloAntigo,
-                      tituloNovo,
-                    ),
-                  })),
-                };
-              }
-              return coluna;
-            }),
-          })),
-        }));
+        return renomearReferenciaEmSecoes(proximo, tituloAntigo, patch.titulo);
       }
 
       return proximo;
@@ -1533,6 +1608,9 @@ export function ExameForm({
   const secaoAtualMobile = secoes[passoClamped];
 
   const secaoCardHandlers = {
+    variaveis,
+    onVariaveisChange: setVariaveis,
+    onRenomearVariavel: renomearVariavelNasColunas,
     updateSecao,
     duplicarSecao,
     removeSecao,
@@ -1558,6 +1636,7 @@ export function ExameForm({
       className="flex max-w-3xl flex-1 flex-col gap-6 pb-24"
     >
       <input type="hidden" name="secoes" value={JSON.stringify(secoes)} />
+      <input type="hidden" name="variaveis" value={JSON.stringify(variaveis)} />
       <input type="hidden" name="sombra" value={sombra ? "true" : "false"} />
 
       <div className="flex flex-col gap-2">

@@ -82,6 +82,42 @@ export function normalizarTitulo(titulo: string): string {
   return titulo.trim().toLowerCase();
 }
 
+/**
+ * Variável do exame: um nome reutilizável em fórmulas/condições como `{Nome}`.
+ * Pode ser uma constante (`0.9`) ou uma sub-fórmula (`{Tríceps} + {Subescapular}`).
+ * É expandida em texto (`(sub-fórmula)`) antes de avaliar, então a regra de
+ * "só referenciar coluna anterior" vale no ponto de uso, não na definição.
+ */
+export type VariavelExame = { nome: string; formula: string };
+
+/** `Exame.variaveis` vem do Prisma como `Json` — normaliza, ignorando formato inesperado. */
+export function parseVariaveis(valor: unknown): VariavelExame[] {
+  if (!Array.isArray(valor)) return [];
+  return valor.filter(
+    (item): item is VariavelExame =>
+      typeof item === "object" &&
+      item !== null &&
+      typeof (item as VariavelExame).nome === "string" &&
+      typeof (item as VariavelExame).formula === "string",
+  );
+}
+
+/** Troca cada `{Variável}` pelo texto da sua fórmula entre parênteses (recursivo;
+ * ciclo é deixado como está — `validarVariaveis` barra no cadastro). */
+export function expandirVariaveis(formula: string, variaveis?: VariavelExame[]): string {
+  if (!variaveis || variaveis.length === 0) return formula;
+  const mapa = new Map(variaveis.map((v) => [normalizarTitulo(v.nome), v.formula]));
+  function expandir(texto: string, pilha: string[]): string {
+    return texto.replace(TOKEN_REGEX, (token, nome: string) => {
+      const chave = normalizarTitulo(nome);
+      const definicao = mapa.get(chave);
+      if (definicao === undefined || pilha.includes(chave)) return token;
+      return `(${expandir(definicao, [...pilha, chave])})`;
+    });
+  }
+  return expandir(formula, []);
+}
+
 /** `ExameCampoColuna.opcoesCondicionais` vem do Prisma como `Json` (tipo
  * `unknown` pro TS) — normaliza pro shape esperado, tratando qualquer coisa
  * inesperada (null, formato antigo) como "nenhuma condição". */
@@ -473,6 +509,7 @@ export function calcularColunas(
   colunas: ColunaCalculo[],
   valorBruto: (colunaId: string) => string | undefined,
   paciente?: DadosPacienteFormula | null,
+  variaveis?: VariavelExame[],
 ): {
   calculados: Map<string, ResultadoFormula>;
   opcoesAutomaticas: Map<string, ResultadoOpcoesAutomaticas>;
@@ -495,7 +532,10 @@ export function calcularColunas(
 
     if (coluna.tipo === "CALCULADO") {
       if (!chave) continue;
-      const resultado = avaliarFormula(coluna.formula ?? "", valoresPorTitulo);
+      const resultado = avaliarFormula(
+        expandirVariaveis(coluna.formula ?? "", variaveis),
+        valoresPorTitulo,
+      );
       calculados.set(coluna.id, resultado);
       if ("valor" in resultado) valoresPorTitulo.set(chave, resultado.valor);
       continue;
@@ -514,7 +554,10 @@ export function calcularColunas(
       for (const opcao of coluna.opcoes ?? []) {
         const formula = formulaPorOpcao.get(opcao);
         if (!formula) continue;
-        const resultado = avaliarCondicaoOpcao(formula, valoresPorTitulo);
+        const resultado = avaliarCondicaoOpcao(
+          expandirVariaveis(formula, variaveis),
+          valoresPorTitulo,
+        );
         if ("erro" in resultado) {
           erros[opcao] = resultado.erro;
           continue;
@@ -535,8 +578,9 @@ export function calcularColunasFormula(
   colunas: ColunaCalculo[],
   valorBruto: (colunaId: string) => string | undefined,
   paciente?: DadosPacienteFormula | null,
+  variaveis?: VariavelExame[],
 ): Map<string, ResultadoFormula> {
-  return calcularColunas(colunas, valorBruto, paciente).calculados;
+  return calcularColunas(colunas, valorBruto, paciente, variaveis).calculados;
 }
 
 /** Erro de `validarFormulasDoExame` com a posição exata da coluna (índice em
@@ -546,9 +590,87 @@ export function calcularColunasFormula(
  * campo problemático em vez de só mostrar a mensagem solta. */
 export type ErroValidacaoFormula = {
   mensagem: string;
+  /** `-1` quando o erro é de uma variável (ver `variavelIndex`). */
   colunaIndex: number;
   opcaoIndex?: number;
+  variavelIndex?: number;
 };
+
+/** Valida as variáveis do exame: nome único e sem conflito (colunas numéricas,
+ * Idade/Sexo), fórmula preenchida, referências existentes, sem ciclo e com
+ * sintaxe válida. A ordem das colunas só é checada no ponto de uso. */
+function validarVariaveis(
+  variaveis: VariavelExame[],
+  colunas: ColunaValidavel[],
+): ErroValidacaoFormula | null {
+  const erro = (mensagem: string, variavelIndex: number): ErroValidacaoFormula => ({
+    mensagem,
+    colunaIndex: -1,
+    variavelIndex,
+  });
+  const nomesColunas = new Set(
+    colunas
+      .filter((c) => TIPOS_REFERENCIAVEIS.has(c.tipo) && !c.repetivel)
+      .map((c) => normalizarTitulo(c.titulo)),
+  );
+  const nomesPaciente = new Set(VARIAVEIS_PACIENTE.map(normalizarTitulo));
+  const vistos = new Set<string>();
+
+  for (let i = 0; i < variaveis.length; i++) {
+    const nome = variaveis[i].nome.trim();
+    const chave = normalizarTitulo(nome);
+    if (!nome) return erro("Toda variável precisa de um nome", i);
+    if (/[{}]/.test(nome)) {
+      return erro(`O nome da variável "${nome}" não pode conter { ou }`, i);
+    }
+    if (vistos.has(chave)) return erro(`Já existe uma variável chamada "${nome}"`, i);
+    vistos.add(chave);
+    if (nomesPaciente.has(chave)) {
+      return erro(`"${nome}" já é uma variável do paciente — escolha outro nome`, i);
+    }
+    if (nomesColunas.has(chave)) {
+      return erro(`"${nome}" já é o nome de uma coluna do exame — escolha outro nome`, i);
+    }
+  }
+
+  const mapa = new Map(variaveis.map((v) => [normalizarTitulo(v.nome), v]));
+  for (let i = 0; i < variaveis.length; i++) {
+    const { nome, formula } = variaveis[i];
+    if (!formula.trim()) return erro(`A variável "${nome}" precisa de uma fórmula ou valor`, i);
+    for (const ref of extrairReferencias(formula)) {
+      const chave = normalizarTitulo(ref);
+      if (!mapa.has(chave) && !nomesColunas.has(chave) && !nomesPaciente.has(chave)) {
+        return erro(`A variável "${nome}" referencia "${ref}", que não existe`, i);
+      }
+    }
+  }
+
+  // Ciclo: DFS por referências entre variáveis.
+  const estado = new Map<string, 1 | 2>();
+  function temCiclo(chave: string): boolean {
+    if (estado.get(chave) === 2) return false;
+    if (estado.get(chave) === 1) return true;
+    estado.set(chave, 1);
+    for (const ref of extrairReferencias(mapa.get(chave)!.formula)) {
+      const k = normalizarTitulo(ref);
+      if (mapa.has(k) && temCiclo(k)) return true;
+    }
+    estado.set(chave, 2);
+    return false;
+  }
+  for (let i = 0; i < variaveis.length; i++) {
+    if (temCiclo(normalizarTitulo(variaveis[i].nome))) {
+      return erro(`A variável "${variaveis[i].nome}" depende dela mesma (ciclo)`, i);
+    }
+  }
+
+  for (let i = 0; i < variaveis.length; i++) {
+    if (!validarSintaxe(expandirVariaveis(variaveis[i].formula, variaveis))) {
+      return erro(`A fórmula da variável "${variaveis[i].nome}" tem um erro de sintaxe`, i);
+    }
+  }
+  return null;
+}
 
 /**
  * Valida a estrutura de fórmulas do exame inteiro (cadastro): fórmula
@@ -559,7 +681,11 @@ export type ErroValidacaoFormula = {
  */
 export function validarFormulasDoExameDetalhado(
   colunas: ColunaValidavel[],
+  variaveis: VariavelExame[] = [],
 ): ErroValidacaoFormula | null {
+  const erroVariavel = validarVariaveis(variaveis, colunas);
+  if (erroVariavel) return erroVariavel;
+
   // Variáveis do paciente são referenciáveis, mas não entram na checagem de nome duplicado.
   const disponiveis = new Set<string>(VARIAVEIS_PACIENTE.map(normalizarTitulo));
   const nomesDeColunas = new Set<string>();
@@ -581,15 +707,15 @@ export function validarFormulasDoExameDetalhado(
         };
       }
 
-      const referencias = extrairReferencias(formula);
-      if (referencias.length === 0) {
+      if (extrairReferencias(formula).length === 0) {
         return {
           mensagem: `A fórmula da coluna "${coluna.titulo}" não referencia nenhuma coluna`,
           colunaIndex,
         };
       }
 
-      for (const nome of referencias) {
+      const formulaExpandida = expandirVariaveis(formula, variaveis);
+      for (const nome of extrairReferencias(formulaExpandida)) {
         if (normalizarTitulo(nome) === normalizarTitulo(coluna.titulo)) {
           return {
             mensagem: `A fórmula da coluna "${coluna.titulo}" não pode referenciar ela mesma`,
@@ -604,7 +730,7 @@ export function validarFormulasDoExameDetalhado(
         }
       }
 
-      if (!validarSintaxe(formula)) {
+      if (!validarSintaxe(formulaExpandida)) {
         return {
           mensagem: `A fórmula da coluna "${coluna.titulo}" tem um erro de sintaxe`,
           colunaIndex,
@@ -647,8 +773,7 @@ export function validarFormulasDoExameDetalhado(
           };
         }
 
-        const referencias = extrairReferencias(f);
-        if (referencias.length === 0) {
+        if (extrairReferencias(f).length === 0) {
           return {
             mensagem: `A condição da opção "${opcao}" da coluna "${coluna.titulo}" não referencia nenhuma coluna`,
             colunaIndex,
@@ -656,7 +781,8 @@ export function validarFormulasDoExameDetalhado(
           };
         }
 
-        for (const nome of referencias) {
+        const condicaoExpandida = expandirVariaveis(f, variaveis);
+        for (const nome of extrairReferencias(condicaoExpandida)) {
           if (normalizarTitulo(nome) === normalizarTitulo(coluna.titulo)) {
             return {
               mensagem: `A condição da opção "${opcao}" da coluna "${coluna.titulo}" não pode referenciar a própria coluna`,
@@ -673,7 +799,7 @@ export function validarFormulasDoExameDetalhado(
           }
         }
 
-        if (!validarSintaxeCondicao(f)) {
+        if (!validarSintaxeCondicao(condicaoExpandida)) {
           return {
             mensagem: `A condição da opção "${opcao}" da coluna "${coluna.titulo}" tem um erro de sintaxe (use um comparador: <, <=, >, >=, ==, !=)`,
             colunaIndex,
@@ -704,6 +830,9 @@ export function validarFormulasDoExameDetalhado(
 /** Mesma validação de `validarFormulasDoExameDetalhado`, mas devolvendo só a
  * mensagem — mantido para quem só precisa do texto do erro (testes existentes,
  * usos futuros fora do formulário de cadastro). */
-export function validarFormulasDoExame(colunas: ColunaValidavel[]): string | null {
-  return validarFormulasDoExameDetalhado(colunas)?.mensagem ?? null;
+export function validarFormulasDoExame(
+  colunas: ColunaValidavel[],
+  variaveis: VariavelExame[] = [],
+): string | null {
+  return validarFormulasDoExameDetalhado(colunas, variaveis)?.mensagem ?? null;
 }
