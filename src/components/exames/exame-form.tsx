@@ -252,7 +252,7 @@ function FormulaEditor({
             </Button>
           ))}
         <span className="mx-1 h-4 w-px bg-border" />
-        {(["+", "-", "×", "÷", "(", ")"] as const).map((op) => (
+        {(["+", "-", "×", "÷", "^", "(", ")"] as const).map((op) => (
           <Button
             key={op}
             type="button"

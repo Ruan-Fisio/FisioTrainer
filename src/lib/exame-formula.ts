@@ -169,7 +169,7 @@ function escapeRegExp(texto: string): string {
   return texto.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Parser recursivo simples de +,-,*,/,() sobre números literais — nunca `eval`. */
+/** Parser recursivo simples de +,-,*,/,^,() sobre números literais — nunca `eval`. */
 function avaliarExpressaoAritmetica(expressao: string): number {
   let pos = 0;
 
@@ -231,7 +231,7 @@ function avaliarExpressaoAritmetica(expressao: string): number {
     return condicao.valor ? seVerdadeiro : seFalso;
   }
 
-  function parseFator(): number {
+  function parsePrimario(): number {
     skipSpaces();
     if (/^se\s*\(/i.test(expressao.slice(pos))) return parseSe();
     if (expressao[pos] === "(") {
@@ -242,6 +242,22 @@ function avaliarExpressaoAritmetica(expressao: string): number {
       pos++;
       return valor;
     }
+    return parseNumero();
+  }
+
+  /** Potência (`^` ou `**`): associa à direita e pesa mais que `*` `/`, e o
+   * expoente aceita sinal — `2^3^2` = 2^9, `-2^2` = -4, `2^-1` = 0.5. */
+  function parsePotencia(): number {
+    const base = parsePrimario();
+    skipSpaces();
+    if (expressao[pos] === "^") pos++;
+    else if (expressao.startsWith("**", pos)) pos += 2;
+    else return base;
+    return base ** parseFator();
+  }
+
+  function parseFator(): number {
+    skipSpaces();
     if (expressao[pos] === "-") {
       pos++;
       return -parseFator();
@@ -250,7 +266,7 @@ function avaliarExpressaoAritmetica(expressao: string): number {
       pos++;
       return parseFator();
     }
-    return parseNumero();
+    return parsePotencia();
   }
 
   function parseTermo(): number {

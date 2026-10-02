@@ -808,3 +808,31 @@ describe("variáveis do exame", () => {
     ]);
   });
 });
+
+describe("potência (^)", () => {
+  const vazio = new Map<string, number>();
+  const calc = (f: string, v = vazio) => avaliarFormula(f, v);
+  it("eleva ao quadrado, com variável e precedência sobre * e /", () => {
+    expect(calc("{h} ^ 2", new Map([["h", 3]]))).toEqual({ valor: 9 });
+    expect(calc("{p} / {h} ^ 2", new Map([["p", 80], ["h", 2]]))).toEqual({ valor: 20 });
+    expect(calc("2 * 3 ^ 2")).toEqual({ valor: 18 });
+  });
+  it("associa à direita, aceita sinal no expoente e ** equivale a ^", () => {
+    expect(calc("2 ^ 3 ^ 2")).toEqual({ valor: 512 });
+    expect(calc("2 ^ -1")).toEqual({ valor: 0.5 });
+    expect(calc("-2 ^ 2")).toEqual({ valor: -4 });
+    expect(calc("(-2) ^ 2")).toEqual({ valor: 4 });
+    expect(calc("2 ** 3")).toEqual({ valor: 8 });
+  });
+  it("resultado inválido vira erro, não NaN", () => {
+    expect("erro" in calc("(-8) ^ 0.5")).toBe(true);
+  });
+  it("valida sintaxe de ^ incompleto", () => {
+    expect(
+      validarFormulasDoExame([
+        { titulo: "A", tipo: "NUMERO", repetivel: false },
+        { titulo: "X", tipo: "CALCULADO", formula: "{A} ^", repetivel: false },
+      ]),
+    ).toMatch(/sintaxe/);
+  });
+});
