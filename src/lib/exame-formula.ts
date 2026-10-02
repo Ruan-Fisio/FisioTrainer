@@ -6,10 +6,10 @@
  * partir dos valores reais salvos, então funciona em execuções já existentes
  * sem precisar migrar dado histórico.
  *
- * Regra que elimina a necessidade de detectar ciclo: uma fórmula só pode
- * referenciar uma coluna que aparece ANTES dela na ordem do exame (seção →
- * campo → coluna). Isso permite encadear calculadas (IMC → Classificação do
- * IMC) sem análise de grafo — é só checar posição. Por isso as colunas
+ * Uma fórmula pode referenciar qualquer coluna numérica/calculada do exame,
+ * em qualquer posição (antes ou depois) — a ordem dos campos não importa. O
+ * cálculo resolve as dependências sob demanda (`calcularColunas`) e o cadastro
+ * barra ciclos (A depende de B e B de A). Por isso as colunas
  * calculadas/numéricas precisam de nome único no exame (é a chave de
  * referência) e só podem existir em campos não-repetíveis (senão "qual linha"
  * vira ambíguo).
@@ -85,8 +85,8 @@ export function normalizarTitulo(titulo: string): string {
 /**
  * Variável do exame: um nome reutilizável em fórmulas/condições como `{Nome}`.
  * Pode ser uma constante (`0.9`) ou uma sub-fórmula (`{Tríceps} + {Subescapular}`).
- * É expandida em texto (`(sub-fórmula)`) antes de avaliar, então a regra de
- * "só referenciar coluna anterior" vale no ponto de uso, não na definição.
+ * É expandida em texto (`(sub-fórmula)`) antes de avaliar, então ela
+ * enxerga as mesmas colunas que a fórmula que a usa.
  */
 export type VariavelExame = { nome: string; formula: string };
 
@@ -514,12 +514,11 @@ export function formatarNumeroFormula(valor: number): string {
  * valor cru (string) já salvo de uma coluna NUMERO na linha única (0).
  */
 /**
- * Passagem única, em ordem de documento: acumula `valoresPorTitulo` a partir
- * de NUMERO/CALCULADO (igual antes) e, ao chegar numa MULTIPLA_ESCOLHA com
- * `opcoesCondicionais`, avalia a condição de cada opção contra o que já foi
- * acumulado até ali (nunca a própria coluna, nunca o que vem depois — mesma
- * regra de ordem do CALCULADO). Em seleção única, a primeira opção (na ordem
- * de `opcoes`) cuja condição bate vence; em múltipla, todas que baterem.
+ * Calcula as colunas CALCULADO (resolvendo dependências em qualquer ordem) e,
+ * depois, as opções automáticas de MULTIPLA_ESCOLHA contra todos os valores
+ * numéricos. Em seleção única, a primeira opção (na ordem de `opcoes`) cuja
+ * condição bate vence; em múltipla, todas que baterem. Colunas de campo
+ * repetível são ignoradas (nunca calculáveis nem referenciáveis).
  */
 export function calcularColunas(
   colunas: ColunaCalculo[],
@@ -534,29 +533,49 @@ export function calcularColunas(
   const calculados = new Map<string, ResultadoFormula>();
   const opcoesAutomaticas = new Map<string, ResultadoOpcoesAutomaticas>();
 
+  // 1) Valores digitados (NUMERO) e índice das calculadas por nome.
+  const calculadasPorChave = new Map<string, ColunaCalculo>();
   for (const coluna of colunas) {
     if (coluna.repetivel) continue;
     const chave = normalizarTitulo(coluna.titulo);
-
+    if (!chave) continue;
     if (coluna.tipo === "NUMERO") {
-      if (!chave) continue;
       const bruto = valorBruto(coluna.id);
       const numero = bruto === undefined || bruto === "" ? NaN : Number(bruto);
       if (Number.isFinite(numero)) valoresPorTitulo.set(chave, numero);
-      continue;
+    } else if (coluna.tipo === "CALCULADO" && !calculadasPorChave.has(chave)) {
+      calculadasPorChave.set(chave, coluna);
     }
+  }
 
-    if (coluna.tipo === "CALCULADO") {
-      if (!chave) continue;
-      const resultado = avaliarFormula(
-        expandirVariaveis(coluna.formula ?? "", variaveis),
-        valoresPorTitulo,
-      );
-      calculados.set(coluna.id, resultado);
-      if ("valor" in resultado) valoresPorTitulo.set(chave, resultado.valor);
-      continue;
+  // 2) Calculadas sob demanda: antes de avaliar uma, resolve as calculadas que
+  // ela referencia (em qualquer posição). Ciclo é barrado no cadastro; se
+  // existir mesmo assim, a coluna do ciclo fica sem valor ("Preencha ...").
+  const emAndamento = new Set<string>();
+  function resolver(coluna: ColunaCalculo) {
+    if (calculados.has(coluna.id) || emAndamento.has(coluna.id)) return;
+    emAndamento.add(coluna.id);
+    const formula = expandirVariaveis(coluna.formula ?? "", variaveis);
+    for (const nome of extrairReferencias(formula)) {
+      const dependencia = calculadasPorChave.get(normalizarTitulo(nome));
+      if (dependencia && dependencia !== coluna) resolver(dependencia);
     }
+    const resultado = avaliarFormula(formula, valoresPorTitulo);
+    calculados.set(coluna.id, resultado);
+    if ("valor" in resultado) {
+      valoresPorTitulo.set(normalizarTitulo(coluna.titulo), resultado.valor);
+    }
+    emAndamento.delete(coluna.id);
+  }
+  for (const coluna of colunas) {
+    if (coluna.repetivel || coluna.tipo !== "CALCULADO") continue;
+    if (!normalizarTitulo(coluna.titulo)) continue;
+    resolver(coluna);
+  }
 
+  // 3) Opções automáticas, já com todos os valores numéricos resolvidos.
+  for (const coluna of colunas) {
+    if (coluna.repetivel) continue;
     if (
       coluna.tipo === "MULTIPLA_ESCOLHA" &&
       coluna.opcoesCondicionais &&
@@ -614,7 +633,7 @@ export type ErroValidacaoFormula = {
 
 /** Valida as variáveis do exame: nome único e sem conflito (colunas numéricas,
  * Idade/Sexo), fórmula preenchida, referências existentes, sem ciclo e com
- * sintaxe válida. A ordem das colunas só é checada no ponto de uso. */
+ * sintaxe válida. A ordem das colunas não importa. */
 function validarVariaveis(
   variaveis: VariavelExame[],
   colunas: ColunaValidavel[],
@@ -690,9 +709,10 @@ function validarVariaveis(
 
 /**
  * Valida a estrutura de fórmulas do exame inteiro (cadastro): fórmula
- * obrigatória, só em campo não-repetível, só referências anteriores/
- * existentes, nomes de coluna numérica/calculada únicos, sintaxe válida.
- * `colunas` precisa vir em ordem de documento (seção → campo → coluna).
+ * obrigatória, só em campo não-repetível, referências a colunas existentes
+ * (em qualquer posição), sem ciclo entre calculadas, nomes de coluna
+ * numérica/calculada únicos, sintaxe válida. `colunas` vem em ordem de
+ * documento (seção → campo → coluna) — só para mapear o erro à posição.
  * Devolve o primeiro erro encontrado (mensagem + posição), ou `null` se tudo ok.
  */
 export function validarFormulasDoExameDetalhado(
@@ -702,8 +722,14 @@ export function validarFormulasDoExameDetalhado(
   const erroVariavel = validarVariaveis(variaveis, colunas);
   if (erroVariavel) return erroVariavel;
 
-  // Variáveis do paciente são referenciáveis, mas não entram na checagem de nome duplicado.
+  // Referenciável = variável do paciente + toda coluna numérica/calculada de
+  // campo não-repetível, em qualquer posição. O paciente não entra na checagem
+  // de nome duplicado (`nomesDeColunas`).
   const disponiveis = new Set<string>(VARIAVEIS_PACIENTE.map(normalizarTitulo));
+  for (const c of colunas) {
+    const chave = normalizarTitulo(c.titulo);
+    if (TIPOS_REFERENCIAVEIS.has(c.tipo) && !c.repetivel && chave) disponiveis.add(chave);
+  }
   const nomesDeColunas = new Set<string>();
 
   for (let colunaIndex = 0; colunaIndex < colunas.length; colunaIndex++) {
@@ -740,7 +766,7 @@ export function validarFormulasDoExameDetalhado(
         }
         if (!disponiveis.has(normalizarTitulo(nome))) {
           return {
-            mensagem: `A fórmula da coluna "${coluna.titulo}" referencia "${nome}", que não existe ou vem depois dela no exame`,
+            mensagem: `A fórmula da coluna "${coluna.titulo}" referencia "${nome}", que não existe neste exame (colunas de campos com múltiplas entradas não podem ser referenciadas)`,
             colunaIndex,
           };
         }
@@ -808,7 +834,7 @@ export function validarFormulasDoExameDetalhado(
           }
           if (!disponiveis.has(normalizarTitulo(nome))) {
             return {
-              mensagem: `A condição da opção "${opcao}" da coluna "${coluna.titulo}" referencia "${nome}", que não existe ou vem depois dela no exame`,
+              mensagem: `A condição da opção "${opcao}" da coluna "${coluna.titulo}" referencia "${nome}", que não existe neste exame (colunas de campos com múltiplas entradas não podem ser referenciadas)`,
               colunaIndex,
               opcaoIndex,
             };
@@ -835,11 +861,49 @@ export function validarFormulasDoExameDetalhado(
           };
         }
         nomesDeColunas.add(chave);
-        disponiveis.add(chave);
       }
     }
   }
 
+  return validarCiclosEntreCalculadas(colunas, variaveis);
+}
+
+/** Calculada que depende (direta ou indiretamente) dela mesma — o cálculo
+ * sob demanda não teria por onde começar. */
+function validarCiclosEntreCalculadas(
+  colunas: ColunaValidavel[],
+  variaveis: VariavelExame[],
+): ErroValidacaoFormula | null {
+  const indicePorChave = new Map<string, number>();
+  colunas.forEach((c, i) => {
+    const chave = normalizarTitulo(c.titulo);
+    if (c.tipo === "CALCULADO" && !c.repetivel && chave && !indicePorChave.has(chave)) {
+      indicePorChave.set(chave, i);
+    }
+  });
+
+  const estado = new Map<number, 1 | 2>();
+  function temCiclo(indice: number): boolean {
+    if (estado.get(indice) === 2) return false;
+    if (estado.get(indice) === 1) return true;
+    estado.set(indice, 1);
+    const formula = expandirVariaveis(colunas[indice].formula ?? "", variaveis);
+    for (const nome of extrairReferencias(formula)) {
+      const destino = indicePorChave.get(normalizarTitulo(nome));
+      if (destino !== undefined && temCiclo(destino)) return true;
+    }
+    estado.set(indice, 2);
+    return false;
+  }
+
+  for (const indice of indicePorChave.values()) {
+    if (temCiclo(indice)) {
+      return {
+        mensagem: `A coluna calculada "${colunas[indice].titulo}" depende dela mesma por meio de outras colunas calculadas (ciclo)`,
+        colunaIndex: indice,
+      };
+    }
+  }
   return null;
 }
 

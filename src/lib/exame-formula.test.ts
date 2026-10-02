@@ -207,12 +207,28 @@ describe("validarFormulasDoExame", () => {
     expect(validarFormulasDoExame(colunas)).toMatch(/múltiplas entradas/);
   });
 
-  it("rejeita referência a coluna que vem depois (evita ciclo por construção)", () => {
+  it("aceita referência a coluna que vem depois (ordem dos campos não importa)", () => {
     const colunas: ColunaValidavel[] = [
       { titulo: "IMC", tipo: "CALCULADO", formula: "{Peso}/{Altura}", repetivel: false },
       ...base,
     ];
-    expect(validarFormulasDoExame(colunas)).toMatch(/não existe ou vem depois/);
+    expect(validarFormulasDoExame(colunas)).toBeNull();
+  });
+
+  it("rejeita ciclo entre colunas calculadas", () => {
+    const colunas: ColunaValidavel[] = [
+      { titulo: "A", tipo: "CALCULADO", formula: "{B} + 1", repetivel: false },
+      { titulo: "B", tipo: "CALCULADO", formula: "{A} + 1", repetivel: false },
+    ];
+    expect(validarFormulasDoExame(colunas)).toMatch(/ciclo/);
+  });
+
+  it("rejeita referência a coluna inexistente", () => {
+    const colunas: ColunaValidavel[] = [
+      ...base,
+      { titulo: "X", tipo: "CALCULADO", formula: "{Peso} * {Nada}", repetivel: false },
+    ];
+    expect(validarFormulasDoExame(colunas)).toMatch(/que não existe/);
   });
 
   it("rejeita auto-referência", () => {
@@ -247,12 +263,12 @@ describe("validarFormulasDoExame", () => {
     expect(validarFormulasDoExame(colunas)).toMatch(/erro de sintaxe/);
   });
 
-  it("coluna calculada em campo não-repetível não bloqueia colunas repetíveis anteriores de serem ignoradas como referência", () => {
+  it("coluna de campo repetível não pode ser referenciada", () => {
     const colunas: ColunaValidavel[] = [
       { titulo: "Peso", tipo: "NUMERO", repetivel: true },
       { titulo: "IMC", tipo: "CALCULADO", formula: "{Peso} * 2", repetivel: false },
     ];
-    expect(validarFormulasDoExame(colunas)).toMatch(/não existe ou vem depois/);
+    expect(validarFormulasDoExame(colunas)).toMatch(/que não existe/);
   });
 });
 
@@ -538,7 +554,7 @@ describe("validarFormulasDoExame — opções automáticas de MULTIPLA_ESCOLHA",
     expect(validarFormulasDoExame(colunas)).toMatch(/TODAS as opções/);
   });
 
-  it("rejeita condição referenciando coluna que vem depois", () => {
+  it("aceita condição referenciando coluna que vem depois", () => {
     const colunas: ColunaValidavel[] = [
       {
         titulo: "Classificação",
@@ -549,7 +565,7 @@ describe("validarFormulasDoExame — opções automáticas de MULTIPLA_ESCOLHA",
       },
       ...base,
     ];
-    expect(validarFormulasDoExame(colunas)).toMatch(/não existe ou vem depois/);
+    expect(validarFormulasDoExame(colunas)).toBeNull();
   });
 
   it("rejeita condição sem comparador (erro de sintaxe)", () => {
@@ -834,5 +850,45 @@ describe("potência (^)", () => {
         { titulo: "X", tipo: "CALCULADO", formula: "{A} ^", repetivel: false },
       ]),
     ).toMatch(/sintaxe/);
+  });
+});
+
+describe("referência a colunas em qualquer ordem", () => {
+  const colunas: ColunaCalculo[] = [
+    { id: "imc", titulo: "IMC", tipo: "CALCULADO", formula: "{Peso} / ({Altura} * {Altura})", repetivel: false },
+    { id: "classe", titulo: "Dobro", tipo: "CALCULADO", formula: "{IMC} * 2", repetivel: false },
+    {
+      id: "faixa",
+      titulo: "Faixa",
+      tipo: "MULTIPLA_ESCOLHA",
+      repetivel: false,
+      opcoes: ["Alto", "Baixo"],
+      opcoesCondicionais: [
+        { opcao: "Alto", formula: "{IMC} >= 25" },
+        { opcao: "Baixo", formula: "{IMC} < 25" },
+      ],
+    },
+    { id: "peso", titulo: "Peso", tipo: "NUMERO", repetivel: false },
+    { id: "altura", titulo: "Altura", tipo: "NUMERO", repetivel: false },
+  ];
+  const bruto = (id: string) => ({ peso: "100", altura: "2" })[id as "peso" | "altura"];
+
+  it("calcula calculadas e opções automáticas que dependem de colunas posteriores", () => {
+    const r = calcularColunas(colunas, bruto);
+    expect(r.calculados.get("imc")).toEqual({ valor: 25 });
+    expect(r.calculados.get("classe")).toEqual({ valor: 50 });
+    expect(r.opcoesAutomaticas.get("faixa")?.selecionadas).toEqual(["Alto"]);
+  });
+
+  it("ciclo não trava: as colunas do ciclo ficam sem valor", () => {
+    const r = calcularColunas(
+      [
+        { id: "a", titulo: "A", tipo: "CALCULADO", formula: "{B} + 1", repetivel: false },
+        { id: "b", titulo: "B", tipo: "CALCULADO", formula: "{A} + 1", repetivel: false },
+      ],
+      () => undefined,
+    );
+    expect("erro" in r.calculados.get("a")!).toBe(true);
+    expect("erro" in r.calculados.get("b")!).toBe(true);
   });
 });

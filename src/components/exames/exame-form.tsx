@@ -76,34 +76,31 @@ const TIPO_COLUNA_LABELS: Record<TipoColuna, string> = {
   CALCULADO: "Calculado (fórmula)",
 };
 
-/** Nomes de colunas Número/Calculado de campos não-repetíveis definidas ANTES
- * da posição indicada — é o que uma fórmula pode referenciar (ver regra de
- * "só referência anterior" em src/lib/exame-formula.ts). */
-function colunasReferenciaveisAntes(
+/** Nomes de colunas Número/Calculado de campos não-repetíveis de todo o exame
+ * (antes ou depois), exceto a própria coluna — é o que uma fórmula pode
+ * referenciar (ver src/lib/exame-formula.ts). */
+function colunasReferenciaveis(
   secoes: SecaoDraft[],
   secaoIndex: number,
   campoIndex: number,
   colunaIndex: number,
 ): string[] {
   const nomes: string[] = [];
-  for (let si = 0; si <= secaoIndex; si++) {
-    const secao = secoes[si];
-    for (let ci = 0; ci < secao.campos.length; ci++) {
-      if (si === secaoIndex && ci > campoIndex) break;
-      const campo = secao.campos[ci];
-      for (let coi = 0; coi < campo.colunas.length; coi++) {
-        if (si === secaoIndex && ci === campoIndex && coi >= colunaIndex) break;
-        const coluna = campo.colunas[coi];
+  secoes.forEach((secao, si) =>
+    secao.campos.forEach((campo, ci) =>
+      campo.colunas.forEach((coluna, coi) => {
+        const propria = si === secaoIndex && ci === campoIndex && coi === colunaIndex;
         if (
+          !propria &&
           !campo.repetivel &&
           (coluna.tipo === "NUMERO" || coluna.tipo === "CALCULADO") &&
           coluna.titulo.trim()
         ) {
           nomes.push(coluna.titulo.trim());
         }
-      }
-    }
-  }
+      }),
+    ),
+  );
   return nomes;
 }
 
@@ -331,7 +328,7 @@ function FormulaEditor({
       {referenciasInvalidas.length > 0 && (
         <p className="text-xs text-destructive">
           Referencia {referenciasInvalidas.map((n) => `"${n}"`).join(", ")},
-          que ainda não existe (ou vem depois) neste exame.
+          que não existe neste exame.
         </p>
       )}
     </div>
@@ -819,7 +816,7 @@ function SecaoCard({
                                   formula,
                                 )
                               }
-                              colunasDisponiveis={colunasReferenciaveisAntes(
+                              colunasDisponiveis={colunasReferenciaveis(
                                 secoes,
                                 secaoIndex,
                                 campoIndex,
@@ -864,7 +861,7 @@ function SecaoCard({
                             formula,
                           })
                         }
-                        colunasDisponiveis={colunasReferenciaveisAntes(
+                        colunasDisponiveis={colunasReferenciaveis(
                           secoes,
                           secaoIndex,
                           campoIndex,
