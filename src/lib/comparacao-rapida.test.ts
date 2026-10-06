@@ -1,9 +1,48 @@
 import { describe, expect, it } from "vitest";
 import {
   montarLinhasComparacaoRapida,
+  filtrarSeriesPorChaves,
   montarSeriesNumericas,
+  resumirSerie,
   type ComparacaoRapidaExame,
 } from "./comparacao-rapida";
+
+describe("resumirSerie", () => {
+  it("calcula delta e percentual entre primeiro e último valor", () => {
+    expect(resumirSerie([{ valor: 27 }, { valor: 30 }, { valor: 36 }])).toEqual({
+      inicial: 27,
+      final: 36,
+      delta: 9,
+      percentual: 33,
+      direcao: "alta",
+    });
+  });
+
+  it("detecta queda", () => {
+    const r = resumirSerie([{ valor: 80 }, { valor: 60 }]);
+    expect(r?.delta).toBe(-20);
+    expect(r?.percentual).toBe(-25);
+    expect(r?.direcao).toBe("queda");
+  });
+
+  it("ignora pontos nulos nas pontas", () => {
+    const r = resumirSerie([{ valor: null }, { valor: 10 }, { valor: null }, { valor: 12 }]);
+    expect(r?.inicial).toBe(10);
+    expect(r?.final).toBe(12);
+  });
+
+  it("retorna null com menos de 2 valores", () => {
+    expect(resumirSerie([{ valor: 5 }, { valor: null }])).toBeNull();
+  });
+
+  it("percentual é null quando o inicial é zero", () => {
+    expect(resumirSerie([{ valor: 0 }, { valor: 4 }])?.percentual).toBeNull();
+  });
+
+  it("estável quando não muda", () => {
+    expect(resumirSerie([{ valor: 5 }, { valor: 5 }])?.direcao).toBe("estavel");
+  });
+});
 
 function coluna(id: string, titulo: string, tipo = "TEXTO") {
   return { id, titulo, ordem: 0, tipo, formatacao: null, multiplaSelecao: false };
@@ -226,5 +265,28 @@ describe("montarSeriesNumericas", () => {
     const series = montarSeriesNumericas(secoes, ["avaliacao", "retorno1"]);
 
     expect(series).toHaveLength(0);
+  });
+});
+
+describe("filtrarSeriesPorChaves", () => {
+  const mk = (chave: string) => ({ chave, titulo: chave, unidade: null, pontos: [] });
+  const series = ["a", "b", "c", "d", "e", "f"].map(mk);
+
+  it("null devolve todas", () => {
+    expect(filtrarSeriesPorChaves(series, null)).toHaveLength(6);
+  });
+
+  it("respeita a ordem escolhida e ignora chaves inexistentes/duplicadas", () => {
+    expect(
+      filtrarSeriesPorChaves(series, ["c", "x", "a", "c"]).map((s) => s.chave),
+    ).toEqual(["c", "a"]);
+  });
+
+  it("limita a 4", () => {
+    expect(filtrarSeriesPorChaves(series, ["a", "b", "c", "d", "e"])).toHaveLength(4);
+  });
+
+  it("lista vazia devolve nenhuma", () => {
+    expect(filtrarSeriesPorChaves(series, [])).toEqual([]);
   });
 });

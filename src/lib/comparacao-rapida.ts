@@ -121,6 +121,40 @@ export function montarLinhasComparacaoRapida(
   });
 }
 
+export const MAX_CAMPOS_GRAFICO = 4;
+
+export type ResumoSerie = {
+  inicial: number;
+  final: number;
+  delta: number;
+  /** null quando o valor inicial é 0 (percentual indefinido). */
+  percentual: number | null;
+  direcao: "alta" | "queda" | "estavel";
+};
+
+/**
+ * Variação entre o primeiro e o último valor preenchido da série — alimenta
+ * o painel "Evolução no período" do card. null se há menos de 2 valores.
+ */
+export function resumirSerie(pontos: { valor: number | null }[]): ResumoSerie | null {
+  const valores = pontos.map((p) => p.valor).filter((v): v is number => v !== null);
+  if (valores.length < 2) return null;
+
+  const inicial = valores[0];
+  const final = valores[valores.length - 1];
+  const delta = Math.round((final - inicial) * 100) / 100;
+  const percentual =
+    inicial === 0 ? null : Math.round(((final - inicial) / Math.abs(inicial)) * 100);
+
+  return {
+    inicial,
+    final,
+    delta,
+    percentual,
+    direcao: delta > 0 ? "alta" : delta < 0 ? "queda" : "estavel",
+  };
+}
+
 export type SerieNumericaPonto = {
   execucaoId: string;
   valor: number | null;
@@ -172,4 +206,23 @@ export function montarSeriesNumericas(
   }
 
   return series;
+}
+
+/**
+ * Filtra as séries pelas chaves escolhidas, na ordem da escolha, limitado a
+ * MAX_CAMPOS_GRAFICO. `chaves` null = sem filtro (todas as séries).
+ */
+export function filtrarSeriesPorChaves(
+  series: SerieNumerica[],
+  chaves: string[] | null,
+): SerieNumerica[] {
+  if (chaves === null) return series;
+  const porChave = new Map(series.map((s) => [s.chave, s]));
+  const escolhidas: SerieNumerica[] = [];
+  for (const chave of chaves) {
+    const serie = porChave.get(chave);
+    if (serie && !escolhidas.includes(serie)) escolhidas.push(serie);
+    if (escolhidas.length >= MAX_CAMPOS_GRAFICO) break;
+  }
+  return escolhidas;
 }

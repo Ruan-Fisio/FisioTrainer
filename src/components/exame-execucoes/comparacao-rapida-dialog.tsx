@@ -18,7 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { getComparacaoRapida } from "@/actions/exame-execucoes";
 import { ValorColuna } from "@/components/exame-execucoes/execucao-detalhe";
 import { ComparacaoRapidaGrafico } from "@/components/exame-execucoes/comparacao-rapida-grafico";
-import { montarSeriesNumericas } from "@/lib/comparacao-rapida";
+import { MAX_CAMPOS_GRAFICO, montarSeriesNumericas } from "@/lib/comparacao-rapida";
 import { formatarData } from "@/lib/format";
 
 type Retorno = { id: string; data: Date };
@@ -35,9 +35,10 @@ export function ComparacaoRapidaDialog({
   retornos: Retorno[];
 }) {
   const [open, setOpen] = useState(false);
-  const [step, setStep] = useState<"selecao" | "resultado">("selecao");
+  const [step, setStep] = useState<"selecao" | "campos" | "resultado">("selecao");
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [resultado, setResultado] = useState<Resultado | null>(null);
+  const [camposSelecionados, setCamposSelecionados] = useState<string[]>([]);
   const [pending, startTransition] = useTransition();
 
   const series = useMemo(
@@ -54,12 +55,29 @@ export function ComparacaoRapidaDialog({
     });
   }
 
+  function toggleCampo(chave: string) {
+    setCamposSelecionados((prev) => {
+      if (prev.includes(chave)) return prev.filter((c) => c !== chave);
+      if (prev.length >= MAX_CAMPOS_GRAFICO) return prev;
+      return [...prev, chave];
+    });
+  }
+
+  const seriesEscolhidas = useMemo(
+    () =>
+      camposSelecionados
+        .map((chave) => series.find((s) => s.chave === chave))
+        .filter((s): s is NonNullable<typeof s> => !!s),
+    [camposSelecionados, series],
+  );
+
   function handleOpenChange(nextOpen: boolean) {
     setOpen(nextOpen);
     if (!nextOpen) {
       setStep("selecao");
       setSelecionados(new Set());
       setResultado(null);
+      setCamposSelecionados([]);
     }
   }
 
@@ -70,8 +88,13 @@ export function ComparacaoRapidaDialog({
         toast.error("Não foi possível montar a comparação.");
         return;
       }
+      const seriesDados = montarSeriesNumericas(
+        dados.secoes,
+        dados.execucoes.map((e) => e.id),
+      );
       setResultado(dados);
-      setStep("resultado");
+      setCamposSelecionados(seriesDados.slice(0, MAX_CAMPOS_GRAFICO).map((x) => x.chave));
+      setStep(seriesDados.length > 0 ? "campos" : "resultado");
     });
   }
 
@@ -83,7 +106,7 @@ export function ComparacaoRapidaDialog({
           Comparação rápida
         </Button>
       </DialogTrigger>
-      <DialogContent className={step === "resultado" ? "sm:max-w-3xl" : undefined}>
+      <DialogContent className={step === "resultado" ? "sm:max-w-4xl" : undefined}>
         {step === "selecao" && (
           <>
             <DialogHeader>
@@ -144,10 +167,59 @@ export function ComparacaoRapidaDialog({
           </>
         )}
 
-        {step === "resultado" && resultado && (
+        {step === "campos" && resultado && (
           <>
             <DialogHeader>
-              <DialogTitle>Comparação rápida — {resultado.exame.nome}</DialogTitle>
+              <DialogTitle>Campos do gráfico</DialogTitle>
+              <DialogDescription>
+                Escolha até {MAX_CAMPOS_GRAFICO} campos numéricos para destacar na
+                comparação ({camposSelecionados.length}/{MAX_CAMPOS_GRAFICO}).
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex max-h-[50vh] flex-col gap-1 overflow-y-auto rounded-md border p-2">
+              {series.map((serie) => {
+                const marcado = camposSelecionados.includes(serie.chave);
+                const bloqueado = !marcado && camposSelecionados.length >= MAX_CAMPOS_GRAFICO;
+                return (
+                  <label
+                    key={serie.chave}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      if (!bloqueado) toggleCampo(serie.chave);
+                    }}
+                    className={`flex min-h-8 items-center gap-2 rounded px-2 text-sm select-none ${
+                      bloqueado ? "cursor-not-allowed opacity-50" : "cursor-pointer hover:bg-muted"
+                    }`}
+                  >
+                    <Checkbox checked={marcado} tabIndex={-1} className="pointer-events-none" />
+                    {serie.titulo}
+                    {serie.unidade && (
+                      <span className="text-xs text-muted-foreground">({serie.unidade})</span>
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setStep("selecao")}>
+                Voltar
+              </Button>
+              <Button type="button" onClick={() => setStep("resultado")}>
+                Confirmar
+              </Button>
+            </DialogFooter>
+          </>
+        )}
+
+        {step === "resultado" && resultado && (
+          <>
+            <DialogHeader className="-mx-4 -mt-4 rounded-t-xl bg-gradient-to-r from-primary to-primary/80 px-4 py-4 text-primary-foreground">
+              <DialogTitle className="text-primary-foreground">
+                Comparação rápida —{" "}
+                <span className="text-accent">{resultado.exame.nome}</span>
+              </DialogTitle>
             </DialogHeader>
 
             <div className="flex max-h-[60vh] flex-col gap-6 overflow-y-auto py-2">
@@ -205,20 +277,15 @@ export function ComparacaoRapidaDialog({
                 </div>
               ))}
 
-              {series.length > 0 && (
-                <div className="flex flex-col gap-2">
-                  <h3 className="text-sm font-semibold">
-                    Evolução dos valores numéricos
-                  </h3>
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {series.map((serie) => (
-                      <ComparacaoRapidaGrafico
-                        key={serie.chave}
-                        serie={serie}
-                        execucoes={resultado.execucoes}
-                      />
-                    ))}
-                  </div>
+              {seriesEscolhidas.length > 0 && (
+                <div className="order-first grid grid-cols-1 gap-3 lg:grid-cols-2">
+                  {seriesEscolhidas.map((serie) => (
+                    <ComparacaoRapidaGrafico
+                      key={serie.chave}
+                      serie={serie}
+                      execucoes={resultado.execucoes}
+                    />
+                  ))}
                 </div>
               )}
             </div>
@@ -227,13 +294,13 @@ export function ComparacaoRapidaDialog({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setStep("selecao")}
+                onClick={() => setStep(series.length > 0 ? "campos" : "selecao")}
               >
                 Voltar
               </Button>
               <Button asChild variant="outline">
                 <a
-                  href={`/api/execucoes/${avaliacaoId}/comparacao-rapida-pdf?execucoes=${resultado.execucoes.filter((e) => e.id !== avaliacaoId).map((e) => e.id).join(",")}`}
+                  href={`/api/execucoes/${avaliacaoId}/comparacao-rapida-pdf?execucoes=${resultado.execucoes.filter((e) => e.id !== avaliacaoId).map((e) => e.id).join(",")}${series.length > 0 ? `&campos=${encodeURIComponent(camposSelecionados.join(","))}` : ""}`}
                   target="_blank"
                   rel="noopener noreferrer"
                 >

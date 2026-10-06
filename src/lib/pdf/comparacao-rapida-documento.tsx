@@ -8,16 +8,25 @@ import {
   Image,
   Svg,
   Polyline,
+  Polygon,
   Circle,
   Line,
   StyleSheet,
 } from "@react-pdf/renderer";
 import { parseGoniometriaValor } from "@/lib/goniometria";
 import { parseSelecionadas } from "@/lib/multipla-escolha";
-import type { SecaoComparacaoRapida, SerieNumerica } from "@/lib/comparacao-rapida";
+import {
+  resumirSerie,
+  type SecaoComparacaoRapida,
+  type SerieNumerica,
+} from "@/lib/comparacao-rapida";
 
 const CORES = {
   primary: "#1d3b86",
+  accent: "#f19c09",
+  accentClaro: "#fde8c4",
+  verde: "#059669",
+  fundoPainel: "#f3f4f6",
   texto: "#111827",
   mutedTexto: "#6b7280",
   borda: "#e5e7eb",
@@ -155,7 +164,7 @@ function SecaoTabelaRapida({
   );
 }
 
-const CHART_WIDTH = 480;
+const CHART_WIDTH = 350;
 const CHART_HEIGHT = 90;
 const CHART_PAD_RIGHT = 8;
 const CHART_PAD_TOP = 14;
@@ -231,9 +240,15 @@ function GraficoLinha({
       style={{ width: "100%", borderWidth: 1, borderColor: CORES.borda, padding: 8, marginBottom: 10 }}
       wrap={false}
     >
-      <Text style={{ fontSize: 9, fontWeight: 700, color: CORES.primary, marginBottom: 4 }}>
+      <Text style={{ fontSize: 10, fontWeight: 700, color: CORES.primary }}>
         {serie.titulo}
       </Text>
+      {serie.unidade && (
+        <Text style={{ fontSize: 7, color: CORES.mutedTexto, marginBottom: 4 }}>
+          ({serie.unidade})
+        </Text>
+      )}
+      <View style={{ flexDirection: "row", alignItems: "center" }}>
       <Svg width={CHART_WIDTH} height={alturaSvg}>
         <Line
           x1={padLeft}
@@ -276,6 +291,18 @@ function GraficoLinha({
           </Text>
         ))}
         {segmentos.map((segmento, i) => (
+          <Polygon
+            key={`area-${i}`}
+            points={[
+              `${segmento[0].x},${CHART_PAD_TOP + CHART_HEIGHT}`,
+              ...segmento.map((p) => `${p.x},${p.y}`),
+              `${segmento[segmento.length - 1].x},${CHART_PAD_TOP + CHART_HEIGHT}`,
+            ].join(" ")}
+            fill={CORES.accentClaro}
+            fillOpacity={0.7}
+          />
+        ))}
+        {segmentos.map((segmento, i) => (
           <Polyline
             key={i}
             points={segmento.map((p) => `${p.x},${p.y}`).join(" ")}
@@ -286,7 +313,7 @@ function GraficoLinha({
         ))}
         {valores.map((v, i) =>
           v === null ? null : (
-            <Circle key={i} cx={coordX(i)} cy={coordY(v)} r={2.5} fill={CORES.primary} />
+            <Circle key={i} cx={coordX(i)} cy={coordY(v)} r={3} fill="#ffffff" stroke={CORES.accent} strokeWidth={1.8} />
           ),
         )}
         {valores.map((v, i) =>
@@ -312,6 +339,64 @@ function GraficoLinha({
           </Text>
         ))}
       </Svg>
+      <PainelVariacao serie={serie} />
+      </View>
+    </View>
+  );
+}
+
+function PainelVariacao({ serie }: { serie: SerieNumerica }) {
+  const resumo = resumirSerie(serie.pontos);
+  const sufixo = serie.unidade ? ` ${serie.unidade}` : "";
+  const painel = {
+    flex: 1,
+    marginLeft: 8,
+    backgroundColor: CORES.fundoPainel,
+    padding: 8,
+    alignItems: "center" as const,
+  };
+
+  if (!resumo) {
+    return (
+      <View style={painel}>
+        <Text style={{ fontSize: 7, color: CORES.mutedTexto, textAlign: "center" }}>
+          Sem dados suficientes
+        </Text>
+      </View>
+    );
+  }
+
+  const cor = resumo.direcao === "queda" ? CORES.verde : CORES.accent;
+  const rotulo =
+    resumo.direcao === "estavel"
+      ? "Sem variação"
+      : resumo.direcao === "queda"
+        ? "Redução no período"
+        : "Evolução no período";
+
+  return (
+    <View style={painel}>
+      <Text style={{ fontSize: 12, fontWeight: 700 }}>
+        {`${resumo.delta > 0 ? "+" : ""}${arredondar(resumo.delta)}${sufixo}`}
+      </Text>
+      {resumo.percentual !== null && (
+        <Text style={{ fontSize: 10, fontWeight: 700, color: cor, marginTop: 2 }}>
+          {`${resumo.percentual > 0 ? "+" : ""}${resumo.percentual}%`}
+        </Text>
+      )}
+      <Text
+        style={{
+          fontSize: 7,
+          color: CORES.mutedTexto,
+          marginTop: 4,
+          paddingTop: 3,
+          borderTopWidth: 1,
+          borderTopColor: CORES.borda,
+          textAlign: "center",
+        }}
+      >
+        {rotulo}
+      </Text>
     </View>
   );
 }
@@ -386,7 +471,7 @@ export function ComparacaoRapidaPdfDocument({
         {series.length > 0 && (
           <View style={{ marginTop: 16 }}>
             <Text style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
-              Evolução dos valores numéricos
+              Evolução dos campos selecionados
             </Text>
             {series.map((serie) => (
               <GraficoLinha

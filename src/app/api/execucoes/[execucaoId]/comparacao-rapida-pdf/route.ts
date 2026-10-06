@@ -3,7 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getComparacaoRapida } from "@/actions/exame-execucoes";
-import { montarSeriesNumericas } from "@/lib/comparacao-rapida";
+import { filtrarSeriesPorChaves, montarSeriesNumericas } from "@/lib/comparacao-rapida";
 import { ComparacaoRapidaPdfDocument } from "@/lib/pdf/comparacao-rapida-documento";
 import { formatarData } from "@/lib/format";
 
@@ -40,9 +40,14 @@ export async function GET(
     label: formatarData(e.data),
   }));
 
-  const series = montarSeriesNumericas(
-    comparacao.secoes,
-    comparacao.execucoes.map((e) => e.id),
+  // ?campos ausente = todas as séries; presente (mesmo vazio) = só as escolhidas.
+  const camposParam = new URL(request.url).searchParams.get("campos");
+  const series = filtrarSeriesPorChaves(
+    montarSeriesNumericas(
+      comparacao.secoes,
+      comparacao.execucoes.map((e) => e.id),
+    ),
+    camposParam === null ? null : camposParam.split(",").filter(Boolean),
   );
 
   const buffer = await renderToBuffer(
