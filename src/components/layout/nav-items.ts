@@ -14,6 +14,7 @@ import {
   ScrollText,
   Settings,
   Stethoscope,
+  ClipboardCheck,
 } from "lucide-react";
 
 export type NavLeaf = {
@@ -27,6 +28,7 @@ export type NavItem =
 
 export const navItems: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { title: "Fila de Curadoria", href: "/curadoria", icon: ClipboardCheck },
   { title: "Pacientes", href: "/pacientes", icon: UserRound },
   { title: "Planos", href: "/planos", icon: Wallet },
   { title: "Serviços", href: "/servicos", icon: Stethoscope },

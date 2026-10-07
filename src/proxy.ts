@@ -7,7 +7,9 @@ const { auth } = NextAuth(authConfig);
 export default auth((req) => {
   const isLoggedIn = !!req.auth;
   const isLoginPage = req.nextUrl.pathname.startsWith("/login");
-  const isPublicRoute = req.nextUrl.pathname.startsWith("/compartilhado");
+  const isPublicRoute =
+    req.nextUrl.pathname.startsWith("/compartilhado") ||
+    req.nextUrl.pathname.startsWith("/pre-cadastro");
 
   if (isPublicRoute) {
     return NextResponse.next();

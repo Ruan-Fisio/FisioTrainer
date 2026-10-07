@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,7 @@ export function PacienteForm({
   action,
   defaultValues,
   mode,
+  preCadastroId: preCadastroIdProp,
 }: {
   action: (
     prevState: PacienteActionState,
@@ -40,8 +41,12 @@ export function PacienteForm({
     pessoaIndicacao: string | null;
   };
   mode: "create" | "edit";
+  /** Pré-cadastro da curadoria sendo efetivado; marcado como aprovado ao criar. */
+  preCadastroId?: string;
 }) {
   const router = useRouter();
+  // Congela o id: após criar, a página re-renderiza e o pré-cadastro (já aprovado) some do server.
+  const [preCadastroId] = useState(preCadastroIdProp);
   const [state, formAction] = useActionState(action, initialState);
 
   useEffect(() => {
@@ -51,12 +56,15 @@ export function PacienteForm({
           ? "Paciente criado com sucesso."
           : "Paciente atualizado com sucesso.",
       );
-      router.push("/pacientes");
+      router.push(preCadastroId ? "/curadoria" : "/pacientes");
     }
-  }, [state.success, mode, router]);
+  }, [state.success, mode, router, preCadastroId]);
 
   return (
     <form action={formAction} className="flex max-w-2xl flex-col gap-6 pb-24">
+      {preCadastroId && (
+        <input type="hidden" name="preCadastroId" value={preCadastroId} />
+      )}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Dados pessoais</CardTitle>
@@ -226,7 +234,9 @@ export function PacienteForm({
 
       <FormActions
         submitLabel={mode === "create" ? "Criar paciente" : "Salvar alterações"}
-        onCancel={() => router.push("/pacientes")}
+        onCancel={() =>
+          router.push(preCadastroId ? "/curadoria" : "/pacientes")
+        }
       />
     </form>
   );

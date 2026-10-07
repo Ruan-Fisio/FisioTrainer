@@ -25,6 +25,7 @@ Este `CLAUDE.md` é só um **índice + regras críticas** (mantê-lo em ~100 lin
 | Agenda (só leitura), salas, sala por plano, serviços avulsos, modalidades do usuário, funcionamento/feriados | `docs/agenda-salas-servicos.md` |
 | Agendamento assistido, grade recorrente, planos, parcelamento, renovação | `docs/agendamento-planos.md` |
 | Dashboard (compromissos, financeiro), portal público (`/compartilhado`), desmarcar, créditos de remarcação | `docs/dashboard-portal.md` |
+| Pré-cadastro público (`/pre-cadastro`) e Fila de Curadoria (`/curadoria`) | `docs/pre-cadastro.md` |
 | Fuso horário / datas (LEIA antes de tocar em qualquer `Date`) | `docs/fuso-horario.md` |
 | Auditoria (`/logs`), backup antes de operação destrutiva, seed | `docs/ops.md` |
 

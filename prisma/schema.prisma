@@ -188,8 +188,35 @@ model Paciente {
   planoAtribuicoes      PlanoAtribuicao[]
   treinos               Treino[]
   acessosCompartilhados AcessoCompartilhadoPaciente[]
+  preCadastro           PreCadastro?
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
+}
+
+enum StatusPreCadastro {
+  PENDENTE
+  APROVADO
+  REJEITADO
+}
+
+/// Interessado que preencheu o formulário público (/pre-cadastro) e aguarda curadoria.
+/// Aprovado = virou Paciente (pacienteId); rejeitado fica no histórico com motivo opcional.
+model PreCadastro {
+  id              String            @id @default(cuid())
+  nome            String
+  sobrenome       String
+  /// Só dígitos: DDD + número.
+  celular         String
+  queixaPrincipal String
+  status          StatusPreCadastro @default(PENDENTE)
+  motivoRejeicao  String?
+  analisadoEm     DateTime?
+  pacienteId      String?           @unique
+  paciente        Paciente?         @relation(fields: [pacienteId], references: [id], onDelete: SetNull)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  @@index([status, createdAt])
 }
 
 /// Link público (sem login) para o paciente ver suas avaliações, evoluções, treinos,

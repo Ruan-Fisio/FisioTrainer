@@ -19,6 +19,7 @@ export const AUDIT_WRITE_OPS = [
 export const MODULO_LABEL: Record<string, string> = {
   User: "Usuário",
   Paciente: "Paciente",
+  PreCadastro: "Pré-cadastro",
   Categoria: "Categoria",
   Exercicio: "Exercício",
   ExercicioLink: "Link de exercício",

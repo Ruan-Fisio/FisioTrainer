@@ -79,18 +79,43 @@ export async function createPaciente(
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
   }
 
-  await prisma.paciente.create({
-    data: {
-      ...parsed.data,
-      idade: parsed.data.idade ?? null,
-      dataNascimento: parsed.data.dataNascimento
-        ? new Date(parsed.data.dataNascimento)
-        : null,
-      cpf: parsed.data.cpf || null,
-      email: parsed.data.email || null,
-      endereco: parsed.data.endereco || null,
-    },
-  });
+  const data = {
+    ...parsed.data,
+    idade: parsed.data.idade ?? null,
+    dataNascimento: parsed.data.dataNascimento
+      ? new Date(parsed.data.dataNascimento)
+      : null,
+    cpf: parsed.data.cpf || null,
+    email: parsed.data.email || null,
+    endereco: parsed.data.endereco || null,
+  };
+
+  // Efetivação de um pré-cadastro: cria o paciente e marca o pré-cadastro como
+  // APROVADO na mesma transação (só se ainda estiver PENDENTE).
+  const preCadastroId = String(formData.get("preCadastroId") ?? "");
+  if (preCadastroId) {
+    const pendente = await prisma.preCadastro.findFirst({
+      where: { id: preCadastroId, status: "PENDENTE" },
+      select: { id: true },
+    });
+    if (!pendente) {
+      return { error: "Este pré-cadastro já foi analisado." };
+    }
+    await prisma.$transaction(async (tx) => {
+      const paciente = await tx.paciente.create({ data });
+      await tx.preCadastro.update({
+        where: { id: preCadastroId },
+        data: {
+          status: "APROVADO",
+          analisadoEm: new Date(),
+          pacienteId: paciente.id,
+        },
+      });
+    });
+    revalidatePath("/curadoria");
+  } else {
+    await prisma.paciente.create({ data });
+  }
 
   revalidatePath("/pacientes");
   return { success: true };
