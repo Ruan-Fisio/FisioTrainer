@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { preCadastroSchema, rejeitarPreCadastroSchema } from "./pre-cadastro";
+import {
+  parseArquivosPreCadastro,
+  preCadastroSchema,
+  rejeitarPreCadastroSchema,
+} from "./pre-cadastro";
 
 const base = {
   nome: "Maria",
@@ -34,5 +38,18 @@ describe("rejeitarPreCadastroSchema", () => {
   it("motivo é opcional e limitado a 500", () => {
     expect(rejeitarPreCadastroSchema.safeParse({}).success).toBe(true);
     expect(rejeitarPreCadastroSchema.safeParse({ motivo: "x".repeat(501) }).success).toBe(false);
+  });
+});
+
+describe("parseArquivosPreCadastro", () => {
+  const item = (n: number) => ({ chave: `tmp/pre-cadastro/s/${n}.pdf`, nomeOriginal: `a${n}.pdf` });
+  it("lê a lista e remove chaves repetidas", () => {
+    const raw = JSON.stringify([item(1), item(1), item(2)]);
+    expect(parseArquivosPreCadastro(raw)).toHaveLength(2);
+  });
+  it("ausente, JSON inválido ou mais de 5 arquivos vira vazio", () => {
+    expect(parseArquivosPreCadastro(null)).toEqual([]);
+    expect(parseArquivosPreCadastro("{x")).toEqual([]);
+    expect(parseArquivosPreCadastro(JSON.stringify([1, 2, 3, 4, 5, 6].map(item)))).toEqual([]);
   });
 });

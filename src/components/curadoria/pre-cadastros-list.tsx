@@ -9,6 +9,7 @@ import { RejeitarDialog } from "@/components/curadoria/rejeitar-dialog";
 import { formatarDataHora } from "@/lib/format";
 import { mascararCelular } from "@/lib/telefone";
 import { montarLinkWhatsapp } from "@/lib/whatsapp";
+import { PreCadastroVisualizarDialog } from "@/components/curadoria/pre-cadastro-visualizar-dialog";
 import type { StatusPreCadastro } from "@/generated/prisma/client";
 
 const VAZIO: Record<StatusPreCadastro, string> = {
@@ -81,6 +82,16 @@ export async function PreCadastrosList({
               <p className="max-h-48 overflow-y-auto whitespace-pre-wrap text-sm">
                 {item.queixaPrincipal}
               </p>
+
+              <div>
+                <PreCadastroVisualizarDialog
+                  nome={nomeCompleto}
+                  celular={item.celular}
+                  createdAt={item.createdAt}
+                  queixaPrincipal={item.queixaPrincipal}
+                  anexos={item.arquivos}
+                />
+              </div>
 
               {status === "REJEITADO" && item.motivoRejeicao && (
                 <p className="text-sm text-muted-foreground">

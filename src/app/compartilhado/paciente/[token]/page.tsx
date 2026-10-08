@@ -14,10 +14,18 @@ import {
   ClipboardList,
   Dumbbell,
   Package,
+  Paperclip,
   Stethoscope,
   Wallet,
 } from "lucide-react";
 import { resolverPacientePorToken } from "@/lib/acesso-compartilhado";
+import { listarAnexosComUrls } from "@/lib/paciente-anexos";
+import { AnexosPaciente } from "@/components/pacientes/anexos-paciente";
+import {
+  confirmarAnexoPortal,
+  removerAnexoPortal,
+  solicitarUploadAnexoPortal,
+} from "@/actions/portal-anexos";
 import { getAvaliacoesByPaciente } from "@/actions/exame-execucoes";
 import { getEvolucoesByPaciente } from "@/actions/evolucoes";
 import { listPlanoAtribuicoesByPaciente } from "@/actions/plano-atribuicoes";
@@ -35,6 +43,35 @@ async function AvaliacoesLoader({
 }) {
   const avaliacoes = await getAvaliacoesByPaciente(pacienteId);
   return <AvaliacoesPublicas token={token} avaliacoes={avaliacoes} />;
+}
+
+/** O paciente vê e gerencia só o que ele mesmo enviou (a clínica vê tudo). */
+async function AnexosLoader({
+  pacienteId,
+  token,
+}: {
+  pacienteId: string;
+  token: string;
+}) {
+  const anexos = await listarAnexosComUrls(pacienteId, { origem: "PACIENTE" });
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-3">
+        <p className="text-sm text-muted-foreground">
+          Envie seus exames, laudos e fotos para a clínica. Só você e a equipe
+          têm acesso.
+        </p>
+        <AnexosPaciente
+          anexos={anexos}
+          solicitarUpload={solicitarUploadAnexoPortal.bind(null, token)}
+          confirmar={confirmarAnexoPortal.bind(null, token)}
+          remover={removerAnexoPortal.bind(null, token)}
+          permitirExcluir
+          vazio="Você ainda não enviou nenhum arquivo."
+        />
+      </CardContent>
+    </Card>
+  );
 }
 
 async function EvolucoesLoader({ pacienteId }: { pacienteId: string }) {
@@ -156,7 +193,7 @@ export default async function PortalPacientePage({
       <div className="text-center">
         <h1 className="text-2xl font-semibold">{paciente.nome}</h1>
         <p className="text-sm text-muted-foreground">
-          Acompanhe suas avaliações, evoluções, treinos, planos e financeiro.
+          Acompanhe suas avaliações, evoluções, treinos, planos e financeiro, e envie seus exames.
         </p>
       </div>
 
@@ -170,6 +207,16 @@ export default async function PortalPacientePage({
             content: (
               <Suspense fallback={<TableSkeleton />}>
                 <AvaliacoesLoader pacienteId={pacienteId} token={token} />
+              </Suspense>
+            ),
+          },
+          {
+            value: "anexos",
+            label: "Anexos",
+            icon: <Paperclip />,
+            content: (
+              <Suspense fallback={<TableSkeleton />}>
+                <AnexosLoader pacienteId={pacienteId} token={token} />
               </Suspense>
             ),
           },

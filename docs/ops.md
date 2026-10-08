@@ -28,3 +28,7 @@ Toda operação de **escrita** (create/update/upsert/delete e variantes `*Many`)
 ## Seed
 
 `npm run db:seed` (idempotente, via `upsert`) cria: usuário admin padrão (`admin@admin.com` / `admin`), a Sala 1 - Cinesioterapia, dias de funcionamento (segunda a sábado), e uma **grade padrão de horários fixos** (07:00–16:00, de hora em hora com intervalo de almoço) pra Educação Física e Fisioterapia — sem isso um banco novo não materializa nenhum agendamento de plano (grade recorrente e wizard de agendamento exigem ≥1 horário ativo por modalidade). Reusado tal qual pela suíte E2E (`e2e/scripts/reset-test-db.ts`) pra montar o banco de teste do zero a cada rodada.
+
+## R2 (imagens de exame)
+
+Após definir as envs de R2, rode uma vez por ambiente: `npx tsx scripts/r2-setup.ts [origens,separadas,por,virgula]` — cria o bucket se faltar, aplica o CORS (PUT/GET) para o upload direto do navegador e a expiração de 1 dia do prefixo `tmp/`. Em produção passe a URL do site.

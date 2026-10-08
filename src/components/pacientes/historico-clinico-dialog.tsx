@@ -9,6 +9,15 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AnexosPaciente,
+  type AnexoItem,
+} from "@/components/pacientes/anexos-paciente";
+import {
+  confirmarAnexoPaciente,
+  removerAnexoPaciente,
+  solicitarUploadAnexoPaciente,
+} from "@/actions/paciente-anexos";
 
 const HISTORICO_FIELDS: { key: keyof HistoricoPaciente; label: string }[] = [
   { key: "historicoClinico", label: "Histórico Clínico" },
@@ -28,8 +37,10 @@ type HistoricoPaciente = {
 
 export function HistoricoClinicoDialog({
   paciente,
+  anexos,
 }: {
-  paciente: HistoricoPaciente;
+  paciente: HistoricoPaciente & { id: string };
+  anexos: AnexoItem[];
 }) {
   return (
     <Dialog>
@@ -39,7 +50,7 @@ export function HistoricoClinicoDialog({
           Histórico clínico
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Histórico clínico</DialogTitle>
         </DialogHeader>
@@ -49,10 +60,25 @@ export function HistoricoClinicoDialog({
               <p className="text-xs font-medium text-muted-foreground">
                 {label}
               </p>
-              <p className="text-sm">{paciente[key] || "—"}</p>
+              <p className="text-sm whitespace-pre-wrap">
+                {paciente[key] || "—"}
+              </p>
             </div>
           ))}
         </div>
+
+        <section className="flex flex-col gap-3 border-t pt-4">
+          <h3 className="text-sm font-semibold">Exames e anexos</h3>
+          <AnexosPaciente
+            anexos={anexos}
+            solicitarUpload={solicitarUploadAnexoPaciente.bind(null, paciente.id)}
+            confirmar={confirmarAnexoPaciente.bind(null, paciente.id)}
+            remover={removerAnexoPaciente}
+            permitirExcluir
+            mostrarOrigem
+            vazio="Nenhum anexo neste paciente."
+          />
+        </section>
       </DialogContent>
     </Dialog>
   );

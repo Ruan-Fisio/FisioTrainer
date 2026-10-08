@@ -12,7 +12,12 @@ export function FormActions({
   submitLabel,
   cancelLabel = "Cancelar",
   onCancel,
+  submitDisabled = false,
+  submitDisabledLabel,
 }: {
+  /** Bloqueia o salvar (ex.: upload em andamento) sem afetar o cancelar. */
+  submitDisabled?: boolean;
+  submitDisabledLabel?: string;
   submitLabel: string;
   cancelLabel?: string;
   onCancel: () => void;
@@ -34,7 +39,7 @@ export function FormActions({
       </div>
       <button
         type="submit"
-        disabled={pending}
+        disabled={pending || submitDisabled}
         aria-label={submitLabel}
         title={submitLabel}
         className="fixed right-5 bottom-5 z-30 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/30 ring-1 ring-foreground/10 transition-all hover:bg-primary/80 active:translate-y-px disabled:pointer-events-none disabled:opacity-70 md:hidden"
@@ -57,8 +62,12 @@ export function FormActions({
         >
           {cancelLabel}
         </Button>
-        <Button type="submit" disabled={pending} size="lg">
-          {pending ? "Salvando..." : submitLabel}
+        <Button type="submit" disabled={pending || submitDisabled} size="lg">
+          {pending
+            ? "Salvando..."
+            : submitDisabled && submitDisabledLabel
+              ? submitDisabledLabel
+              : submitLabel}
         </Button>
       </div>
     </>

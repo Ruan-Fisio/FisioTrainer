@@ -6,6 +6,7 @@ import {
   ClipboardList,
   ClipboardPlus,
   Dumbbell,
+  Images,
   NotebookPen,
   Package,
   Pencil,
@@ -38,6 +39,9 @@ import { PacienteAgendamentosTab } from "@/components/pacientes/paciente-agendam
 import { HistoricoClinicoDialog } from "@/components/pacientes/historico-clinico-dialog";
 import { AgendamentoAssistidoDialog } from "@/components/pacientes/agendamento-assistido-dialog";
 import { CompartilharAcessoDialog } from "@/components/pacientes/compartilhar-acesso-dialog";
+import { PacienteImagensTab } from "@/components/pacientes/paciente-imagens-tab";
+import { listarSeriesImagensPaciente } from "@/actions/exame-imagens";
+import { listarAnexosPaciente } from "@/actions/paciente-anexos";
 import { PacienteTabs } from "@/components/pacientes/paciente-tabs";
 import { formatarDataSemHora } from "@/lib/format";
 import { anoMesBrasilia } from "@/lib/datas-brasilia";
@@ -53,6 +57,11 @@ async function TreinosListLoader({ pacienteId }: { pacienteId: string }) {
 async function AvaliacoesListLoader({ pacienteId }: { pacienteId: string }) {
   const avaliacoes = await getAvaliacoesByPaciente(pacienteId);
   return <AvaliacoesList pacienteId={pacienteId} avaliacoes={avaliacoes} />;
+}
+
+async function ImagensLoader({ pacienteId }: { pacienteId: string }) {
+  const series = await listarSeriesImagensPaciente(pacienteId);
+  return <PacienteImagensTab series={series} />;
 }
 
 async function EvolucoesListLoader({ pacienteId }: { pacienteId: string }) {
@@ -131,6 +140,8 @@ export default async function PacienteDetailPage({
 
   if (!paciente) notFound();
 
+  const anexos = await listarAnexosPaciente(id).catch(() => []);
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -150,7 +161,7 @@ export default async function PacienteDetailPage({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <CompartilharAcessoDialog pacienteId={id} />
-          <HistoricoClinicoDialog paciente={paciente} />
+          <HistoricoClinicoDialog paciente={paciente} anexos={anexos} />
           <Button asChild variant="outline">
             <Link href={`/pacientes/${id}/editar`}>
               <Pencil />
@@ -178,6 +189,16 @@ export default async function PacienteDetailPage({
             content: (
               <Suspense fallback={<TableSkeleton />}>
                 <AvaliacoesListLoader pacienteId={id} />
+              </Suspense>
+            ),
+          },
+          {
+            value: "imagens",
+            label: "Imagens",
+            icon: <Images />,
+            content: (
+              <Suspense fallback={<TableSkeleton />}>
+                <ImagensLoader pacienteId={id} />
               </Suspense>
             ),
           },

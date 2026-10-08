@@ -1,7 +1,9 @@
-import { Sigma } from "lucide-react";
+import { File as FileIcon, Sigma } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { getExecucao } from "@/actions/exame-execucoes";
+import type { ImagemExame } from "@/actions/exame-imagens";
 import { parseGoniometriaValor } from "@/lib/goniometria";
+import { ehImagem } from "@/lib/storage-keys";
 import { parseSelecionadas } from "@/lib/multipla-escolha";
 import {
   calcularColunasFormula,
@@ -65,7 +67,14 @@ export function ValorColuna({
   return <p className="text-sm">{valor || "—"}</p>;
 }
 
-export function ExecucaoValores({ execucao }: { execucao: Execucao }) {
+export function ExecucaoValores({
+  execucao,
+  imagens = [],
+}: {
+  execucao: Execucao;
+  /** Só na área da clínica; o portal público não recebe imagens. */
+  imagens?: ImagemExame[];
+}) {
   const valores = execucao.valores;
   const valorPorChave = new Map(
     valores.map((v) => [`${v.colunaId}::${v.linha}`, v.valor]),
@@ -159,6 +168,48 @@ export function ExecucaoValores({ execucao }: { execucao: Execucao }) {
                                     ) || ""
                                   }
                                 />
+                              )}
+                              {imagens.some(
+                                (i) =>
+                                  i.colunaId === coluna.id && i.linha === linha,
+                              ) && (
+                                <ul className="flex flex-wrap gap-2">
+                                  {imagens
+                                    .filter(
+                                      (i) =>
+                                        i.colunaId === coluna.id &&
+                                        i.linha === linha,
+                                    )
+                                    .map((imagem) => (
+                                      <li key={imagem.id}>
+                                        {ehImagem(imagem.mime) ? (
+                                          <a
+                                            href={imagem.url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="block size-20 overflow-hidden rounded-lg ring-1 ring-foreground/10"
+                                          >
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img
+                                              src={imagem.url}
+                                              alt={imagem.nomeOriginal}
+                                              className="size-full object-cover"
+                                            />
+                                          </a>
+                                        ) : (
+                                          <a
+                                            href={imagem.url}
+                                            className="flex h-8 max-w-48 items-center gap-1.5 rounded-lg px-2 text-xs ring-1 ring-foreground/10 hover:bg-accent"
+                                          >
+                                            <FileIcon className="size-3.5 shrink-0" />
+                                            <span className="truncate">
+                                              {imagem.nomeOriginal}
+                                            </span>
+                                          </a>
+                                        )}
+                                      </li>
+                                    ))}
+                                </ul>
                               )}
                             </div>
                           ))}

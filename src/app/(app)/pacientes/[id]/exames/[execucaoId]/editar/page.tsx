@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getExecucao, updateExecucao } from "@/actions/exame-execucoes";
 import { listAllMovimentos } from "@/actions/movimentos";
+import { listarImagensExecucao } from "@/actions/exame-imagens";
 import { ExameExecucaoForm } from "@/components/exame-execucoes/exame-execucao-form";
 
 export default async function EditarExecucaoPage({
@@ -10,9 +11,10 @@ export default async function EditarExecucaoPage({
 }) {
   const { id, execucaoId } = await params;
 
-  const [execucao, movimentos] = await Promise.all([
+  const [execucao, movimentos, imagens] = await Promise.all([
     getExecucao(execucaoId),
     listAllMovimentos(),
+    listarImagensExecucao(execucaoId),
   ]);
 
   if (!execucao || execucao.pacienteId !== id) notFound();
@@ -32,8 +34,11 @@ export default async function EditarExecucaoPage({
         action={updateExecucaoWithIds}
         exames={[execucao.exame]}
         movimentos={movimentos}
+        pacienteId={id}
         fixedExameId={execucao.exame.id}
         defaultValores={execucao.valores}
+        execucaoId={execucaoId}
+        imagensIniciais={imagens}
         cancelHref={`/pacientes/${id}/exames/${execucaoId}`}
         successLabel={`${rotulo === "avaliação" ? "Avaliação" : "Retorno"} atualizado com sucesso.`}
       />

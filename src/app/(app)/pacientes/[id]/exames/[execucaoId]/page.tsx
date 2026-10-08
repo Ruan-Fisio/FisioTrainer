@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight, Plus, GitCompare } from "lucide-react";
 import { getExecucao } from "@/actions/exame-execucoes";
+import { listarImagensExecucao } from "@/actions/exame-imagens";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,7 +18,10 @@ export default async function ExecucaoDetailPage({
 }) {
   const { id, execucaoId } = await params;
 
-  const execucao = await getExecucao(execucaoId);
+  const [execucao, imagens] = await Promise.all([
+    getExecucao(execucaoId),
+    listarImagensExecucao(execucaoId),
+  ]);
 
   if (!execucao || execucao.pacienteId !== id) notFound();
 
@@ -69,7 +73,7 @@ export default async function ExecucaoDetailPage({
         </div>
       </div>
 
-      <ExecucaoValores execucao={execucao} />
+      <ExecucaoValores execucao={execucao} imagens={imagens} />
 
       {execucao.tipo === "AVALIACAO" && execucao.retornos.length > 0 && (
         <div className="flex flex-col gap-3">

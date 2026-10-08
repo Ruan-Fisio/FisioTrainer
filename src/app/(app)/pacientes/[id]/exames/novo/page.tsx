@@ -33,6 +33,7 @@ export default async function NovaAvaliacaoPage({
         action={createAvaliacaoWithPaciente}
         exames={exames}
         movimentos={movimentos}
+        pacienteId={id}
         cancelHref={`/pacientes/${id}`}
         successLabel="Avaliação registrada com sucesso."
       />

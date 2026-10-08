@@ -189,6 +189,7 @@ model Paciente {
   treinos               Treino[]
   acessosCompartilhados AcessoCompartilhadoPaciente[]
   preCadastro           PreCadastro?
+  anexos                PacienteAnexo[]
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
 }
@@ -213,10 +214,47 @@ model PreCadastro {
   analisadoEm     DateTime?
   pacienteId      String?           @unique
   paciente        Paciente?         @relation(fields: [pacienteId], references: [id], onDelete: SetNull)
+  arquivos        PreCadastroArquivo[]
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
 
   @@index([status, createdAt])
+}
+
+/// Anexo do histórico clínico do paciente (exames, laudos, fotos); objeto no R2
+/// em `pacientes/{pacienteId}/anexos/`.
+model PacienteAnexo {
+  id           String   @id @default(cuid())
+  pacienteId   String
+  paciente     Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  chave        String   @unique
+  nomeOriginal String
+  mime         String
+  tamanho      Int
+  /// Quem enviou: a clínica (histórico clínico) ou o próprio paciente (portal).
+  origem       OrigemAnexo @default(CLINICA)
+  createdAt    DateTime @default(now())
+
+  @@index([pacienteId, createdAt])
+}
+
+enum OrigemAnexo {
+  CLINICA
+  PACIENTE
+}
+
+/// Foto/exame anexado no formulário público; objeto no R2 em `pre-cadastro/{id}/`.
+model PreCadastroArquivo {
+  id            String      @id @default(cuid())
+  preCadastroId String
+  preCadastro   PreCadastro @relation(fields: [preCadastroId], references: [id], onDelete: Cascade)
+  chave         String      @unique
+  nomeOriginal  String
+  mime          String
+  tamanho       Int
+  createdAt     DateTime    @default(now())
+
+  @@index([preCadastroId])
 }
 
 /// Link público (sem login) para o paciente ver suas avaliações, evoluções, treinos,
@@ -617,6 +655,7 @@ model ExameExecucao {
   avaliacao    ExameExecucao?       @relation("AvaliacaoRetornos", fields: [avaliacaoId], references: [id], onDelete: Cascade)
   retornos     ExameExecucao[]      @relation("AvaliacaoRetornos")
   valores      ExameExecucaoValor[]
+  imagens      ExameExecucaoImagem[]
   createdAt    DateTime             @default(now())
 }
 
@@ -628,6 +667,23 @@ model ExameExecucaoValor {
   execucao    ExameExecucao @relation(fields: [execucaoId], references: [id], onDelete: Cascade)
   colunaId    String
   coluna      ExameCampoColuna @relation(fields: [colunaId], references: [id], onDelete: Cascade)
+}
+
+/// Imagem anexada a um campo (exercício) de uma execução, guardada no R2.
+/// Referencia (campoId, linha) e não ExameExecucaoValor, que é recriado a cada edição.
+model ExameExecucaoImagem {
+  id           String        @id @default(cuid())
+  execucaoId   String
+  execucao     ExameExecucao @relation(fields: [execucaoId], references: [id], onDelete: Cascade)
+  colunaId     String
+  linha        Int           @default(0)
+  chave        String        @unique
+  nomeOriginal String
+  mime         String
+  tamanho      Int
+  createdAt    DateTime      @default(now())
+
+  @@index([execucaoId, colunaId, linha])
 }
 
 enum DiaSemana {

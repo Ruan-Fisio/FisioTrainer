@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { pacienteSchema } from "@/lib/validations/paciente";
+import { deleteObjects, deletePrefix } from "@/lib/r2";
+import { prefixoPaciente } from "@/lib/storage-keys";
 
 const PAGE_SIZE = 10;
 
@@ -151,6 +153,32 @@ export async function updatePaciente(
 }
 
 export async function deletePaciente(id: string) {
+  // Anexos do pré-cadastro que originou o paciente (o vínculo vira null no delete).
+  const anexosPre = await prisma.preCadastroArquivo.findMany({
+    where: { preCadastro: { pacienteId: id } },
+    select: { id: true, chave: true },
+  });
+  const temImagens =
+    (await prisma.exameExecucaoImagem.count({
+      where: { execucao: { pacienteId: id } },
+    })) + (await prisma.pacienteAnexo.count({ where: { pacienteId: id } }));
   await prisma.paciente.delete({ where: { id } });
+  if (anexosPre.length > 0) {
+    await prisma.preCadastroArquivo.deleteMany({
+      where: { id: { in: anexosPre.map((a) => a.id) } },
+    });
+    try {
+      await deleteObjects(anexosPre.map((a) => a.chave));
+    } catch (e) {
+      console.error("Falha ao apagar anexos de pré-cadastro do paciente", e);
+    }
+  }
+  if (temImagens > 0) {
+    try {
+      await deletePrefix(prefixoPaciente(id));
+    } catch (e) {
+      console.error("Falha ao apagar imagens do paciente no R2", e);
+    }
+  }
   revalidatePath("/pacientes");
 }

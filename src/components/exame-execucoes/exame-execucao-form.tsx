@@ -1,6 +1,12 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useState } from "react";
+import {
+  useActionState,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Plus, Trash2, ChevronLeft, ChevronRight, Sigma } from "lucide-react";
@@ -11,6 +17,39 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FormActions } from "@/components/ui/form-actions";
 import type { ExameExecucaoActionState } from "@/actions/exame-execucoes";
+import {
+  descartarUploadTemporario,
+  solicitarUploadImagem,
+  type ImagemExame,
+} from "@/actions/exame-imagens";
+import {
+  ImagensCampo,
+  type UploadItem,
+} from "@/components/exame-execucoes/imagens-campo";
+import {
+  ehImagem,
+  mimeEfetivo,
+  montarRemapLinhas,
+} from "@/lib/storage-keys";
+
+/** Imagens são por coluna: expande as linhas de cada campo para suas colunas. */
+function montarPayloadRemap(
+  exame: ExameCompleto | undefined,
+  linhasPorCampo: Record<string, string[]>,
+) {
+  const linhasPorColuna: Record<string, string[]> = {};
+  for (const secao of exame?.secoes ?? []) {
+    for (const campo of secao.campos) {
+      const linhas = linhasPorCampo[campo.id];
+      if (!linhas) continue;
+      for (const coluna of campo.colunas) linhasPorColuna[coluna.id] = linhas;
+    }
+  }
+  return {
+    colunas: Object.keys(linhasPorColuna),
+    remap: montarRemapLinhas(linhasPorColuna),
+  };
+}
 import {
   GoniometriaField,
   type MovimentoOption,
@@ -154,6 +193,7 @@ function SecaoFields({
   colunaOculta,
   resultadosCalculados,
   opcoesAutomaticas,
+  renderImagens,
 }: {
   secao: Secao;
   linhasDoCampo: (campoId: string, repetivel: boolean) => string[];
@@ -166,6 +206,11 @@ function SecaoFields({
   colunaOculta: (colunaId: string, linhaId: string) => boolean;
   resultadosCalculados: Map<string, { valor: number } | { erro: string }>;
   opcoesAutomaticas: Map<string, ResultadoOpcoesAutomaticas>;
+  renderImagens: (
+    colunaId: string,
+    linhaId: string,
+    titulo: string,
+  ) => ReactNode;
 }) {
   // CALCULADO nunca é gravado, então nunca aparece no snapshot de sombra —
   // "Ocultar campos sem valor anterior" nunca deve escondê-la por isso.
@@ -255,12 +300,28 @@ function SecaoFields({
                                 : ""
                             }`}
                           >
-                            <Label className="text-xs text-muted-foreground">
-                              {coluna.titulo}
-                              {coluna.formatacao
-                                ? ` (${coluna.formatacao})`
-                                : ""}
-                            </Label>
+                            <div className="flex items-center justify-between gap-2">
+                              <Label className="text-xs text-muted-foreground">
+                                {coluna.titulo}
+                                {coluna.formatacao
+                                  ? ` (${coluna.formatacao})`
+                                  : ""}
+                              </Label>
+                              {coluna.tipo !== "CALCULADO" &&
+                                renderImagens(
+                                  coluna.id,
+                                  linhaId,
+                                  [
+                                    campo.nome,
+                                    campo.repetivel
+                                      ? `entrada ${linhaIndex + 1}`
+                                      : "",
+                                    coluna.titulo,
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" — "),
+                                )}
+                            </div>
 
                             {coluna.tipo === "MULTIPLA_ESCOLHA" ? (
                               (() => {
@@ -482,6 +543,9 @@ export function ExameExecucaoForm({
   successLabel,
   movimentos,
   paciente,
+  pacienteId,
+  execucaoId: execucaoIdEdicao,
+  imagensIniciais,
 }: {
   action: (
     prevState: ExameExecucaoActionState,
@@ -496,6 +560,11 @@ export function ExameExecucaoForm({
   movimentos: MovimentoOption[];
   /** Dados do perfil do paciente, referenciáveis como {Idade}/{Sexo} nas fórmulas. */
   paciente?: DadosPacienteFormula;
+  /** Paciente dono do exame: as imagens sobem para a área dele no R2. */
+  pacienteId: string;
+  /** Só na edição: id da execução e imagens já salvas (upload por campo). */
+  execucaoId?: string;
+  imagensIniciais?: ImagemExame[];
 }) {
   const router = useRouter();
   const [state, formAction] = useActionState(action, initialState);
@@ -600,12 +669,26 @@ export function ExameExecucaoForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [colunasEmOrdem, opcoesAutomaticas]);
 
+  // Imagens por coluna: sobem para o R2 (área temporária) assim que a pessoa
+  // escolhe o arquivo; o salvar manda só as referências em JSON.
+  const [uploads, setUploads] = useState<Record<string, UploadItem[]>>({});
+  const [removidas, setRemovidas] = useState<Set<string>>(new Set());
+  const imagensExistentes = imagensIniciais ?? [];
+  const enviandoImagens = Object.values(uploads).some((itens) =>
+    itens.some((i) => i.status === "enviando"),
+  );
+
   useEffect(() => {
-    if (state.success) {
+    if (!state.success) return;
+    if (state.imagensFalhas) {
+      toast.error(
+        `${successLabel} ${state.imagensFalhas} imagem(ns) não puderam ser vinculadas — anexe novamente pela edição.`,
+      );
+    } else {
       toast.success(successLabel);
-      router.push(cancelHref);
     }
-  }, [state.success, successLabel, cancelHref, router]);
+    router.push(cancelHref);
+  }, [state.success, state.imagensFalhas, successLabel, cancelHref, router]);
 
   function handleExameChange(id: string) {
     setExameId(id);
@@ -613,6 +696,11 @@ export function ExameExecucaoForm({
     setLinhasPorCampo({});
     setCamposSombraPendentes(new Set());
     setPassoAtual(0);
+    for (const itens of Object.values(uploads)) {
+      for (const i of itens) URL.revokeObjectURL(i.previewUrl);
+    }
+    setUploads({});
+    setRemovidas(new Set());
   }
 
   function handleTipoChange(tipo: ExameCompleto["tipo"]) {
@@ -677,6 +765,148 @@ export function ExameExecucaoForm({
     }));
   }
 
+  function chaveImagem(colunaId: string, linhaId: string) {
+    return `${colunaId}::${linhaId}`;
+  }
+
+  function atualizarUpload(
+    chave: string,
+    itemId: string,
+    patch: Partial<UploadItem>,
+  ) {
+    setUploads((prev) => ({
+      ...prev,
+      [chave]: (prev[chave] ?? []).map((i) =>
+        i.id === itemId ? { ...i, ...patch } : i,
+      ),
+    }));
+  }
+
+  async function enviarArquivo(chave: string, item: UploadItem, file: File) {
+    try {
+      const ticket = await solicitarUploadImagem({
+        pacienteId,
+        nome: file.name,
+        mime: file.type,
+        tamanho: file.size,
+      });
+      if ("error" in ticket) throw new Error(ticket.error);
+      const put = await fetch(ticket.url, {
+        method: "PUT",
+        headers: { "Content-Type": mimeEfetivo(file.type) },
+        body: file,
+      });
+      if (!put.ok) throw new Error("Falha no envio.");
+      atualizarUpload(chave, item.id, { status: "ok", chave: ticket.chave });
+    } catch (e) {
+      atualizarUpload(chave, item.id, {
+        status: "erro",
+        erro: e instanceof Error ? e.message : "Falha no envio.",
+      });
+    }
+  }
+
+  function adicionarArquivos(colunaId: string, linhaId: string, files: File[]) {
+    const chave = chaveImagem(colunaId, linhaId);
+    const itens: UploadItem[] = files.map((file) => ({
+      id: gerarLinhaId(),
+      nome: file.name,
+      previewUrl: ehImagem(file.type) ? URL.createObjectURL(file) : "",
+      status: "enviando",
+    }));
+    setUploads((prev) => ({
+      ...prev,
+      [chave]: [...(prev[chave] ?? []), ...itens],
+    }));
+    itens.forEach((item, idx) => void enviarArquivo(chave, item, files[idx]));
+  }
+
+  function removerUpload(colunaId: string, linhaId: string, itemId: string) {
+    const chave = chaveImagem(colunaId, linhaId);
+    const item = (uploads[chave] ?? []).find((i) => i.id === itemId);
+    if (!item) return;
+    URL.revokeObjectURL(item.previewUrl);
+    if (item.chave) {
+      void descartarUploadTemporario({ pacienteId, chave: item.chave });
+    }
+    setUploads((prev) => ({
+      ...prev,
+      [chave]: (prev[chave] ?? []).filter((i) => i.id !== itemId),
+    }));
+  }
+
+  function alternarRemocao(imagemId: string) {
+    setRemovidas((prev) => {
+      const next = new Set(prev);
+      if (next.has(imagemId)) next.delete(imagemId);
+      else next.add(imagemId);
+      return next;
+    });
+  }
+
+  // Imagens salvas de uma linha: `linha-N` guarda o índice salvo; "0" é a linha única.
+  function imagensSalvasDa(colunaId: string, linhaId: string) {
+    const m = /^linha-(\d+)$/.exec(linhaId);
+    const linhaSalva = m ? Number(m[1]) : linhaId === LINHA_UNICA ? 0 : null;
+    if (linhaSalva === null) return [];
+    return imagensExistentes.filter(
+      (i) => i.colunaId === colunaId && i.linha === linhaSalva,
+    );
+  }
+
+  function renderImagens(colunaId: string, linhaId: string, titulo: string) {
+    return (
+      <ImagensCampo
+        titulo={titulo}
+        existentes={imagensSalvasDa(colunaId, linhaId)}
+        enviados={uploads[chaveImagem(colunaId, linhaId)] ?? []}
+        removidas={removidas}
+        onAdicionar={(files) => adicionarArquivos(colunaId, linhaId, files)}
+        onRemoverEnviado={(id) => removerUpload(colunaId, linhaId, id)}
+        onAlternarRemocao={alternarRemocao}
+      />
+    );
+  }
+
+  // Referências das imagens já enviadas ao R2, com o índice final da linha.
+  const imagensJson = useMemo(() => {
+    const entradas: {
+      chave: string;
+      colunaId: string;
+      linha: number;
+      nomeOriginal: string;
+    }[] = [];
+    for (const secao of exame?.secoes ?? []) {
+      for (const campo of secao.campos) {
+        const linhas = linhasDoCampo(campo.id, campo.repetivel);
+        linhas.forEach((linhaId, linhaIndex) => {
+          for (const coluna of campo.colunas) {
+            for (const item of uploads[chaveImagem(coluna.id, linhaId)] ?? []) {
+              if (item.status === "ok" && item.chave) {
+                entradas.push({
+                  chave: item.chave,
+                  colunaId: coluna.id,
+                  linha: linhaIndex,
+                  nomeOriginal: item.nome,
+                });
+              }
+            }
+          }
+        });
+      }
+    }
+    return JSON.stringify(entradas);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exame, uploads, linhasPorCampo]);
+
+  // Edição: as linhas repetíveis são reindexadas pela posição, então informa
+  // ao servidor como mover (ou descartar) as imagens já salvas.
+  const remapImagensJson = useMemo(
+    () =>
+      JSON.stringify(montarPayloadRemap(exame, linhasPorCampo)),
+    [exame, linhasPorCampo],
+  );
+
   const valoresJson = useMemo(() => {
     if (!exame) return "[]";
     const entradas: { colunaId: string; valor: string; linha: number }[] = [];
@@ -712,6 +942,15 @@ export function ExameExecucaoForm({
     >
       <input type="hidden" name="exameId" value={exameId} />
       <input type="hidden" name="valores" value={valoresJson} />
+      <input type="hidden" name="imagens" value={imagensJson} />
+      <input
+        type="hidden"
+        name="imagensRemovidas"
+        value={JSON.stringify([...removidas])}
+      />
+      {execucaoIdEdicao && (
+        <input type="hidden" name="remapImagens" value={remapImagensJson} />
+      )}
 
       {!fixedExameId && !tipoSelecionado ? (
         <div className="flex flex-col gap-3">
@@ -811,6 +1050,7 @@ export function ExameExecucaoForm({
             colunaOculta={colunaOculta}
             resultadosCalculados={resultadosCalculados}
             opcoesAutomaticas={opcoesAutomaticas}
+            renderImagens={renderImagens}
           />
           {totalPassos > 1 && (
             <div className="flex items-center justify-between gap-2">
@@ -855,6 +1095,7 @@ export function ExameExecucaoForm({
             colunaOculta={colunaOculta}
             resultadosCalculados={resultadosCalculados}
             opcoesAutomaticas={opcoesAutomaticas}
+            renderImagens={renderImagens}
           />
         ))}
       </div>
@@ -865,6 +1106,8 @@ export function ExameExecucaoForm({
 
       <FormActions
         submitLabel="Salvar"
+        submitDisabled={enviandoImagens}
+        submitDisabledLabel="Enviando imagens..."
         onCancel={() => router.push(cancelHref)}
       />
         </>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { CheckCircle2, Loader2, Paperclip } from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,6 +17,7 @@ import {
   criarPreCadastro,
   type PreCadastroActionState,
 } from "@/actions/pre-cadastros";
+import { ArquivosUpload } from "@/components/pre-cadastro/arquivos-upload";
 import { LIMITE_PALAVRAS_QUEIXA } from "@/lib/validations/pre-cadastro";
 import { mascararCelular } from "@/lib/telefone";
 import { contarPalavras } from "@/lib/texto";
@@ -30,6 +31,9 @@ export function PreCadastroForm() {
   );
   const [celular, setCelular] = useState("");
   const [queixa, setQueixa] = useState("");
+  // Id da sessão de upload: define a pasta temporária dos anexos no R2.
+  const [sessaoId] = useState(() => crypto.randomUUID());
+  const [enviandoArquivos, setEnviandoArquivos] = useState(false);
   const palavras = contarPalavras(queixa);
   const excedeu = palavras > LIMITE_PALAVRAS_QUEIXA;
 
@@ -116,16 +120,10 @@ export function PreCadastroForm() {
             </p>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="anexos">Fotos e exames</Label>
-            <div className="flex items-center gap-2">
-              <Input id="anexos" type="file" disabled className="flex-1" />
-              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-accent-foreground">
-                <Paperclip className="size-3" />
-                EM BREVE
-              </span>
-            </div>
-          </div>
+          <ArquivosUpload
+            sessaoId={sessaoId}
+            onEnviandoChange={setEnviandoArquivos}
+          />
 
           {state.error && (
             <p role="alert" className="text-sm text-destructive">
@@ -134,9 +132,11 @@ export function PreCadastroForm() {
           )}
 
           <div className="flex justify-end">
-            <Button type="submit" disabled={pending || excedeu}>
-              {pending && <Loader2 className="animate-spin" />}
-              Enviar
+            <Button type="submit" disabled={pending || excedeu || enviandoArquivos}>
+              {(pending || enviandoArquivos) && (
+                <Loader2 className="animate-spin" />
+              )}
+              {enviandoArquivos ? "Enviando arquivos..." : "Enviar"}
             </Button>
           </div>
         </form>

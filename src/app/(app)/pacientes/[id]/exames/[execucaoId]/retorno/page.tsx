@@ -84,6 +84,7 @@ export default async function NovoRetornoPage({
         action={createRetornoWithIds}
         exames={[avaliacao.exame]}
         movimentos={movimentos}
+        pacienteId={id}
         fixedExameId={avaliacao.exame.id}
         defaultValores={defaultValores}
         valoresSombra={avaliacao.exame.sombra ? defaultValores : undefined}
