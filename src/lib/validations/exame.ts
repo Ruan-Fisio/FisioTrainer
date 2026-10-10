@@ -38,6 +38,8 @@ export const exameColunaSchema = z
       .array(z.enum(["", ...CORES_OPCAO]))
       .optional()
       .default([]),
+    /** A coluna aceita anexos (arquivos) na execução do exame. */
+    permiteAnexo: z.boolean().optional().default(false),
     valorIdeal: z.string().trim().optional(),
     direcaoIdeal: z
       .enum(["MAIOR_MELHOR", "MENOR_MELHOR", "PROXIMO_IDEAL"])

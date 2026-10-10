@@ -119,6 +119,7 @@ function colunaData(coluna: ColunaInput, ordem: number) {
       coluna.tipo === "MULTIPLA_ESCOLHA"
         ? coresAlinhadasParaPersistir(coluna.opcoes, coluna.coresOpcoes)
         : [],
+    permiteAnexo: coluna.tipo === "CALCULADO" ? false : coluna.permiteAnexo,
     valorIdeal:
       coluna.tipo === "NUMERO" && coluna.valorIdeal ? coluna.valorIdeal : null,
     direcaoIdeal: coluna.tipo === "NUMERO" ? coluna.direcaoIdeal || null : null,
@@ -148,6 +149,7 @@ function colunaMembroInput(id?: string): ColunaInput & { id?: string } {
     multiplaSelecao: false,
     opcoesCondicionais: [],
     coresOpcoes: [],
+    permiteAnexo: false,
     valorIdeal: "",
     direcaoIdeal: undefined,
   };

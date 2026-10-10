@@ -150,6 +150,9 @@ model ExameCampoColuna {
   /// Cor de destaque por opção (MULTIPLA_ESCOLHA): array de `{opcao, cor}` com
   /// cor VERMELHO | VERDE | AMARELO. Opção sem entrada = sem destaque.
   coresOpcoes  Json            @default("[]")
+  /// Se a coluna aceita anexos (arquivos) na execução do exame. Colunas
+  /// anteriores a este campo ficam `true` (migration) para manter o legado.
+  permiteAnexo Boolean         @default(false)
   valorIdeal   String?
   direcaoIdeal DirecaoIdealCampo?
   /// Fórmula da coluna CALCULADO, ex: "{Peso} / ({Altura} * {Altura})" —

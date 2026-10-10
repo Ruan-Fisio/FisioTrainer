@@ -84,3 +84,25 @@ describe("exameSchema — opções automáticas de MULTIPLA_ESCOLHA", () => {
     }
   });
 });
+
+describe("exameSchema — permiteAnexo", () => {
+  const colunaTexto = (extra: Record<string, unknown> = {}) => ({
+    titulo: "Observação",
+    tipo: "TEXTO" as const,
+    ...extra,
+  });
+  const parse = (extra?: Record<string, unknown>) =>
+    exameSchema.parse({
+      nome: "Exame",
+      tipo: "FISIOTERAPIA",
+      secoes: [{ nome: "S", campos: [{ nome: "C", colunas: [colunaTexto(extra)] }] }],
+    }).secoes[0].campos[0].colunas[0];
+
+  it("assume que a coluna não aceita anexo quando não informado", () => {
+    expect(parse().permiteAnexo).toBe(false);
+  });
+
+  it("preserva permiteAnexo: true", () => {
+    expect(parse({ permiteAnexo: true }).permiteAnexo).toBe(true);
+  });
+});

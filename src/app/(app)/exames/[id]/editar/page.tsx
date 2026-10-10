@@ -66,6 +66,7 @@ export default async function EditarExamePage({
                     coluna.opcoes,
                     coluna.coresOpcoes,
                   ),
+                  permiteAnexo: coluna.permiteAnexo,
                   valorIdeal: coluna.valorIdeal ?? "",
                   direcaoIdeal: coluna.direcaoIdeal ?? "PROXIMO_IDEAL",
                   formula: coluna.formula ?? "",

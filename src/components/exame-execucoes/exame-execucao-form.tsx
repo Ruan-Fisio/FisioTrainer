@@ -105,6 +105,7 @@ export type ExameCompleto = {
         multiplaSelecao: boolean;
         opcoesCondicionais: unknown;
         coresOpcoes?: unknown;
+        permiteAnexo: boolean;
         formula: string | null;
       }[];
     }[];
@@ -311,6 +312,7 @@ function SecaoFields({
                                   : ""}
                               </Label>
                               {coluna.tipo !== "CALCULADO" &&
+                                coluna.permiteAnexo &&
                                 renderImagens(
                                   coluna.id,
                                   linhaId,

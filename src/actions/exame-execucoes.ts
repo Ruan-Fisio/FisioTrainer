@@ -296,7 +296,10 @@ async function vincularImagens(
   const colunasValidas = new Set(
     (
       await prisma.exameCampoColuna.findMany({
-        where: { id: { in: [...new Set(imagens.map((i) => i.colunaId))] } },
+        where: {
+          id: { in: [...new Set(imagens.map((i) => i.colunaId))] },
+          permiteAnexo: true,
+        },
         select: { id: true },
       })
     ).map((c) => c.id),

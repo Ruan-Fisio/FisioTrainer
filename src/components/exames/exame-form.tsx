@@ -58,6 +58,8 @@ type ColunaDraft = {
   opcoesCondicionais: { opcao: string; formula: string }[];
   /** Cor de destaque por opção, alinhada por índice com `opcoes` ("" = sem cor). */
   coresOpcoes: string[];
+  /** A coluna aceita anexos (arquivos) na execução do exame. */
+  permiteAnexo: boolean;
   valorIdeal: string;
   direcaoIdeal: DirecaoIdeal;
   formula: string;
@@ -354,6 +356,7 @@ function novaColuna(): ColunaDraft {
     multiplaSelecao: false,
     opcoesCondicionais: [],
     coresOpcoes: [],
+    permiteAnexo: false,
     valorIdeal: "",
     direcaoIdeal: "PROXIMO_IDEAL",
     formula: "",
@@ -723,6 +726,25 @@ function SecaoCard({
                       </Button>
                     </div>
                   </div>
+
+                  {coluna.tipo !== "CALCULADO" && (
+                    <label
+                      onClick={(e) => {
+                        e.preventDefault();
+                        updateColuna(secaoIndex, campoIndex, colunaIndex, {
+                          permiteAnexo: !coluna.permiteAnexo,
+                        });
+                      }}
+                      className="flex min-h-8 cursor-pointer items-center gap-2 pl-0 text-xs text-muted-foreground select-none sm:pl-6"
+                    >
+                      <Checkbox
+                        checked={coluna.permiteAnexo}
+                        tabIndex={-1}
+                        className="pointer-events-none"
+                      />
+                      Permitir anexar arquivos nesta coluna
+                    </label>
+                  )}
 
                   {coluna.tipo === "MULTIPLA_ESCOLHA" && (
                     <div className="flex flex-col gap-2 pl-0 sm:pl-6">
