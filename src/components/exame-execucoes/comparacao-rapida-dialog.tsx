@@ -263,6 +263,7 @@ export function ComparacaoRapidaDialog({
                                 <ValorColuna
                                   tipo={linha.coluna.tipo}
                                   multiplaSelecao={linha.coluna.multiplaSelecao}
+                                  coresOpcoes={linha.coluna.coresOpcoes}
                                   valor={
                                     linha.valoresPorExecucaoId.get(execucao.id) ?? ""
                                   }

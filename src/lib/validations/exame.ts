@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CORES_OPCAO } from "@/lib/cor-opcao";
 import { validarFormulasDoExameDetalhado } from "@/lib/exame-formula";
 
 export const exameColunaSchema = z
@@ -29,6 +30,12 @@ export const exameColunaSchema = z
           formula: z.string().trim().optional().default(""),
         }),
       )
+      .optional()
+      .default([]),
+    // Alinhado por índice com `opcoes` ("" = sem cor); a action converte pro
+    // formato persistido `{opcao, cor}[]` (ver `coresAlinhadasParaPersistir`).
+    coresOpcoes: z
+      .array(z.enum(["", ...CORES_OPCAO]))
       .optional()
       .default([]),
     valorIdeal: z.string().trim().optional(),

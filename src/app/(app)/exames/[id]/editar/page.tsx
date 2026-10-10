@@ -1,3 +1,4 @@
+import { coresPersistidasParaAlinhar } from "@/lib/cor-opcao";
 import { parseVariaveis } from "@/lib/exame-formula";
 import { notFound } from "next/navigation";
 import { getExame, updateExame } from "@/actions/exames";
@@ -61,6 +62,10 @@ export default async function EditarExamePage({
                         formula: string;
                       }[])
                     : [],
+                  coresOpcoes: coresPersistidasParaAlinhar(
+                    coluna.opcoes,
+                    coluna.coresOpcoes,
+                  ),
                   valorIdeal: coluna.valorIdeal ?? "",
                   direcaoIdeal: coluna.direcaoIdeal ?? "PROXIMO_IDEAL",
                   formula: coluna.formula ?? "",

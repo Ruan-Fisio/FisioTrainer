@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
+import { coresAlinhadasParaPersistir } from "@/lib/cor-opcao";
 import { exameSchema } from "@/lib/validations/exame";
 
 const PAGE_SIZE = 10;
@@ -114,6 +115,10 @@ function colunaData(coluna: ColunaInput, ordem: number) {
       coluna.tipo === "MULTIPLA_ESCOLHA" ? coluna.multiplaSelecao : false,
     opcoesCondicionais:
       coluna.tipo === "MULTIPLA_ESCOLHA" ? coluna.opcoesCondicionais : [],
+    coresOpcoes:
+      coluna.tipo === "MULTIPLA_ESCOLHA"
+        ? coresAlinhadasParaPersistir(coluna.opcoes, coluna.coresOpcoes)
+        : [],
     valorIdeal:
       coluna.tipo === "NUMERO" && coluna.valorIdeal ? coluna.valorIdeal : null,
     direcaoIdeal: coluna.tipo === "NUMERO" ? coluna.direcaoIdeal || null : null,
@@ -142,6 +147,7 @@ function colunaMembroInput(id?: string): ColunaInput & { id?: string } {
     opcoes: OPCOES_MEMBRO,
     multiplaSelecao: false,
     opcoesCondicionais: [],
+    coresOpcoes: [],
     valorIdeal: "",
     direcaoIdeal: undefined,
   };

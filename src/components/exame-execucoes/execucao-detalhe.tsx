@@ -6,6 +6,12 @@ import { parseGoniometriaValor } from "@/lib/goniometria";
 import { ehImagem } from "@/lib/storage-keys";
 import { parseSelecionadas } from "@/lib/multipla-escolha";
 import {
+  COR_OPCAO_CLASSES,
+  mapaCoresOpcoes,
+  type CorOpcao,
+} from "@/lib/cor-opcao";
+import { cn } from "@/lib/utils";
+import {
   calcularColunasFormula,
   parseVariaveis,
   formatarNumeroFormula,
@@ -31,15 +37,54 @@ export function ValorCalculado({ resultado }: { resultado: ResultadoFormula | un
   );
 }
 
+function ChipsOpcoes({
+  selecionadas,
+  cores,
+}: {
+  selecionadas: string[];
+  cores: Map<string, CorOpcao>;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5 text-sm">
+      {selecionadas.map((opcao, i) => {
+        const cor = cores.get(opcao);
+        return (
+          <span
+            key={`${opcao}-${i}`}
+            className={cn(
+              "rounded-md border border-transparent px-1.5 py-0.5",
+              cor && COR_OPCAO_CLASSES[cor].destaque,
+            )}
+          >
+            {opcao}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 export function ValorColuna({
   tipo,
   multiplaSelecao,
   valor,
+  coresOpcoes,
 }: {
   tipo: string;
   multiplaSelecao: boolean;
   valor: string;
+  /** `ExameCampoColuna.coresOpcoes` — destaca a(s) opção(ões) marcada(s). */
+  coresOpcoes?: unknown;
 }) {
+  const cores = mapaCoresOpcoes(coresOpcoes);
+  if (tipo === "MULTIPLA_ESCOLHA" && cores.size > 0) {
+    const selecionadas = (
+      multiplaSelecao ? parseSelecionadas(valor) : [valor]
+    ).filter(Boolean);
+    if (selecionadas.length === 0) return <p className="text-sm">—</p>;
+    return <ChipsOpcoes selecionadas={selecionadas} cores={cores} />;
+  }
+
   if (tipo === "GONIOMETRIA") {
     const entries = parseGoniometriaValor(valor);
     if (entries.length === 0) return <p className="text-sm">—</p>;
@@ -162,6 +207,7 @@ export function ExecucaoValores({
                                 <ValorColuna
                                   tipo={coluna.tipo}
                                   multiplaSelecao={coluna.multiplaSelecao}
+                                  coresOpcoes={coluna.coresOpcoes}
                                   valor={
                                     valorPorChave.get(
                                       `${coluna.id}::${linha}`,

@@ -147,6 +147,9 @@ model ExameCampoColuna {
   /// `{opcao, formula}`. Só existe quando TODAS as opções têm condição — ver
   /// `validarFormulasDoExame` em src/lib/exame-formula.ts. Vazio = coluna manual.
   opcoesCondicionais Json          @default("[]")
+  /// Cor de destaque por opção (MULTIPLA_ESCOLHA): array de `{opcao, cor}` com
+  /// cor VERMELHO | VERDE | AMARELO. Opção sem entrada = sem destaque.
+  coresOpcoes  Json            @default("[]")
   valorIdeal   String?
   direcaoIdeal DirecaoIdealCampo?
   /// Fórmula da coluna CALCULADO, ex: "{Peso} / ({Altura} * {Altura})" —

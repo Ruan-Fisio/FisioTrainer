@@ -7,6 +7,8 @@ export type ComparacaoRapidaColuna = {
   tipo: string;
   formatacao?: string | null;
   multiplaSelecao: boolean;
+  /** `ExameCampoColuna.coresOpcoes` (Json); opcional — sem cor = sem destaque. */
+  coresOpcoes?: unknown;
 };
 
 export type ComparacaoRapidaCampo = {

@@ -54,6 +54,8 @@ import {
   GoniometriaField,
   type MovimentoOption,
 } from "@/components/exame-execucoes/goniometria-field";
+import { COR_OPCAO_CLASSES, mapaCoresOpcoes } from "@/lib/cor-opcao";
+import { cn } from "@/lib/utils";
 import { valorPreenchido } from "@/lib/exame-sombra";
 import { parseGoniometriaValor } from "@/lib/goniometria";
 import {
@@ -102,6 +104,7 @@ export type ExameCompleto = {
         opcoes: string[];
         multiplaSelecao: boolean;
         opcoesCondicionais: unknown;
+        coresOpcoes?: unknown;
         formula: string | null;
       }[];
     }[];
@@ -328,6 +331,9 @@ function SecaoFields({
                                 const automatico = opcoesAutomaticas.get(
                                   coluna.id,
                                 );
+                                const cores = mapaCoresOpcoes(
+                                  coluna.coresOpcoes,
+                                );
                                 return (
                                   <div
                                     className={`flex flex-col gap-1.5 rounded-lg border p-2 ${
@@ -372,6 +378,7 @@ function SecaoFields({
                                         }
                                       };
                                       const erro = automatico?.erros[opcao];
+                                      const cor = cores.get(opcao);
                                       return (
                                         <div key={opcao} className="flex flex-col">
                                           <label
@@ -379,11 +386,15 @@ function SecaoFields({
                                               e.preventDefault();
                                               handleToggle();
                                             }}
-                                            className={`flex min-h-8 items-center gap-2 text-sm select-none ${
+                                            className={cn(
+                                              "flex min-h-8 items-center gap-2 rounded-md border border-transparent px-1 text-sm select-none",
                                               automatico
                                                 ? "cursor-default"
-                                                : "cursor-pointer"
-                                            }`}
+                                                : "cursor-pointer",
+                                              checked &&
+                                                cor &&
+                                                COR_OPCAO_CLASSES[cor].destaque,
+                                            )}
                                           >
                                             {coluna.multiplaSelecao ? (
                                               <Checkbox

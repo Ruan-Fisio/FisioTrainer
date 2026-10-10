@@ -35,6 +35,8 @@ import {
   type VariavelExame,
 } from "@/lib/exame-formula";
 import { FormulaDialog } from "@/components/exames/formula-dialog";
+import { CorOpcaoSelect } from "@/components/exames/cor-opcao-select";
+import { COR_OPCAO_CLASSES, ehCorOpcao } from "@/lib/cor-opcao";
 
 const initialState: ExameActionState = {};
 
@@ -54,6 +56,8 @@ type ColunaDraft = {
   opcoes: string[];
   multiplaSelecao: boolean;
   opcoesCondicionais: { opcao: string; formula: string }[];
+  /** Cor de destaque por opção, alinhada por índice com `opcoes` ("" = sem cor). */
+  coresOpcoes: string[];
   valorIdeal: string;
   direcaoIdeal: DirecaoIdeal;
   formula: string;
@@ -349,6 +353,7 @@ function novaColuna(): ColunaDraft {
     opcoes: [],
     multiplaSelecao: false,
     opcoesCondicionais: [],
+    coresOpcoes: [],
     valorIdeal: "",
     direcaoIdeal: "PROXIMO_IDEAL",
     formula: "",
@@ -781,6 +786,24 @@ function SecaoCard({
                               }
                               placeholder={`Opção ${opcaoIndex + 1}`}
                               required
+                            />
+                            <CorOpcaoSelect
+                              value={coluna.coresOpcoes[opcaoIndex] ?? ""}
+                              rotulo={opcao || `Opção ${opcaoIndex + 1}`}
+                              onChange={(cor) =>
+                                updateColuna(
+                                  secaoIndex,
+                                  campoIndex,
+                                  colunaIndex,
+                                  {
+                                    coresOpcoes: coluna.opcoes.map((_, oi) =>
+                                      oi === opcaoIndex
+                                        ? cor
+                                        : (coluna.coresOpcoes[oi] ?? ""),
+                                    ),
+                                  },
+                                )
+                              }
                             />
                             <Button
                               type="button"
@@ -1469,6 +1492,12 @@ export function ExameForm({
                           : {
                               ...coluna,
                               opcoes: [...coluna.opcoes, ""],
+                              coresOpcoes: [
+                                ...coluna.opcoes.map(
+                                  (_, oi) => coluna.coresOpcoes[oi] ?? "",
+                                ),
+                                "",
+                              ],
                               opcoesCondicionais:
                                 coluna.opcoesCondicionais.length > 0
                                   ? [
@@ -1510,6 +1539,9 @@ export function ExameForm({
                               opcoes: coluna.opcoes.filter(
                                 (_, oi) => oi !== opcaoIndex,
                               ),
+                              coresOpcoes: coluna.opcoes
+                                .map((_, oi) => coluna.coresOpcoes[oi] ?? "")
+                                .filter((_, oi) => oi !== opcaoIndex),
                               opcoesCondicionais:
                                 coluna.opcoesCondicionais.length > 0
                                   ? coluna.opcoesCondicionais.filter(
@@ -1837,23 +1869,31 @@ function ExamePreview({ nome, secoes }: { nome: string; secoes: SecaoDraft[] }) 
                               Nenhuma opção adicionada
                             </span>
                           )}
-                          {coluna.opcoes.map((opcao, opcaoIndex) => (
-                            <label
-                              key={opcaoIndex}
-                              className="flex items-center gap-2 text-xs"
-                            >
-                              {coluna.multiplaSelecao ? (
-                                <Checkbox disabled />
-                              ) : (
-                                <input
-                                  type="radio"
-                                  disabled
-                                  className="size-3.5"
-                                />
-                              )}
-                              {opcao || `Opção ${opcaoIndex + 1}`}
-                            </label>
-                          ))}
+                          {coluna.opcoes.map((opcao, opcaoIndex) => {
+                            const cor = coluna.coresOpcoes[opcaoIndex];
+                            return (
+                              <label
+                                key={opcaoIndex}
+                                className="flex items-center gap-2 text-xs"
+                              >
+                                {coluna.multiplaSelecao ? (
+                                  <Checkbox disabled />
+                                ) : (
+                                  <input
+                                    type="radio"
+                                    disabled
+                                    className="size-3.5"
+                                  />
+                                )}
+                                {ehCorOpcao(cor) && (
+                                  <span
+                                    className={`size-2 shrink-0 rounded-full ${COR_OPCAO_CLASSES[cor].ponto}`}
+                                  />
+                                )}
+                                {opcao || `Opção ${opcaoIndex + 1}`}
+                              </label>
+                            );
+                          })}
                         </div>
                       ) : coluna.tipo === "SIM_NAO" ? (
                         <select
