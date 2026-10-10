@@ -85,6 +85,7 @@ export default async function NovoRetornoPage({
         exames={[avaliacao.exame]}
         movimentos={movimentos}
         pacienteId={id}
+        paciente={{ sexo: avaliacao.paciente.sexo, idade: avaliacao.paciente.idade }}
         fixedExameId={avaliacao.exame.id}
         defaultValores={defaultValores}
         valoresSombra={avaliacao.exame.sombra ? defaultValores : undefined}

@@ -35,6 +35,7 @@ export default async function EditarExecucaoPage({
         exames={[execucao.exame]}
         movimentos={movimentos}
         pacienteId={id}
+        paciente={{ sexo: execucao.paciente.sexo, idade: execucao.paciente.idade }}
         fixedExameId={execucao.exame.id}
         defaultValores={execucao.valores}
         execucaoId={execucaoId}

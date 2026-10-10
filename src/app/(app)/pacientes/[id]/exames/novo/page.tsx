@@ -12,7 +12,8 @@ export default async function NovaAvaliacaoPage({
   const { id } = await params;
 
   const [paciente, exames, movimentos] = await Promise.all([
-    prisma.paciente.findUnique({ where: { id }, select: { id: true, nome: true } }),
+    prisma.paciente.findUnique({ where: { id }, select: { id: true, nome: true, sexo: true, idade: true },
+    }),
     listAllExamesCompletos(),
     listAllMovimentos(),
   ]);
@@ -34,6 +35,7 @@ export default async function NovaAvaliacaoPage({
         exames={exames}
         movimentos={movimentos}
         pacienteId={id}
+        paciente={{ sexo: paciente.sexo, idade: paciente.idade }}
         cancelHref={`/pacientes/${id}`}
         successLabel="Avaliação registrada com sucesso."
       />
