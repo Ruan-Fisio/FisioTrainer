@@ -35,6 +35,10 @@ function r2() {
   client = new S3Client({
     region: "auto",
     endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    // O SDK novo embute um checksum CRC32 (de corpo vazio) nas URLs assinadas,
+    // que não serve para upload direto do navegador — só calcula quando exigido.
+    requestChecksumCalculation: "WHEN_REQUIRED",
+    responseChecksumValidation: "WHEN_REQUIRED",
     credentials: { accessKeyId, secretAccessKey },
   });
   return client;

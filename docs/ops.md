@@ -31,4 +31,4 @@ Toda operação de **escrita** (create/update/upsert/delete e variantes `*Many`)
 
 ## R2 (imagens de exame)
 
-Após definir as envs de R2, rode uma vez por ambiente: `npx tsx scripts/r2-setup.ts [origens,separadas,por,virgula]` — cria o bucket se faltar, aplica o CORS (PUT/GET) para o upload direto do navegador e a expiração de 1 dia do prefixo `tmp/`. Em produção passe a URL do site.
+Após definir as envs de R2, rode uma vez por ambiente: `npx tsx scripts/r2-setup.ts [origens,separadas,por,virgula]` — cria o bucket se faltar, aplica o CORS (PUT/GET) para o upload direto do navegador e a expiração de 1 dia do prefixo `tmp/`. Em produção passe a URL do site, ou `"*"` (qualquer origem — seguro: a autorização do envio é a assinatura da URL, não a origem). **CORS precisa de `AllowedHeaders: ["*"]`** (o PUT manda `Content-Type`); regra editada à mão no painel da Cloudflare sem isso quebra o upload com erro de CORS.

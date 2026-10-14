@@ -5,7 +5,9 @@
  *   npx tsx scripts/r2-setup.ts [origem1,origem2]
  *
  * Origens padrão: http://localhost:3000 e http://localhost:3100.
- * Em produção, passe a URL do site (ex.: https://app.exemplo.com).
+ * Em produção, passe a URL do site (ex.: https://app.exemplo.com) ou "*" para
+ * liberar qualquer origem — seguro aqui: quem autoriza o envio é a assinatura da
+ * URL (5 min, tamanho travado), não a origem.
  */
 import "dotenv/config";
 import {
@@ -47,7 +49,7 @@ async function main() {
         CORSRules: [
           {
             AllowedOrigins: origens,
-            AllowedMethods: ["PUT", "GET"],
+            AllowedMethods: ["PUT", "GET", "HEAD"],
             AllowedHeaders: ["*"],
             MaxAgeSeconds: 3600,
           },
