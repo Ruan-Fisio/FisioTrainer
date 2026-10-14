@@ -17,7 +17,18 @@
  * Uma opção de coluna MULTIPLA_ESCOLHA também pode ter uma condição (ex:
  * `{IMC} < 18.5`) que a marca sozinha, na mesma passagem — ver `opcoesCondicionais`
  * em `ColunaCalculo`/`ColunaValidavel` e `calcularColunas`.
+ *
+ * Uma coluna MULTIPLA_ESCOLHA com `pontuacoes` (cada opção vale um número fixo)
+ * também é referenciável como `{Coluna}`: vale a soma dos pontos das opções
+ * marcadas, ou fica sem valor se nada estiver marcado. Se for automática, ela
+ * é resolvida sob demanda junto com as calculadas (ver `calcularColunas`).
  */
+
+import {
+  selecionadasDoValor,
+  somarPontuacao,
+  type OpcaoPontuada,
+} from "@/lib/pontuacao-opcao";
 
 const TOKEN_REGEX = /\{([^{}]+)\}/g;
 
@@ -39,6 +50,7 @@ export type ColunaCalculo = {
   opcoes?: string[];
   multiplaSelecao?: boolean;
   opcoesCondicionais?: OpcaoCondicional[];
+  pontuacoes?: OpcaoPontuada[];
 };
 
 export type ColunaValidavel = {
@@ -48,9 +60,33 @@ export type ColunaValidavel = {
   repetivel: boolean;
   opcoes?: string[];
   opcoesCondicionais?: OpcaoCondicional[];
+  pontuacoes?: OpcaoPontuada[];
 };
 
-const TIPOS_REFERENCIAVEIS = new Set(["NUMERO", "CALCULADO"]);
+/** MULTIPLA_ESCOLHA com pontuação por opção — referenciável como número. */
+function ehPontuada(coluna: { tipo: string; pontuacoes?: OpcaoPontuada[] }): boolean {
+  return (
+    coluna.tipo === "MULTIPLA_ESCOLHA" &&
+    coluna.pontuacoes !== undefined &&
+    coluna.pontuacoes.length > 0
+  );
+}
+
+/** Coluna que uma fórmula pode citar (fora campo repetível, checado à parte). */
+function ehReferenciavel(coluna: { tipo: string; pontuacoes?: OpcaoPontuada[] }): boolean {
+  return coluna.tipo === "NUMERO" || coluna.tipo === "CALCULADO" || ehPontuada(coluna);
+}
+
+function temOpcoesAutomaticas(coluna: {
+  tipo: string;
+  opcoesCondicionais?: OpcaoCondicional[];
+}): boolean {
+  return (
+    coluna.tipo === "MULTIPLA_ESCOLHA" &&
+    coluna.opcoesCondicionais !== undefined &&
+    coluna.opcoesCondicionais.length > 0
+  );
+}
 
 /**
  * Variáveis do perfil do paciente, referenciáveis em qualquer fórmula/condição
@@ -80,6 +116,27 @@ export function variaveisDoPaciente(dados?: DadosPacienteFormula | null): Map<st
 
 export function normalizarTitulo(titulo: string): string {
   return titulo.trim().toLowerCase();
+}
+
+/**
+ * Variável do exame `{Soma pontuações}`: soma dos pontos das opções marcadas em
+ * TODAS as colunas MULTIPLA_ESCOLHA marcadas como pontuação (campo não-repetível).
+ * Coluna sem resposta conta como 0; nenhuma respondida → sem valor. Aceita
+ * também sem acento (`{Soma pontuacoes}`). Uma coluna do exame com o mesmo nome
+ * tem precedência.
+ */
+export const VARIAVEL_SOMA_PONTUACOES = "Soma pontuações";
+const CHAVES_SOMA_PONTUACOES = [
+  normalizarTitulo("Soma pontuações"),
+  normalizarTitulo("Soma pontuacoes"),
+];
+
+export function ehSomaPontuacoes(nome: string): boolean {
+  return CHAVES_SOMA_PONTUACOES.includes(normalizarTitulo(nome));
+}
+
+function referenciaSomaPontuacoes(formula: string): boolean {
+  return extrairReferencias(formula).some(ehSomaPontuacoes);
 }
 
 /**
@@ -378,10 +435,83 @@ function avaliarComparador(op: Comparador, esquerda: number, direita: number): b
   }
 }
 
+const LETRA_OU_DIGITO = /[\p{L}\p{N}_.]/u;
+const PALAVRA_INTERVALO = /^(?:entre|dentro\s+de)(?![\p{L}\p{N}_.])/iu;
+
+/** Acha, fora de parênteses, a palavra `entre` / `dentro de` de uma cláusula de
+ * intervalo (`<expr> entre <min> e <max>`). Exige borda de palavra. */
+function encontrarIntervalo(expressao: string): { pos: number; tamanho: number } | null {
+  let profundidade = 0;
+  for (let i = 0; i < expressao.length; i++) {
+    const c = expressao[i];
+    if (c === "(") profundidade++;
+    else if (c === ")") profundidade--;
+    else if (profundidade === 0 && (i === 0 || !LETRA_OU_DIGITO.test(expressao[i - 1]))) {
+      const match = PALAVRA_INTERVALO.exec(expressao.slice(i));
+      if (match) return { pos: i, tamanho: match[0].length };
+    }
+  }
+  return null;
+}
+
+/** Posição do conectivo `e` (palavra isolada, fora de parênteses) que separa
+ * mínimo e máximo — `-1` se não houver. */
+function encontrarConectivoE(expressao: string): number {
+  let profundidade = 0;
+  for (let i = 0; i < expressao.length; i++) {
+    const c = expressao[i];
+    if (c === "(") profundidade++;
+    else if (c === ")") profundidade--;
+    else if (
+      profundidade === 0 &&
+      (c === "e" || c === "E") &&
+      (i === 0 || !LETRA_OU_DIGITO.test(expressao[i - 1])) &&
+      (i === expressao.length - 1 || !LETRA_OU_DIGITO.test(expressao[i + 1]))
+    ) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+/** `<expr> entre <min> e <max>` — extremos inclusivos; se vierem invertidos
+ * (`entre 2 e 1`) a faixa é a mesma, em vez de nunca bater. */
+function avaliarClausulaIntervalo(
+  expressao: string,
+  intervalo: { pos: number; tamanho: number },
+): ResultadoCondicao {
+  const sintaxe = { erro: "Use: valor entre mínimo e máximo (ex: {IMC} entre 18.5 e 24.9)" };
+  const valor = expressao.slice(0, intervalo.pos);
+  const limites = expressao.slice(intervalo.pos + intervalo.tamanho);
+  const separador = encontrarConectivoE(limites);
+  if (separador === -1) return sintaxe;
+
+  let numeros: number[];
+  try {
+    numeros = [
+      avaliarExpressaoAritmetica(valor),
+      avaliarExpressaoAritmetica(limites.slice(0, separador)),
+      avaliarExpressaoAritmetica(limites.slice(separador + 1)),
+    ];
+  } catch {
+    return { erro: "Condição inválida" };
+  }
+  if (!numeros.every(Number.isFinite)) {
+    return { erro: "Não foi possível calcular a condição (divisão por zero)" };
+  }
+  const [x, a, b] = numeros;
+  return { valor: x >= Math.min(a, b) && x <= Math.max(a, b) };
+}
+
 function avaliarClausulaComparador(expressao: string): ResultadoCondicao {
+  const intervalo = encontrarIntervalo(expressao);
+  if (intervalo) return avaliarClausulaIntervalo(expressao, intervalo);
+
   const comparador = encontrarComparador(expressao);
   if (!comparador) {
-    return { erro: "A condição precisa de um comparador (<, <=, >, >=, ==, !=)" };
+    return {
+      erro: "A condição precisa de um comparador (<, <=, >, >=, ==, !=) ou de um intervalo (entre A e B)",
+    };
   }
 
   const esquerda = expressao.slice(0, comparador.pos);
@@ -528,13 +658,42 @@ export function calcularColunas(
 ): {
   calculados: Map<string, ResultadoFormula>;
   opcoesAutomaticas: Map<string, ResultadoOpcoesAutomaticas>;
+  /** `{Soma pontuações}`; `undefined` se nenhuma coluna de pontuação foi respondida. */
+  somaPontuacoes: number | undefined;
 } {
   const valoresPorTitulo = variaveisDoPaciente(paciente);
+  // Pontos de cada coluna de pontuação já respondida (id → pontos) e, por nome,
+  // as colunas do exame (uma coluna chamada "Soma pontuações" tem precedência).
+  const pontosPorColuna = new Map<string, number>();
+  const chavesDeColunas = new Set(
+    colunas.filter((c) => !c.repetivel).map((c) => normalizarTitulo(c.titulo)),
+  );
+  const pontuadasAutomaticas = colunas.filter(
+    (c) => !c.repetivel && ehPontuada(c) && temOpcoesAutomaticas(c),
+  );
+
+  function somaAtual(): number | undefined {
+    if (pontosPorColuna.size === 0) return undefined;
+    let soma = 0;
+    for (const pontos of pontosPorColuna.values()) soma += pontos;
+    return soma;
+  }
+
+  function publicarSoma() {
+    const soma = somaAtual();
+    for (const chave of CHAVES_SOMA_PONTUACOES) {
+      if (chavesDeColunas.has(chave)) continue;
+      if (soma === undefined) valoresPorTitulo.delete(chave);
+      else valoresPorTitulo.set(chave, soma);
+    }
+  }
   const calculados = new Map<string, ResultadoFormula>();
   const opcoesAutomaticas = new Map<string, ResultadoOpcoesAutomaticas>();
 
-  // 1) Valores digitados (NUMERO) e índice das calculadas por nome.
-  const calculadasPorChave = new Map<string, ColunaCalculo>();
+  // 1) Folhas (NUMERO digitado; MULTIPLA_ESCOLHA pontuada manual, pela opção
+  // marcada) e índice, por nome, dos nós derivados (CALCULADO e MULTIPLA_ESCOLHA
+  // automática) — que são resolvidos sob demanda no passo 2.
+  const derivadasPorChave = new Map<string, ColunaCalculo>();
   for (const coluna of colunas) {
     if (coluna.repetivel) continue;
     const chave = normalizarTitulo(coluna.titulo);
@@ -543,56 +702,77 @@ export function calcularColunas(
       const bruto = valorBruto(coluna.id);
       const numero = bruto === undefined || bruto === "" ? NaN : Number(bruto);
       if (Number.isFinite(numero)) valoresPorTitulo.set(chave, numero);
-    } else if (coluna.tipo === "CALCULADO" && !calculadasPorChave.has(chave)) {
-      calculadasPorChave.set(chave, coluna);
+    } else if (coluna.tipo === "CALCULADO") {
+      if (!derivadasPorChave.has(chave)) derivadasPorChave.set(chave, coluna);
+    } else if (ehPontuada(coluna)) {
+      if (temOpcoesAutomaticas(coluna)) {
+        if (!derivadasPorChave.has(chave)) derivadasPorChave.set(chave, coluna);
+      } else {
+        const pontos = somarPontuacao(
+          selecionadasDoValor(valorBruto(coluna.id) ?? "", !!coluna.multiplaSelecao),
+          coluna.pontuacoes ?? [],
+        );
+        if (pontos !== undefined) {
+          valoresPorTitulo.set(chave, pontos);
+          pontosPorColuna.set(coluna.id, pontos);
+        }
+      }
     }
   }
 
-  // 2) Calculadas sob demanda: antes de avaliar uma, resolve as calculadas que
-  // ela referencia (em qualquer posição). Ciclo é barrado no cadastro; se
-  // existir mesmo assim, a coluna do ciclo fica sem valor ("Preencha ...").
+  // 2) Derivadas sob demanda: antes de avaliar uma, resolve as derivadas que
+  // ela referencia (em qualquer posição) — uma CALCULADO pode somar pontuações
+  // de colunas automáticas, e uma coluna automática pode classificar uma
+  // CALCULADO. Ciclo é barrado no cadastro; se existir mesmo assim, a coluna
+  // do ciclo fica sem valor ("Preencha ...").
+  const resolvidas = new Set<string>();
   const emAndamento = new Set<string>();
-  function resolver(coluna: ColunaCalculo) {
-    if (calculados.has(coluna.id) || emAndamento.has(coluna.id)) return;
-    emAndamento.add(coluna.id);
-    const formula = expandirVariaveis(coluna.formula ?? "", variaveis);
-    for (const nome of extrairReferencias(formula)) {
-      const dependencia = calculadasPorChave.get(normalizarTitulo(nome));
-      if (dependencia && dependencia !== coluna) resolver(dependencia);
+
+  function resolverDependencias(formulas: string[], propria: ColunaCalculo) {
+    for (const formula of formulas) {
+      // `{Soma pontuações}` depende de TODAS as colunas de pontuação automáticas.
+      if (referenciaSomaPontuacoes(formula)) {
+        for (const pontuada of pontuadasAutomaticas) {
+          if (pontuada !== propria) resolver(pontuada);
+        }
+      }
+      for (const nome of extrairReferencias(formula)) {
+        const dependencia = derivadasPorChave.get(normalizarTitulo(nome));
+        if (dependencia && dependencia !== propria) resolver(dependencia);
+      }
     }
-    const resultado = avaliarFormula(formula, valoresPorTitulo);
-    calculados.set(coluna.id, resultado);
-    if ("valor" in resultado) {
-      valoresPorTitulo.set(normalizarTitulo(coluna.titulo), resultado.valor);
-    }
-    emAndamento.delete(coluna.id);
-  }
-  for (const coluna of colunas) {
-    if (coluna.repetivel || coluna.tipo !== "CALCULADO") continue;
-    if (!normalizarTitulo(coluna.titulo)) continue;
-    resolver(coluna);
+    publicarSoma();
   }
 
-  // 3) Opções automáticas, já com todos os valores numéricos resolvidos.
-  for (const coluna of colunas) {
-    if (coluna.repetivel) continue;
-    if (
-      coluna.tipo === "MULTIPLA_ESCOLHA" &&
-      coluna.opcoesCondicionais &&
-      coluna.opcoesCondicionais.length > 0
-    ) {
+  function resolver(coluna: ColunaCalculo) {
+    if (resolvidas.has(coluna.id) || emAndamento.has(coluna.id)) return;
+    emAndamento.add(coluna.id);
+
+    if (coluna.tipo === "CALCULADO") {
+      const formula = expandirVariaveis(coluna.formula ?? "", variaveis);
+      resolverDependencias([formula], coluna);
+      const resultado = avaliarFormula(formula, valoresPorTitulo);
+      calculados.set(coluna.id, resultado);
+      if ("valor" in resultado) {
+        valoresPorTitulo.set(normalizarTitulo(coluna.titulo), resultado.valor);
+      }
+    } else {
+      // MULTIPLA_ESCOLHA automática: todas as opções têm condição (tudo ou nada).
       const formulaPorOpcao = new Map(
-        coluna.opcoesCondicionais.map((c) => [c.opcao, c.formula]),
+        (coluna.opcoesCondicionais ?? []).map((c) => [c.opcao, c.formula]),
       );
+      const expandidas = new Map<string, string>();
+      for (const [opcao, formula] of formulaPorOpcao) {
+        expandidas.set(opcao, expandirVariaveis(formula, variaveis));
+      }
+      resolverDependencias([...expandidas.values()], coluna);
+
       const selecionadas: string[] = [];
       const erros: Record<string, string> = {};
       for (const opcao of coluna.opcoes ?? []) {
-        const formula = formulaPorOpcao.get(opcao);
+        const formula = expandidas.get(opcao);
         if (!formula) continue;
-        const resultado = avaliarCondicaoOpcao(
-          expandirVariaveis(formula, variaveis),
-          valoresPorTitulo,
-        );
+        const resultado = avaliarCondicaoOpcao(formula, valoresPorTitulo);
         if ("erro" in resultado) {
           erros[opcao] = resultado.erro;
           continue;
@@ -603,10 +783,28 @@ export function calcularColunas(
         }
       }
       opcoesAutomaticas.set(coluna.id, { selecionadas, erros });
+
+      // Pontuação só vale com a seleção completa: com erro em alguma opção (valor
+      // de origem faltando) a seleção é parcial e a soma enganaria.
+      if (ehPontuada(coluna) && Object.keys(erros).length === 0) {
+        const pontos = somarPontuacao(selecionadas, coluna.pontuacoes ?? []);
+        if (pontos !== undefined) {
+          valoresPorTitulo.set(normalizarTitulo(coluna.titulo), pontos);
+          pontosPorColuna.set(coluna.id, pontos);
+        }
+      }
     }
+
+    emAndamento.delete(coluna.id);
+    resolvidas.add(coluna.id);
   }
 
-  return { calculados, opcoesAutomaticas };
+  for (const coluna of colunas) {
+    if (coluna.repetivel || !normalizarTitulo(coluna.titulo)) continue;
+    if (coluna.tipo === "CALCULADO" || temOpcoesAutomaticas(coluna)) resolver(coluna);
+  }
+
+  return { calculados, opcoesAutomaticas, somaPontuacoes: somaAtual() };
 }
 
 export function calcularColunasFormula(
@@ -628,6 +826,8 @@ export type ErroValidacaoFormula = {
   /** `-1` quando o erro é de uma variável (ver `variavelIndex`). */
   colunaIndex: number;
   opcaoIndex?: number;
+  /** Onde, dentro da coluna, está o `opcaoIndex` (padrão: `opcoesCondicionais`). */
+  opcaoCampo?: "opcoesCondicionais" | "pontuacoes";
   variavelIndex?: number;
 };
 
@@ -645,10 +845,13 @@ function validarVariaveis(
   });
   const nomesColunas = new Set(
     colunas
-      .filter((c) => TIPOS_REFERENCIAVEIS.has(c.tipo) && !c.repetivel)
+      .filter((c) => ehReferenciavel(c) && !c.repetivel)
       .map((c) => normalizarTitulo(c.titulo)),
   );
-  const nomesPaciente = new Set(VARIAVEIS_PACIENTE.map(normalizarTitulo));
+  const nomesPaciente = new Set([
+    ...VARIAVEIS_PACIENTE.map(normalizarTitulo),
+    ...CHAVES_SOMA_PONTUACOES,
+  ]);
   const vistos = new Set<string>();
 
   for (let i = 0; i < variaveis.length; i++) {
@@ -661,7 +864,10 @@ function validarVariaveis(
     if (vistos.has(chave)) return erro(`Já existe uma variável chamada "${nome}"`, i);
     vistos.add(chave);
     if (nomesPaciente.has(chave)) {
-      return erro(`"${nome}" já é uma variável do paciente — escolha outro nome`, i);
+      return erro(
+        `"${nome}" já é uma variável do paciente ou do exame (Idade, Sexo, Soma pontuações) — escolha outro nome`,
+        i,
+      );
     }
     if (nomesColunas.has(chave)) {
       return erro(`"${nome}" já é o nome de uma coluna do exame — escolha outro nome`, i);
@@ -726,9 +932,13 @@ export function validarFormulasDoExameDetalhado(
   // campo não-repetível, em qualquer posição. O paciente não entra na checagem
   // de nome duplicado (`nomesDeColunas`).
   const disponiveis = new Set<string>(VARIAVEIS_PACIENTE.map(normalizarTitulo));
+  // `{Soma pontuações}` só existe se o exame tem alguma coluna de pontuação.
+  if (colunas.some((c) => ehPontuada(c) && !c.repetivel)) {
+    for (const chave of CHAVES_SOMA_PONTUACOES) disponiveis.add(chave);
+  }
   for (const c of colunas) {
     const chave = normalizarTitulo(c.titulo);
-    if (TIPOS_REFERENCIAVEIS.has(c.tipo) && !c.repetivel && chave) disponiveis.add(chave);
+    if (ehReferenciavel(c) && !c.repetivel && chave) disponiveis.add(chave);
   }
   const nomesDeColunas = new Set<string>();
 
@@ -764,6 +974,12 @@ export function validarFormulasDoExameDetalhado(
             colunaIndex,
           };
         }
+        if (ehSomaPontuacoes(nome) && !disponiveis.has(normalizarTitulo(nome))) {
+          return {
+            mensagem: `A fórmula da coluna "${coluna.titulo}" usa "${VARIAVEL_SOMA_PONTUACOES}", mas nenhuma coluna do exame está marcada como pontuação`,
+            colunaIndex,
+          };
+        }
         if (!disponiveis.has(normalizarTitulo(nome))) {
           return {
             mensagem: `A fórmula da coluna "${coluna.titulo}" referencia "${nome}", que não existe neste exame (colunas de campos com múltiplas entradas não podem ser referenciadas)`,
@@ -777,6 +993,28 @@ export function validarFormulasDoExameDetalhado(
           mensagem: `A fórmula da coluna "${coluna.titulo}" tem um erro de sintaxe`,
           colunaIndex,
         };
+      }
+    }
+
+    if (ehPontuada(coluna)) {
+      if (coluna.repetivel) {
+        return {
+          mensagem: `A coluna de pontuação "${coluna.titulo}" não pode estar em um campo com múltiplas entradas`,
+          colunaIndex,
+        };
+      }
+      const opcoes = coluna.opcoes ?? [];
+      const pontuadas = coluna.pontuacoes ?? [];
+      for (let opcaoIndex = 0; opcaoIndex < opcoes.length; opcaoIndex++) {
+        const pontuacao = pontuadas.find((p) => p.opcao === opcoes[opcaoIndex]);
+        if (!pontuacao || !Number.isFinite(pontuacao.pontos)) {
+          return {
+            mensagem: `A opção "${opcoes[opcaoIndex]}" da coluna "${coluna.titulo}" precisa de uma pontuação numérica (ou desligue "funciona como pontuação")`,
+            colunaIndex,
+            opcaoIndex,
+            opcaoCampo: "pontuacoes",
+          };
+        }
       }
     }
 
@@ -832,6 +1070,22 @@ export function validarFormulasDoExameDetalhado(
               opcaoIndex,
             };
           }
+          if (ehSomaPontuacoes(nome)) {
+            if (!disponiveis.has(normalizarTitulo(nome))) {
+              return {
+                mensagem: `A condição da opção "${opcao}" da coluna "${coluna.titulo}" usa "${VARIAVEL_SOMA_PONTUACOES}", mas nenhuma coluna do exame está marcada como pontuação`,
+                colunaIndex,
+                opcaoIndex,
+              };
+            }
+            if (ehPontuada(coluna)) {
+              return {
+                mensagem: `A condição da opção "${opcao}" da coluna "${coluna.titulo}" não pode usar "${VARIAVEL_SOMA_PONTUACOES}" — ela é uma coluna de pontuação e entra nessa soma (ciclo)`,
+                colunaIndex,
+                opcaoIndex,
+              };
+            }
+          }
           if (!disponiveis.has(normalizarTitulo(nome))) {
             return {
               mensagem: `A condição da opção "${opcao}" da coluna "${coluna.titulo}" referencia "${nome}", que não existe neste exame (colunas de campos com múltiplas entradas não podem ser referenciadas)`,
@@ -843,7 +1097,7 @@ export function validarFormulasDoExameDetalhado(
 
         if (!validarSintaxeCondicao(condicaoExpandida)) {
           return {
-            mensagem: `A condição da opção "${opcao}" da coluna "${coluna.titulo}" tem um erro de sintaxe (use um comparador: <, <=, >, >=, ==, !=)`,
+            mensagem: `A condição da opção "${opcao}" da coluna "${coluna.titulo}" tem um erro de sintaxe (use um comparador: <, <=, >, >=, ==, != ou um intervalo: entre A e B)`,
             colunaIndex,
             opcaoIndex,
           };
@@ -851,7 +1105,7 @@ export function validarFormulasDoExameDetalhado(
       }
     }
 
-    if (TIPOS_REFERENCIAVEIS.has(coluna.tipo) && !coluna.repetivel) {
+    if (ehReferenciavel(coluna) && !coluna.repetivel) {
       const chave = normalizarTitulo(coluna.titulo);
       if (chave) {
         if (nomesDeColunas.has(chave)) {
@@ -877,9 +1131,15 @@ function validarCiclosEntreCalculadas(
   const indicePorChave = new Map<string, number>();
   colunas.forEach((c, i) => {
     const chave = normalizarTitulo(c.titulo);
-    if (c.tipo === "CALCULADO" && !c.repetivel && chave && !indicePorChave.has(chave)) {
+    const derivada = c.tipo === "CALCULADO" || (ehPontuada(c) && temOpcoesAutomaticas(c));
+    if (derivada && !c.repetivel && chave && !indicePorChave.has(chave)) {
       indicePorChave.set(chave, i);
     }
+  });
+
+  const pontuadasAutomaticas: number[] = [];
+  colunas.forEach((c, i) => {
+    if (ehPontuada(c) && temOpcoesAutomaticas(c) && !c.repetivel) pontuadasAutomaticas.push(i);
   });
 
   const estado = new Map<number, 1 | 2>();
@@ -887,10 +1147,24 @@ function validarCiclosEntreCalculadas(
     if (estado.get(indice) === 2) return false;
     if (estado.get(indice) === 1) return true;
     estado.set(indice, 1);
-    const formula = expandirVariaveis(colunas[indice].formula ?? "", variaveis);
-    for (const nome of extrairReferencias(formula)) {
-      const destino = indicePorChave.get(normalizarTitulo(nome));
-      if (destino !== undefined && temCiclo(destino)) return true;
+    const coluna = colunas[indice];
+    const formulas =
+      coluna.tipo === "CALCULADO"
+        ? [coluna.formula ?? ""]
+        : (coluna.opcoesCondicionais ?? []).map((c) => c.formula);
+    for (const formulaBruta of formulas) {
+      const formula = expandirVariaveis(formulaBruta, variaveis);
+      for (const nome of extrairReferencias(formula)) {
+        // `{Soma pontuações}` depende de todas as colunas de pontuação automáticas.
+        if (ehSomaPontuacoes(nome)) {
+          for (const destino of pontuadasAutomaticas) {
+            if (destino !== indice && temCiclo(destino)) return true;
+          }
+          continue;
+        }
+        const destino = indicePorChave.get(normalizarTitulo(nome));
+        if (destino !== undefined && temCiclo(destino)) return true;
+      }
     }
     estado.set(indice, 2);
     return false;
@@ -899,7 +1173,7 @@ function validarCiclosEntreCalculadas(
   for (const indice of indicePorChave.values()) {
     if (temCiclo(indice)) {
       return {
-        mensagem: `A coluna calculada "${colunas[indice].titulo}" depende dela mesma por meio de outras colunas calculadas (ciclo)`,
+        mensagem: `A coluna "${colunas[indice].titulo}" depende dela mesma por meio de outras colunas calculadas ou automáticas (ciclo)`,
         colunaIndex: indice,
       };
     }

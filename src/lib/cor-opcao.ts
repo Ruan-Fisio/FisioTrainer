@@ -3,15 +3,24 @@
 // Persistido em `ExameCampoColuna.coresOpcoes` (`Json`: `{opcao, cor}[]`);
 // opção sem entrada = sem destaque. Paleta propositalmente fechada.
 
-export const CORES_OPCAO = ["VERMELHO", "VERDE", "AMARELO"] as const;
+// Ordem = escala de "melhor" para "pior" (azul → vermelho); é a ordem do seletor.
+export const CORES_OPCAO = [
+  "AZUL",
+  "VERDE",
+  "AMARELO",
+  "LARANJA",
+  "VERMELHO",
+] as const;
 export type CorOpcao = (typeof CORES_OPCAO)[number];
 
 export type OpcaoColorida = { opcao: string; cor: CorOpcao };
 
 export const COR_OPCAO_LABEL: Record<CorOpcao, string> = {
-  VERMELHO: "Vermelho",
+  AZUL: "Azul",
   VERDE: "Verde",
   AMARELO: "Amarelo",
+  LARANJA: "Laranja",
+  VERMELHO: "Vermelho",
 };
 
 /** Classes completas (Tailwind só gera classe escrita por extenso). */
@@ -19,10 +28,10 @@ export const COR_OPCAO_CLASSES: Record<
   CorOpcao,
   { destaque: string; ponto: string }
 > = {
-  VERMELHO: {
+  AZUL: {
     destaque:
-      "border-red-500/50 bg-red-500/15 text-red-800 dark:text-red-200",
-    ponto: "bg-red-500",
+      "border-blue-500/50 bg-blue-500/15 text-blue-800 dark:text-blue-200",
+    ponto: "bg-blue-500",
   },
   VERDE: {
     destaque:
@@ -33,6 +42,16 @@ export const COR_OPCAO_CLASSES: Record<
     destaque:
       "border-yellow-500/60 bg-yellow-400/20 text-yellow-900 dark:text-yellow-100",
     ponto: "bg-yellow-400",
+  },
+  LARANJA: {
+    destaque:
+      "border-orange-500/50 bg-orange-500/15 text-orange-800 dark:text-orange-200",
+    ponto: "bg-orange-500",
+  },
+  VERMELHO: {
+    destaque:
+      "border-red-500/50 bg-red-500/15 text-red-800 dark:text-red-200",
+    ponto: "bg-red-500",
   },
 };
 

@@ -5,6 +5,7 @@ import type { ImagemExame } from "@/actions/exame-imagens";
 import { parseGoniometriaValor } from "@/lib/goniometria";
 import { ehImagem } from "@/lib/storage-keys";
 import { parseSelecionadas } from "@/lib/multipla-escolha";
+import { parsePontuacoes } from "@/lib/pontuacao-opcao";
 import {
   COR_OPCAO_CLASSES,
   mapaCoresOpcoes,
@@ -133,6 +134,11 @@ export function ExecucaoValores({
         tipo: coluna.tipo,
         formula: coluna.formula,
         repetivel: campo.repetivel,
+        // MULTIPLA_ESCOLHA pontuada entra nas fórmulas pelo valor GRAVADO
+        // (sem `opcoesCondicionais`: não reavalia as condições).
+        opcoes: coluna.opcoes,
+        multiplaSelecao: coluna.multiplaSelecao,
+        pontuacoes: parsePontuacoes(coluna.pontuacoes),
       })),
     ),
   );

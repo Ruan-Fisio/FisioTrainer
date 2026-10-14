@@ -22,6 +22,7 @@ import {
   formatarNumeroFormula,
   normalizarTitulo,
   renomearReferenciaFormula,
+  VARIAVEL_SOMA_PONTUACOES,
   VARIAVEIS_PACIENTE,
   type VariavelExame,
 } from "@/lib/exame-formula";
@@ -114,6 +115,12 @@ export function FormulaDialog({
         insercao: `{${nome}}`,
         detalhe: DETALHE_PACIENTE[nome],
       })),
+      {
+        tipo: "variavel",
+        rotulo: VARIAVEL_SOMA_PONTUACOES,
+        insercao: `{${VARIAVEL_SOMA_PONTUACOES}}`,
+        detalhe: "soma dos pontos de todas as colunas de pontuação",
+      },
       SUGESTAO_SE,
     ],
     [colunasDisponiveis, variaveis],
@@ -420,6 +427,16 @@ export function FormulaDialog({
                 onClick={() => inserir(" && ")}
               >
                 &&
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-1.5 font-mono text-xs"
+                title="Intervalo (limites inclusivos) — ex: {IMC} entre 18.5 e 24.9"
+                onClick={() => inserir(" entre  e ", 7)}
+              >
+                entre
               </Button>
               <Button
                 type="button"

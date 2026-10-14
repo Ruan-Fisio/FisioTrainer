@@ -12,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Sigma,
+  Hash,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,9 +29,11 @@ import { cn } from "@/lib/utils";
 import { FormActions } from "@/components/ui/form-actions";
 import type { ExameActionState } from "@/actions/exames";
 import {
+  ehSomaPontuacoes,
   extrairReferencias,
   normalizarTitulo,
   renomearReferenciaFormula,
+  VARIAVEL_SOMA_PONTUACOES,
   VARIAVEIS_PACIENTE,
   type VariavelExame,
 } from "@/lib/exame-formula";
@@ -58,6 +61,10 @@ type ColunaDraft = {
   opcoesCondicionais: { opcao: string; formula: string }[];
   /** Cor de destaque por opção, alinhada por índice com `opcoes` ("" = sem cor). */
   coresOpcoes: string[];
+  /** Cada opção vale um número fixo, referenciável em fórmulas como `{Coluna}`. */
+  usaPontuacao: boolean;
+  /** Pontos por opção (texto, alinhado por índice com `opcoes`; "" = sem). */
+  pontuacoes: string[];
   /** A coluna aceita anexos (arquivos) na execução do exame. */
   permiteAnexo: boolean;
   valorIdeal: string;
@@ -82,7 +89,7 @@ const TIPO_COLUNA_LABELS: Record<TipoColuna, string> = {
   CALCULADO: "Calculado (fórmula)",
 };
 
-/** Nomes de colunas Número/Calculado de campos não-repetíveis de todo o exame
+/** Nomes de colunas Número/Calculado/Pontuação de campos não-repetíveis de todo o exame
  * (antes ou depois), exceto a própria coluna — é o que uma fórmula pode
  * referenciar (ver src/lib/exame-formula.ts). */
 function colunasReferenciaveis(
@@ -99,7 +106,9 @@ function colunasReferenciaveis(
         if (
           !propria &&
           !campo.repetivel &&
-          (coluna.tipo === "NUMERO" || coluna.tipo === "CALCULADO") &&
+          (coluna.tipo === "NUMERO" ||
+            coluna.tipo === "CALCULADO" ||
+            (coluna.tipo === "MULTIPLA_ESCOLHA" && coluna.usaPontuacao)) &&
           coluna.titulo.trim()
         ) {
           nomes.push(coluna.titulo.trim());
@@ -191,6 +200,7 @@ function FormulaEditor({
     (nome) =>
       !colunasDisponiveis.some((c) => normalizarTitulo(c) === normalizarTitulo(nome)) &&
       !VARIAVEIS_PACIENTE.some((v) => normalizarTitulo(v) === normalizarTitulo(nome)) &&
+      !ehSomaPontuacoes(nome) &&
       !variaveis.some((v) => normalizarTitulo(v.nome) === normalizarTitulo(nome)),
   );
 
@@ -241,6 +251,16 @@ function FormulaEditor({
             {nome} (paciente)
           </Button>
         ))}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 border-violet-500/40 px-2 text-xs"
+          title="Soma dos pontos de todas as colunas marcadas como pontuação"
+          onClick={() => inserirNoCursor(`{${VARIAVEL_SOMA_PONTUACOES}}`)}
+        >
+          {VARIAVEL_SOMA_PONTUACOES} (exame)
+        </Button>
         {colunasDisponiveis.length > 0 &&
           colunasDisponiveis.map((nome) => (
             <Button
@@ -293,6 +313,16 @@ function FormulaEditor({
               onClick={() => inserirNoCursor(" && ")}
             >
               &&
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-1.5 text-xs font-mono"
+              title="Intervalo (limites inclusivos) — ex: {IMC} entre 18.5 e 24.9"
+              onClick={() => inserirNoCursor(" entre A e B")}
+            >
+              entre
             </Button>
             {!incluirComparadores && (
               <Button
@@ -356,6 +386,8 @@ function novaColuna(): ColunaDraft {
     multiplaSelecao: false,
     opcoesCondicionais: [],
     coresOpcoes: [],
+    usaPontuacao: false,
+    pontuacoes: [],
     permiteAnexo: false,
     valorIdeal: "",
     direcaoIdeal: "PROXIMO_IDEAL",
@@ -666,6 +698,10 @@ function SecaoCard({
                               tipo === "MULTIPLA_ESCOLHA"
                                 ? coluna.opcoesCondicionais
                                 : [],
+                            usaPontuacao:
+                              tipo === "MULTIPLA_ESCOLHA"
+                                ? coluna.usaPontuacao
+                                : false,
                           });
                         }}
                       >
@@ -784,6 +820,33 @@ function SecaoCard({
                         Marcar opção automaticamente por fórmula (em vez de
                         preenchimento manual)
                       </label>
+                      <label
+                        onClick={(e) => {
+                          e.preventDefault();
+                          updateColuna(secaoIndex, campoIndex, colunaIndex, {
+                            usaPontuacao: !coluna.usaPontuacao,
+                            pontuacoes: coluna.opcoes.map(
+                              (_, oi) => coluna.pontuacoes[oi] ?? "",
+                            ),
+                          });
+                        }}
+                        className="flex min-h-8 cursor-pointer items-center gap-2 text-xs text-muted-foreground select-none"
+                      >
+                        <Checkbox
+                          checked={coluna.usaPontuacao}
+                          tabIndex={-1}
+                          className="pointer-events-none"
+                        />
+                        <Hash className="size-3.5 text-violet-600 dark:text-violet-400" />
+                        Esta coluna funciona como pontuação (cada opção vale um
+                        número, usado em fórmulas)
+                      </label>
+                      {coluna.usaPontuacao && campo.repetivel && (
+                        <p className="text-xs text-destructive">
+                          Pontuação não pode ser usada em campo com múltiplas
+                          entradas.
+                        </p>
+                      )}
                       <Label className="text-xs text-muted-foreground">
                         Opções
                       </Label>
@@ -793,9 +856,9 @@ function SecaoCard({
                           id={`exame-opcao-${secaoIndex}-${campoIndex}-${colunaIndex}-${opcaoIndex}`}
                           className="flex scroll-mt-24 flex-col gap-1.5 rounded-md transition-shadow"
                         >
-                          <div className="flex items-center gap-2">
+                          <div className="flex flex-wrap items-end gap-2">
                             <Input
-                              className="min-w-0 flex-1"
+                              className="min-w-0 flex-1 basis-40"
                               value={opcao}
                               onChange={(e) =>
                                 updateOpcao(
@@ -809,6 +872,33 @@ function SecaoCard({
                               placeholder={`Opção ${opcaoIndex + 1}`}
                               required
                             />
+                            {coluna.usaPontuacao && (
+                              // Input aninhado no Label: o form é renderizado em
+                              // duplicata (wizard mobile + desktop), então `htmlFor`
+                              // por id apontaria para o elemento escondido.
+                              <Label className="flex w-20 shrink-0 flex-col items-start gap-0.5 text-[11px] text-muted-foreground">
+                                Pontos
+                                <Input
+                                  inputMode="decimal"
+                                  value={coluna.pontuacoes[opcaoIndex] ?? ""}
+                                  onChange={(e) =>
+                                    updateColuna(
+                                      secaoIndex,
+                                      campoIndex,
+                                      colunaIndex,
+                                      {
+                                        pontuacoes: coluna.opcoes.map((_, oi) =>
+                                          oi === opcaoIndex
+                                            ? e.target.value
+                                            : (coluna.pontuacoes[oi] ?? ""),
+                                        ),
+                                      },
+                                    )
+                                  }
+                                  placeholder="0"
+                                />
+                              </Label>
+                            )}
                             <CorOpcaoSelect
                               value={coluna.coresOpcoes[opcaoIndex] ?? ""}
                               rotulo={opcao || `Opção ${opcaoIndex + 1}`}
@@ -1163,7 +1253,8 @@ export function ExameForm({
     const campoIndex = typeof path[3] === "number" ? path[3] : undefined;
     const colunaIndex = typeof path[5] === "number" ? path[5] : undefined;
     const opcaoIndex =
-      path[6] === "opcoesCondicionais" && typeof path[7] === "number"
+      (path[6] === "opcoesCondicionais" || path[6] === "pontuacoes") &&
+      typeof path[7] === "number"
         ? path[7]
         : undefined;
 
@@ -1514,6 +1605,12 @@ export function ExameForm({
                           : {
                               ...coluna,
                               opcoes: [...coluna.opcoes, ""],
+                              pontuacoes: [
+                                ...coluna.opcoes.map(
+                                  (_, oi) => coluna.pontuacoes[oi] ?? "",
+                                ),
+                                "",
+                              ],
                               coresOpcoes: [
                                 ...coluna.opcoes.map(
                                   (_, oi) => coluna.coresOpcoes[oi] ?? "",
@@ -1563,6 +1660,9 @@ export function ExameForm({
                               ),
                               coresOpcoes: coluna.opcoes
                                 .map((_, oi) => coluna.coresOpcoes[oi] ?? "")
+                                .filter((_, oi) => oi !== opcaoIndex),
+                              pontuacoes: coluna.opcoes
+                                .map((_, oi) => coluna.pontuacoes[oi] ?? "")
                                 .filter((_, oi) => oi !== opcaoIndex),
                               opcoesCondicionais:
                                 coluna.opcoesCondicionais.length > 0
@@ -1913,6 +2013,12 @@ function ExamePreview({ nome, secoes }: { nome: string; secoes: SecaoDraft[] }) 
                                   />
                                 )}
                                 {opcao || `Opção ${opcaoIndex + 1}`}
+                                {coluna.usaPontuacao &&
+                                  coluna.pontuacoes[opcaoIndex]?.trim() && (
+                                    <span className="text-muted-foreground">
+                                      ({coluna.pontuacoes[opcaoIndex].trim()} pts)
+                                    </span>
+                                  )}
                               </label>
                             );
                           })}

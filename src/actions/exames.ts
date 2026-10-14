@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { coresAlinhadasParaPersistir } from "@/lib/cor-opcao";
+import { pontuacoesAlinhadasParaPersistir } from "@/lib/pontuacao-opcao";
 import { exameSchema } from "@/lib/validations/exame";
 
 const PAGE_SIZE = 10;
@@ -119,6 +120,10 @@ function colunaData(coluna: ColunaInput, ordem: number) {
       coluna.tipo === "MULTIPLA_ESCOLHA"
         ? coresAlinhadasParaPersistir(coluna.opcoes, coluna.coresOpcoes)
         : [],
+    pontuacoes:
+      coluna.tipo === "MULTIPLA_ESCOLHA" && coluna.usaPontuacao
+        ? pontuacoesAlinhadasParaPersistir(coluna.opcoes, coluna.pontuacoes)
+        : [],
     permiteAnexo: coluna.tipo === "CALCULADO" ? false : coluna.permiteAnexo,
     valorIdeal:
       coluna.tipo === "NUMERO" && coluna.valorIdeal ? coluna.valorIdeal : null,
@@ -149,6 +154,8 @@ function colunaMembroInput(id?: string): ColunaInput & { id?: string } {
     multiplaSelecao: false,
     opcoesCondicionais: [],
     coresOpcoes: [],
+    usaPontuacao: false,
+    pontuacoes: [],
     permiteAnexo: false,
     valorIdeal: "",
     direcaoIdeal: undefined,

@@ -69,7 +69,7 @@ test.describe("coluna calculada (fórmula) — cadastro e execução", () => {
 
     await alturaInput.fill("1.75");
     await expect(
-      page.getByText("22.86", { exact: true }).filter({ visible: true }),
+      page.getByText("22.9", { exact: true }).filter({ visible: true }),
     ).toBeVisible();
 
     // Nunca vira um <input> editável — não deve haver nenhum campo de texto/número
@@ -85,7 +85,7 @@ test.describe("coluna calculada (fórmula) — cadastro e execução", () => {
     // a partir dos valores reais salvos de Peso/Altura.
     await page.getByRole("link", { name: nomeExame }).click();
     await expect(
-      page.getByText("22.86", { exact: true }).filter({ visible: true }),
+      page.getByText("22.9", { exact: true }).filter({ visible: true }),
     ).toBeVisible();
   });
 });

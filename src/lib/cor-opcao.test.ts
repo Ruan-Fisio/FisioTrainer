@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  CORES_OPCAO,
+  COR_OPCAO_CLASSES,
   coresAlinhadasParaPersistir,
   coresPersistidasParaAlinhar,
   mapaCoresOpcoes,
@@ -17,6 +19,18 @@ describe("parseCoresOpcoes", () => {
       { opcao: "Baixo", cor: "VERDE" },
       { opcao: "Alto", cor: "VERMELHO" },
     ]);
+  });
+
+  it("aceita as 5 cores da paleta (azul → vermelho)", () => {
+    const cores = ["AZUL", "VERDE", "AMARELO", "LARANJA", "VERMELHO"];
+    expect(
+      parseCoresOpcoes(cores.map((cor, i) => ({ opcao: `O${i}`, cor }))),
+    ).toHaveLength(5);
+    expect([...CORES_OPCAO]).toEqual(cores);
+    for (const cor of CORES_OPCAO) {
+      expect(COR_OPCAO_CLASSES[cor].destaque).toBeTruthy();
+      expect(COR_OPCAO_CLASSES[cor].ponto).toBeTruthy();
+    }
   });
 
   it("trata formato inesperado, cor desconhecida e null como sem destaque", () => {

@@ -55,6 +55,7 @@ import {
   type MovimentoOption,
 } from "@/components/exame-execucoes/goniometria-field";
 import { COR_OPCAO_CLASSES, mapaCoresOpcoes } from "@/lib/cor-opcao";
+import { parsePontuacoes } from "@/lib/pontuacao-opcao";
 import { cn } from "@/lib/utils";
 import { valorPreenchido } from "@/lib/exame-sombra";
 import { parseGoniometriaValor } from "@/lib/goniometria";
@@ -105,6 +106,8 @@ export type ExameCompleto = {
         multiplaSelecao: boolean;
         opcoesCondicionais: unknown;
         coresOpcoes?: unknown;
+        /** `ExameCampoColuna.pontuacoes` (Json) — pontos por opção. */
+        pontuacoes?: unknown;
         permiteAnexo: boolean;
         formula: string | null;
       }[];
@@ -336,6 +339,12 @@ function SecaoFields({
                                 const cores = mapaCoresOpcoes(
                                   coluna.coresOpcoes,
                                 );
+                                const pontuacoes = parsePontuacoes(
+                                  coluna.pontuacoes,
+                                );
+                                const pontosPorOpcao = new Map(
+                                  pontuacoes.map((p) => [p.opcao, p.pontos]),
+                                );
                                 return (
                                   <div
                                     className={`flex flex-col gap-1.5 rounded-lg border p-2 ${
@@ -414,6 +423,11 @@ function SecaoFields({
                                               />
                                             )}
                                             {opcao}
+                                            {pontosPorOpcao.has(opcao) && (
+                                              <span className="text-xs text-muted-foreground">
+                                                ({pontosPorOpcao.get(opcao)} pts)
+                                              </span>
+                                            )}
                                           </label>
                                           {erro && (
                                             <p className="pl-6 text-[11px] text-muted-foreground">
@@ -640,6 +654,7 @@ export function ExameExecucaoForm({
                 opcoesCondicionais: parseOpcoesCondicionais(
                   coluna.opcoesCondicionais,
                 ),
+                pontuacoes: parsePontuacoes(coluna.pontuacoes),
               })),
             ),
           )

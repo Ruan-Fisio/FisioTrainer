@@ -9,7 +9,7 @@ import {
 } from "@/lib/cor-opcao";
 import { cn } from "@/lib/utils";
 
-/** Escolha da cor de destaque de uma opção: nenhuma, vermelho, verde ou amarelo. */
+/** Escolha da cor de destaque de uma opção: nenhuma ou uma das 5 cores da paleta. */
 export function CorOpcaoSelect({
   value,
   rotulo,

@@ -1,5 +1,9 @@
 import { coresPersistidasParaAlinhar } from "@/lib/cor-opcao";
 import { parseVariaveis } from "@/lib/exame-formula";
+import {
+  parsePontuacoes,
+  pontuacoesPersistidasParaAlinhar,
+} from "@/lib/pontuacao-opcao";
 import { notFound } from "next/navigation";
 import { getExame, updateExame } from "@/actions/exames";
 import { ExameForm } from "@/components/exames/exame-form";
@@ -65,6 +69,11 @@ export default async function EditarExamePage({
                   coresOpcoes: coresPersistidasParaAlinhar(
                     coluna.opcoes,
                     coluna.coresOpcoes,
+                  ),
+                  usaPontuacao: parsePontuacoes(coluna.pontuacoes).length > 0,
+                  pontuacoes: pontuacoesPersistidasParaAlinhar(
+                    coluna.opcoes,
+                    coluna.pontuacoes,
                   ),
                   permiteAnexo: coluna.permiteAnexo,
                   valorIdeal: coluna.valorIdeal ?? "",

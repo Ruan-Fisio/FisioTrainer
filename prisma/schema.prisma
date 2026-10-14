@@ -148,8 +148,12 @@ model ExameCampoColuna {
   /// `validarFormulasDoExame` em src/lib/exame-formula.ts. Vazio = coluna manual.
   opcoesCondicionais Json          @default("[]")
   /// Cor de destaque por opção (MULTIPLA_ESCOLHA): array de `{opcao, cor}` com
-  /// cor VERMELHO | VERDE | AMARELO. Opção sem entrada = sem destaque.
+  /// cor AZUL | VERDE | AMARELO | LARANJA | VERMELHO. Opção sem entrada = sem destaque.
   coresOpcoes  Json            @default("[]")
+  /// Pontuação fixa por opção (MULTIPLA_ESCOLHA): array de `{opcao, pontos}`.
+  /// Só existe quando TODAS as opções têm pontos — ver src/lib/pontuacao-opcao.ts.
+  /// Vazio = coluna sem pontuação. Nunca gravada na execução (derivada da opção).
+  pontuacoes   Json            @default("[]")
   /// Se a coluna aceita anexos (arquivos) na execução do exame. Colunas
   /// anteriores a este campo ficam `true` (migration) para manter o legado.
   permiteAnexo Boolean         @default(false)

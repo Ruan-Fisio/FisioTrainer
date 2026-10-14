@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { CORES_OPCAO } from "@/lib/cor-opcao";
 import { validarFormulasDoExameDetalhado } from "@/lib/exame-formula";
+import { parsePontosTexto, type OpcaoPontuada } from "@/lib/pontuacao-opcao";
 
 export const exameColunaSchema = z
   .object({
@@ -38,6 +39,11 @@ export const exameColunaSchema = z
       .array(z.enum(["", ...CORES_OPCAO]))
       .optional()
       .default([]),
+    // Pontos por opção como texto, alinhado por índice com `opcoes` (permite
+    // digitar "-" ou "1,5"). Só vale com `usaPontuacao`; conteúdo é validado
+    // em `validarFormulasDoExameDetalhado` (mensagem aponta opção/coluna).
+    usaPontuacao: z.boolean().optional().default(false),
+    pontuacoes: z.array(z.string()).optional().default([]),
     /** A coluna aceita anexos (arquivos) na execução do exame. */
     permiteAnexo: z.boolean().optional().default(false),
     valorIdeal: z.string().trim().optional(),
@@ -61,7 +67,11 @@ export const exameColunaSchema = z
       message: "Condições automáticas só se aplicam a colunas de múltipla escolha",
       path: ["opcoesCondicionais"],
     },
-  );
+  )
+  .refine((coluna) => coluna.tipo === "MULTIPLA_ESCOLHA" || !coluna.usaPontuacao, {
+    message: "Pontuação só se aplica a colunas de múltipla escolha",
+    path: ["usaPontuacao"],
+  });
 
 export const exameCampoSchema = z.object({
   id: z.string().trim().optional(),
@@ -112,6 +122,7 @@ export const exameSchema = z
       repetivel: boolean;
       opcoes: string[];
       opcoesCondicionais: { opcao: string; formula: string }[];
+      pontuacoes: OpcaoPontuada[];
     }[] = [];
     const coordenadas: { secaoIndex: number; campoIndex: number; colunaIndex: number }[] = [];
 
@@ -125,6 +136,14 @@ export const exameSchema = z
             repetivel: campo.repetivel,
             opcoes: coluna.opcoes,
             opcoesCondicionais: coluna.opcoesCondicionais,
+            // Coluna com `usaPontuacao` mas pontos faltando/inválidos: o
+            // validador precisa enxergá-la como pontuada para apontar a opção.
+            pontuacoes: coluna.usaPontuacao
+              ? coluna.opcoes.map((opcao, i) => ({
+                  opcao,
+                  pontos: parsePontosTexto(coluna.pontuacoes[i] ?? "") ?? Number.NaN,
+                }))
+              : [],
           });
           coordenadas.push({ secaoIndex, campoIndex, colunaIndex });
         });
@@ -149,7 +168,9 @@ export const exameSchema = z
             "colunas",
             coordenada.colunaIndex,
             ...(erro.opcaoIndex !== undefined
-              ? ["opcoesCondicionais", erro.opcaoIndex, "formula"]
+              ? erro.opcaoCampo === "pontuacoes"
+                ? ["pontuacoes", erro.opcaoIndex]
+                : ["opcoesCondicionais", erro.opcaoIndex, "formula"]
               : []),
           ]
         : ["secoes"];

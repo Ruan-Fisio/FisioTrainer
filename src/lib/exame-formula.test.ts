@@ -16,6 +16,7 @@ import {
   type ColunaCalculo,
   type ColunaValidavel,
 } from "./exame-formula";
+import { serializeSelecionadas } from "./multipla-escolha";
 
 describe("extrairReferencias", () => {
   it("extrai nomes únicos, ignorando repetição e espaços", () => {
@@ -368,6 +369,88 @@ describe("avaliarCondicaoOpcao", () => {
       expect(
         avaliarCondicaoOpcao("{Nota} >= 5 && {Nota} <= 10", valores),
       ).toEqual({ valor: true });
+    });
+  });
+
+  describe("intervalo (entre A e B)", () => {
+    const com = (imc: number) => new Map([[normalizarTitulo("IMC"), imc]]);
+
+    it("limites inclusivos", () => {
+      expect(avaliarCondicaoOpcao("{IMC} entre 1.0 e 2.0", com(1))).toEqual({ valor: true });
+      expect(avaliarCondicaoOpcao("{IMC} entre 1.0 e 2.0", com(1.5))).toEqual({ valor: true });
+      expect(avaliarCondicaoOpcao("{IMC} entre 1.0 e 2.0", com(2))).toEqual({ valor: true });
+      expect(avaliarCondicaoOpcao("{IMC} entre 1.0 e 2.0", com(2.1))).toEqual({ valor: false });
+      expect(avaliarCondicaoOpcao("{IMC} entre 1.0 e 2.0", com(0.9))).toEqual({ valor: false });
+    });
+
+    it("aceita 'dentro de' e qualquer caixa", () => {
+      expect(avaliarCondicaoOpcao("{IMC} dentro de 1 e 2", com(1.5))).toEqual({ valor: true });
+      expect(avaliarCondicaoOpcao("{IMC} ENTRE 1 E 2", com(3))).toEqual({ valor: false });
+    });
+
+    it("extremos invertidos formam a mesma faixa", () => {
+      expect(avaliarCondicaoOpcao("{IMC} entre 2 e 1", com(1.5))).toEqual({ valor: true });
+    });
+
+    it("aceita expressões, negativos e limites com variável", () => {
+      const valores = new Map([
+        [normalizarTitulo("IMC"), 20],
+        [normalizarTitulo("Idade"), 30],
+      ]);
+      expect(avaliarCondicaoOpcao("{IMC} entre {Idade} - 15 e {Idade} - 5", valores)).toEqual({
+        valor: true,
+      });
+      expect(avaliarCondicaoOpcao("({IMC} - 40) entre -25 e -15", valores)).toEqual({
+        valor: true,
+      });
+    });
+
+    it("combina com && e com comparadores", () => {
+      const valores = new Map([
+        [normalizarTitulo("IMC"), 22],
+        [normalizarTitulo("Idade"), 30],
+      ]);
+      expect(
+        avaliarCondicaoOpcao("{IMC} entre 18.5 e 24.9 && {Idade} >= 18", valores),
+      ).toEqual({ valor: true });
+      expect(
+        avaliarCondicaoOpcao("{IMC} entre 25 e 30 && {Idade} >= 18", valores),
+      ).toEqual({ valor: false });
+    });
+
+    it("funciona dentro de SE (o ';' dos limites não existe, só 'e')", () => {
+      const valores = new Map([[normalizarTitulo("IMC"), 22]]);
+      expect(
+        avaliarFormula("SE({IMC} entre 18 e 25; 1; 2)", valores),
+      ).toEqual({ valor: 1 });
+    });
+
+    it("erro sem o 'e' ou com limite inválido", () => {
+      expect(avaliarCondicaoOpcao("{IMC} entre 1", com(1))).toHaveProperty("erro");
+      expect(avaliarCondicaoOpcao("{IMC} entre e 2", com(1))).toHaveProperty("erro");
+    });
+
+    it("citando o campo faltando", () => {
+      expect(avaliarCondicaoOpcao("{IMC} entre 1 e 2", new Map())).toEqual({
+        erro: "Preencha IMC para calcular",
+      });
+    });
+
+    it("validação do cadastro aceita a sintaxe", () => {
+      const colunas: ColunaValidavel[] = [
+        { titulo: "IMC", tipo: "NUMERO", repetivel: false },
+        {
+          titulo: "Classe",
+          tipo: "MULTIPLA_ESCOLHA",
+          repetivel: false,
+          opcoes: ["Normal", "Outro"],
+          opcoesCondicionais: [
+            { opcao: "Normal", formula: "{IMC} entre 18.5 e 24.9" },
+            { opcao: "Outro", formula: "{IMC} < 18.5 && {IMC} > 24.9" },
+          ],
+        },
+      ];
+      expect(validarFormulasDoExame(colunas)).toBeNull();
     });
   });
 });
@@ -890,5 +973,422 @@ describe("referência a colunas em qualquer ordem", () => {
     );
     expect("erro" in r.calculados.get("a")!).toBe(true);
     expect("erro" in r.calculados.get("b")!).toBe(true);
+  });
+});
+
+describe("pontuação por opção de MULTIPLA_ESCOLHA", () => {
+  const escala = [
+    { opcao: "Nunca", pontos: 0 },
+    { opcao: "Às vezes", pontos: 1 },
+    { opcao: "Sempre", pontos: 3 },
+  ];
+  const item = (id: string, extra: Partial<ColunaCalculo> = {}): ColunaCalculo => ({
+    id,
+    titulo: id.toUpperCase(),
+    tipo: "MULTIPLA_ESCOLHA",
+    repetivel: false,
+    opcoes: ["Nunca", "Às vezes", "Sempre"],
+    pontuacoes: escala,
+    ...extra,
+  });
+  const total: ColunaCalculo = {
+    id: "total",
+    titulo: "Total",
+    tipo: "CALCULADO",
+    formula: "{Q1} + {Q2}",
+    repetivel: false,
+  };
+  const calc = (id: string, titulo: string, formula: string): ColunaCalculo => ({
+    id,
+    titulo,
+    tipo: "CALCULADO",
+    formula,
+    repetivel: false,
+  });
+  const peso: ColunaCalculo = { id: "peso", titulo: "Peso", tipo: "NUMERO", repetivel: false };
+  const risco: ColunaCalculo = {
+    id: "risco",
+    titulo: "Risco",
+    tipo: "MULTIPLA_ESCOLHA",
+    repetivel: false,
+    opcoes: ["Baixo", "Alto"],
+    pontuacoes: [
+      { opcao: "Baixo", pontos: 1 },
+      { opcao: "Alto", pontos: 10 },
+    ],
+    opcoesCondicionais: [
+      { opcao: "Baixo", formula: "{Peso} < 100" },
+      { opcao: "Alto", formula: "{Peso} >= 100" },
+    ],
+  };
+
+  it("CALCULADO soma as pontuações das opções marcadas", () => {
+    const valores: Record<string, string> = { q1: "Sempre", q2: "Às vezes" };
+    const r = calcularColunas([item("q1"), item("q2"), total], (id) => valores[id]);
+    expect(r.calculados.get("total")).toEqual({ valor: 4 });
+  });
+
+  it("nenhuma opção marcada = sem valor: a fórmula pede o preenchimento", () => {
+    const valores: Record<string, string> = { q1: "Sempre" };
+    const r = calcularColunas([item("q1"), item("q2"), total], (id) => valores[id]);
+    expect(r.calculados.get("total")).toEqual({ erro: "Preencha Q2 para calcular" });
+  });
+
+  it("opção de pontuação 0 conta como respondida", () => {
+    const valores: Record<string, string> = { q1: "Nunca", q2: "Nunca" };
+    const r = calcularColunas([item("q1"), item("q2"), total], (id) => valores[id]);
+    expect(r.calculados.get("total")).toEqual({ valor: 0 });
+  });
+
+  it("seleção múltipla vale a soma das opções marcadas", () => {
+    const multi = item("q1", { multiplaSelecao: true });
+    const valor = serializeSelecionadas(["Às vezes", "Sempre"]);
+    const r = calcularColunas([multi, calc("t", "T", "{Q1} * 2")], (id) =>
+      id === "q1" ? valor : undefined,
+    );
+    expect(r.calculados.get("t")).toEqual({ valor: 8 });
+  });
+
+  it("opção com vírgula no texto é encontrada (sem split por vírgula)", () => {
+    const col = item("q1", {
+      opcoes: ["Leve, ocasional", "Grave"],
+      pontuacoes: [
+        { opcao: "Leve, ocasional", pontos: 2 },
+        { opcao: "Grave", pontos: 5 },
+      ],
+    });
+    const r = calcularColunas([col, calc("t", "T", "{Q1}")], (id) =>
+      id === "q1" ? "Leve, ocasional" : undefined,
+    );
+    expect(r.calculados.get("t")).toEqual({ valor: 2 });
+  });
+
+  it("encadeia: pontuações → total → classificação automática (qualquer ordem)", () => {
+    const classificacao: ColunaCalculo = {
+      id: "classe",
+      titulo: "Classificação",
+      tipo: "MULTIPLA_ESCOLHA",
+      repetivel: false,
+      opcoes: ["Leve", "Grave"],
+      opcoesCondicionais: [
+        { opcao: "Leve", formula: "{Total} < 4" },
+        { opcao: "Grave", formula: "{Total} >= 4" },
+      ],
+    };
+    const valores: Record<string, string> = { q1: "Sempre", q2: "Às vezes" };
+    const r = calcularColunas(
+      [classificacao, item("q1"), item("q2"), total],
+      (id) => valores[id],
+    );
+    expect(r.opcoesAutomaticas.get("classe")?.selecionadas).toEqual(["Grave"]);
+  });
+
+  it("coluna de pontuação automática é resolvida sob demanda e vira número", () => {
+    const r = calcularColunas(
+      [calc("dobro", "Dobro", "{Risco} * 2"), risco, peso],
+      (id) => (id === "peso" ? "120" : undefined),
+    );
+    expect(r.opcoesAutomaticas.get("risco")?.selecionadas).toEqual(["Alto"]);
+    expect(r.calculados.get("dobro")).toEqual({ valor: 20 });
+  });
+
+  it("coluna automática com valor de origem faltando não entrega pontuação", () => {
+    const r = calcularColunas(
+      [peso, risco, calc("dobro", "Dobro", "{Risco} * 2")],
+      () => undefined,
+    );
+    expect(r.calculados.get("dobro")).toEqual({ erro: "Preencha Risco para calcular" });
+  });
+
+  it("coluna sem pontuação continua sem ser referenciável", () => {
+    const r = calcularColunas(
+      [item("q1", { pontuacoes: [] }), calc("t", "T", "{Q1}")],
+      (id) => (id === "q1" ? "Sempre" : undefined),
+    );
+    expect(r.calculados.get("t")).toEqual({ erro: "Preencha Q1 para calcular" });
+  });
+
+  describe("validação", () => {
+    const col = (extra: Partial<ColunaValidavel>): ColunaValidavel => ({
+      titulo: "Q1",
+      tipo: "MULTIPLA_ESCOLHA",
+      repetivel: false,
+      opcoes: ["Nunca", "Sempre"],
+      pontuacoes: [
+        { opcao: "Nunca", pontos: 0 },
+        { opcao: "Sempre", pontos: 3 },
+      ],
+      ...extra,
+    });
+    const soma = (formula: string): ColunaValidavel => ({
+      titulo: "Total",
+      tipo: "CALCULADO",
+      formula,
+      repetivel: false,
+    });
+
+    it("fórmula pode referenciar coluna de pontuação", () => {
+      expect(validarFormulasDoExame([col({}), soma("{Q1} * 2")])).toBeNull();
+    });
+
+    it("coluna sem pontuação não existe para a fórmula", () => {
+      const erro = validarFormulasDoExame([col({ pontuacoes: [] }), soma("{Q1} * 2")]);
+      expect(erro).toContain('referencia "Q1"');
+    });
+
+    it("exige pontos numéricos em todas as opções, apontando a opção", () => {
+      const erro = validarFormulasDoExameDetalhado([
+        col({
+          pontuacoes: [
+            { opcao: "Nunca", pontos: 0 },
+            { opcao: "Sempre", pontos: Number.NaN },
+          ],
+        }),
+      ]);
+      expect(erro?.mensagem).toContain('"Sempre"');
+      expect(erro?.opcaoIndex).toBe(1);
+      expect(erro?.opcaoCampo).toBe("pontuacoes");
+    });
+
+    it("barra pontuação em campo repetível", () => {
+      expect(validarFormulasDoExame([col({ repetivel: true })])).toContain(
+        "múltiplas entradas",
+      );
+    });
+
+    it("nome da coluna de pontuação é único entre as referenciáveis", () => {
+      const erro = validarFormulasDoExame([
+        col({}),
+        { titulo: "Q1", tipo: "NUMERO", repetivel: false },
+      ]);
+      expect(erro).toContain('Já existe uma coluna numérica chamada "Q1"');
+    });
+
+    it("barra ciclo passando por coluna de pontuação automática", () => {
+      const automatica = col({
+        titulo: "Risco",
+        opcoes: ["Baixo", "Alto"],
+        pontuacoes: [
+          { opcao: "Baixo", pontos: 1 },
+          { opcao: "Alto", pontos: 2 },
+        ],
+        opcoesCondicionais: [
+          { opcao: "Baixo", formula: "{Dobro} < 5" },
+          { opcao: "Alto", formula: "{Dobro} >= 5" },
+        ],
+      });
+      const dobro: ColunaValidavel = {
+        titulo: "Dobro",
+        tipo: "CALCULADO",
+        formula: "{Risco} * 2",
+        repetivel: false,
+      };
+      expect(validarFormulasDoExame([automatica, dobro])).toContain("ciclo");
+    });
+  });
+});
+
+describe("{Soma pontuações} — soma global das colunas de pontuação", () => {
+  const pontuada = (
+    id: string,
+    pontos: [number, number],
+    extra: Partial<ColunaCalculo> = {},
+  ): ColunaCalculo => ({
+    id,
+    titulo: `Item ${id}`,
+    tipo: "MULTIPLA_ESCOLHA",
+    repetivel: false,
+    opcoes: ["Não", "Sim"],
+    pontuacoes: [
+      { opcao: "Não", pontos: pontos[0] },
+      { opcao: "Sim", pontos: pontos[1] },
+    ],
+    ...extra,
+  });
+  const calc = (formula: string, id = "total", titulo = "Total"): ColunaCalculo => ({
+    id,
+    titulo,
+    tipo: "CALCULADO",
+    formula,
+    repetivel: false,
+  });
+
+  it("soma os pontos das opções marcadas em todas as colunas de pontuação", () => {
+    const valores: Record<string, string> = { a: "Sim", b: "Sim", c: "Não" };
+    const r = calcularColunas(
+      [pontuada("a", [0, 2]), pontuada("b", [0, 3]), pontuada("c", [0, 4]), calc("{Soma pontuações}")],
+      (id) => valores[id],
+    );
+    expect(r.calculados.get("total")).toEqual({ valor: 5 });
+    expect(r.somaPontuacoes).toBe(5);
+  });
+
+  it("aceita o nome sem acento e em qualquer caixa", () => {
+    const r = calcularColunas(
+      [pontuada("a", [0, 2]), calc("{soma pontuacoes} * 10")],
+      (id) => (id === "a" ? "Sim" : undefined),
+    );
+    expect(r.calculados.get("total")).toEqual({ valor: 20 });
+  });
+
+  it("coluna sem resposta conta como 0 (soma só as respondidas)", () => {
+    const r = calcularColunas(
+      [pontuada("a", [0, 2]), pontuada("b", [0, 3]), calc("{Soma pontuações}")],
+      (id) => (id === "a" ? "Sim" : undefined),
+    );
+    expect(r.calculados.get("total")).toEqual({ valor: 2 });
+  });
+
+  it("nenhuma coluna respondida = sem valor", () => {
+    const r = calcularColunas(
+      [pontuada("a", [0, 2]), calc("{Soma pontuações}")],
+      () => undefined,
+    );
+    expect(r.calculados.get("total")).toEqual({
+      erro: "Preencha Soma pontuações para calcular",
+    });
+    expect(r.somaPontuacoes).toBeUndefined();
+  });
+
+  it("seleção múltipla entra na soma global", () => {
+    const multi = pontuada("a", [1, 2], { multiplaSelecao: true });
+    const valor = serializeSelecionadas(["Não", "Sim"]);
+    const r = calcularColunas([multi, calc("{Soma pontuações}")], (id) =>
+      id === "a" ? valor : undefined,
+    );
+    expect(r.calculados.get("total")).toEqual({ valor: 3 });
+  });
+
+  it("classificação automática usa a soma (e vem antes das colunas na ordem)", () => {
+    const classe: ColunaCalculo = {
+      id: "classe",
+      titulo: "Classificação",
+      tipo: "MULTIPLA_ESCOLHA",
+      repetivel: false,
+      opcoes: ["Baixo", "Alto"],
+      opcoesCondicionais: [
+        { opcao: "Baixo", formula: "{Soma pontuações} < 5" },
+        { opcao: "Alto", formula: "{Soma pontuações} >= 5" },
+      ],
+    };
+    const valores: Record<string, string> = { a: "Sim", b: "Sim" };
+    const r = calcularColunas(
+      [classe, pontuada("a", [0, 2]), pontuada("b", [0, 3])],
+      (id) => valores[id],
+    );
+    expect(r.opcoesAutomaticas.get("classe")?.selecionadas).toEqual(["Alto"]);
+  });
+
+  it("inclui colunas de pontuação automáticas, resolvidas sob demanda", () => {
+    const peso: ColunaCalculo = { id: "peso", titulo: "Peso", tipo: "NUMERO", repetivel: false };
+    const risco = pontuada("r", [1, 10], {
+      titulo: "Risco",
+      opcoes: ["Não", "Sim"],
+      opcoesCondicionais: [
+        { opcao: "Não", formula: "{Peso} < 100" },
+        { opcao: "Sim", formula: "{Peso} >= 100" },
+      ],
+    });
+    const valores: Record<string, string> = { peso: "120", a: "Sim" };
+    const r = calcularColunas(
+      [calc("{Soma pontuações}"), risco, peso, pontuada("a", [0, 2])],
+      (id) => valores[id],
+    );
+    expect(r.calculados.get("total")).toEqual({ valor: 12 });
+  });
+
+  it("não conta colunas de campo repetível", () => {
+    const r = calcularColunas(
+      [pontuada("a", [0, 2]), pontuada("b", [0, 50], { repetivel: true }), calc("{Soma pontuações}")],
+      () => "Sim",
+    );
+    expect(r.calculados.get("total")).toEqual({ valor: 2 });
+  });
+
+  it("coluna com o mesmo nome tem precedência sobre a variável", () => {
+    const r = calcularColunas(
+      [
+        pontuada("a", [0, 2]),
+        { id: "n", titulo: "Soma pontuações", tipo: "NUMERO", repetivel: false },
+        calc("{Soma pontuações}"),
+      ],
+      (id) => ({ a: "Sim", n: "99" })[id as "a" | "n"],
+    );
+    expect(r.calculados.get("total")).toEqual({ valor: 99 });
+  });
+
+  describe("validação", () => {
+    const col = (extra: Partial<ColunaValidavel> = {}): ColunaValidavel => ({
+      titulo: "Item",
+      tipo: "MULTIPLA_ESCOLHA",
+      repetivel: false,
+      opcoes: ["Não", "Sim"],
+      pontuacoes: [
+        { opcao: "Não", pontos: 0 },
+        { opcao: "Sim", pontos: 1 },
+      ],
+      ...extra,
+    });
+    const total = (formula: string): ColunaValidavel => ({
+      titulo: "Total",
+      tipo: "CALCULADO",
+      formula,
+      repetivel: false,
+    });
+
+    it("aceita {Soma pontuações} em CALCULADO e em condição de coluna comum", () => {
+      const classe: ColunaValidavel = {
+        titulo: "Classe",
+        tipo: "MULTIPLA_ESCOLHA",
+        repetivel: false,
+        opcoes: ["A", "B"],
+        opcoesCondicionais: [
+          { opcao: "A", formula: "{Soma pontuações} < 3" },
+          { opcao: "B", formula: "{Soma pontuações} >= 3" },
+        ],
+      };
+      expect(validarFormulasDoExame([col(), total("{Soma pontuações}"), classe])).toBeNull();
+    });
+
+    it("barra o uso sem nenhuma coluna de pontuação", () => {
+      const erro = validarFormulasDoExame([col({ pontuacoes: [] }), total("{Soma pontuações}")]);
+      expect(erro).toContain("nenhuma coluna do exame está marcada como pontuação");
+    });
+
+    it("coluna de pontuação não pode usar a soma nas próprias condições", () => {
+      const automatica = col({
+        titulo: "Risco",
+        opcoesCondicionais: [
+          { opcao: "Não", formula: "{Soma pontuações} < 3" },
+          { opcao: "Sim", formula: "{Soma pontuações} >= 3" },
+        ],
+      });
+      expect(validarFormulasDoExame([automatica])).toContain("ciclo");
+    });
+
+    it("barra ciclo: pontuação automática → calculada → soma", () => {
+      const automatica = col({
+        titulo: "Risco",
+        opcoesCondicionais: [
+          { opcao: "Não", formula: "{Dobro} < 3" },
+          { opcao: "Sim", formula: "{Dobro} >= 3" },
+        ],
+      });
+      const dobro: ColunaValidavel = {
+        titulo: "Dobro",
+        tipo: "CALCULADO",
+        formula: "{Soma pontuações} * 2",
+        repetivel: false,
+      };
+      expect(validarFormulasDoExame([automatica, dobro])).toContain("ciclo");
+    });
+
+    it("nome reservado: variável do exame não pode se chamar Soma pontuações", () => {
+      expect(
+        validarFormulasDoExame([col(), total("{Soma pontuações}")], [
+          { nome: "Soma pontuacoes", formula: "1" },
+        ]),
+      ).toMatch(/Soma pontuações/);
+    });
   });
 });
