@@ -1,3 +1,10 @@
+import {
+  calcularColunasFormula,
+  formatarNumeroFormula,
+  type DadosPacienteFormula,
+  type VariavelExame,
+} from "@/lib/exame-formula";
+import { parsePontuacoes } from "@/lib/pontuacao-opcao";
 import { parseNumero } from "@/lib/relatorio-comparativo";
 
 export type ComparacaoRapidaColuna = {
@@ -71,6 +78,78 @@ function linhasDoCampo(
   }
 
   return linhas.size > 0 ? Array.from(linhas).sort((a, b) => a - b) : [0];
+}
+
+export type ExameParaCalculo = {
+  secoes: {
+    campos: {
+      repetivel: boolean;
+      colunas: {
+        id: string;
+        titulo: string;
+        tipo: string;
+        formula?: string | null;
+        opcoes?: string[];
+        multiplaSelecao?: boolean;
+        /** `ExameCampoColuna.pontuacoes` (Json). */
+        pontuacoes?: unknown;
+      }[];
+    }[];
+  }[];
+};
+
+/**
+ * Colunas CALCULADO nunca são gravadas (ver `exame-formula.ts`), então a
+ * comparação — que só enxerga `ExameExecucaoValor` — as mostraria vazias.
+ * Recalcula cada coluna calculada, execução por execução (mesma regra do
+ * detalhe da execução), e devolve os valores com ela acrescentada na linha 0,
+ * já formatada. Cálculo com erro (dado de origem faltando) fica sem valor.
+ */
+export function acrescentarValoresCalculados<
+  E extends { valores: ComparacaoRapidaValor[] },
+>(
+  exame: ExameParaCalculo,
+  execucoes: E[],
+  paciente?: DadosPacienteFormula | null,
+  variaveis?: VariavelExame[],
+): E[] {
+  const colunas = exame.secoes.flatMap((secao) =>
+    secao.campos.flatMap((campo) =>
+      campo.colunas.map((coluna) => ({
+        id: coluna.id,
+        titulo: coluna.titulo,
+        tipo: coluna.tipo,
+        formula: coluna.formula,
+        repetivel: campo.repetivel,
+        opcoes: coluna.opcoes,
+        multiplaSelecao: coluna.multiplaSelecao,
+        pontuacoes: parsePontuacoes(coluna.pontuacoes),
+      })),
+    ),
+  );
+  if (!colunas.some((c) => c.tipo === "CALCULADO")) return execucoes;
+
+  return execucoes.map((execucao) => {
+    const brutos = new Map(
+      execucao.valores
+        .filter((v) => v.linha === 0)
+        .map((v) => [v.colunaId, v.valor]),
+    );
+    const calculados = calcularColunasFormula(
+      colunas,
+      (colunaId) => brutos.get(colunaId),
+      paciente,
+      variaveis,
+    );
+
+    const extras: ComparacaoRapidaValor[] = [];
+    for (const [colunaId, resultado] of calculados) {
+      if ("valor" in resultado) {
+        extras.push({ colunaId, linha: 0, valor: formatarNumeroFormula(resultado.valor) });
+      }
+    }
+    return { ...execucao, valores: [...execucao.valores, ...extras] };
+  });
 }
 
 /**
@@ -171,7 +250,7 @@ export type SerieNumerica = {
 
 /**
  * Extrai, das linhas já montadas por `montarLinhasComparacaoRapida`, uma
- * série por coluna do tipo NUMERO — pra desenhar um gráfico de linha da
+ * série por coluna do tipo NUMERO ou CALCULADO — pra desenhar um gráfico de linha da
  * evolução daquele valor ao longo das execuções selecionadas. Ignora
  * colunas sem nenhum valor numérico em nenhuma execução (nada pra
  * mostrar). Não usa `numeroParaGrafico` (que também deriva número de
@@ -185,7 +264,7 @@ export function montarSeriesNumericas(
 
   for (const secao of secoes) {
     for (const linha of secao.linhas) {
-      if (linha.coluna.tipo !== "NUMERO") continue;
+      if (linha.coluna.tipo !== "NUMERO" && linha.coluna.tipo !== "CALCULADO") continue;
 
       const pontos = execucaoIds.map((execucaoId) => ({
         execucaoId,

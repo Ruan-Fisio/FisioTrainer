@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  acrescentarValoresCalculados,
   montarLinhasComparacaoRapida,
   filtrarSeriesPorChaves,
   montarSeriesNumericas,
@@ -288,5 +289,112 @@ describe("filtrarSeriesPorChaves", () => {
 
   it("lista vazia devolve nenhuma", () => {
     expect(filtrarSeriesPorChaves(series, [])).toEqual([]);
+  });
+});
+
+describe("acrescentarValoresCalculados", () => {
+  const exame = {
+    secoes: [
+      {
+        campos: [
+          {
+            repetivel: false,
+            colunas: [
+              { id: "peso", titulo: "Peso", tipo: "NUMERO" },
+              { id: "altura", titulo: "Altura", tipo: "NUMERO" },
+              {
+                id: "imc",
+                titulo: "IMC",
+                tipo: "CALCULADO",
+                formula: "{Peso} / ({Altura} * {Altura})",
+              },
+              {
+                id: "idade2",
+                titulo: "Idade x2",
+                tipo: "CALCULADO",
+                formula: "{Idade} * 2",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+
+  it("calcula a coluna CALCULADO por execução, a partir dos valores de cada uma", () => {
+    const execucoes = [
+      {
+        id: "a",
+        valores: [
+          { colunaId: "peso", linha: 0, valor: "80" },
+          { colunaId: "altura", linha: 0, valor: "2" },
+        ],
+      },
+      {
+        id: "b",
+        valores: [
+          { colunaId: "peso", linha: 0, valor: "72" },
+          { colunaId: "altura", linha: 0, valor: "2" },
+        ],
+      },
+    ];
+    const [a, b] = acrescentarValoresCalculados(exame, execucoes, { idade: 30 });
+    expect(a.valores).toContainEqual({ colunaId: "imc", linha: 0, valor: "20" });
+    expect(b.valores).toContainEqual({ colunaId: "imc", linha: 0, valor: "18" });
+    expect(a.valores).toContainEqual({ colunaId: "idade2", linha: 0, valor: "60" });
+  });
+
+  it("deixa sem valor quando falta dado de origem e não altera a entrada", () => {
+    const execucoes = [{ id: "a", valores: [{ colunaId: "peso", linha: 0, valor: "80" }] }];
+    const [a] = acrescentarValoresCalculados(exame, execucoes);
+    expect(a.valores.find((v) => v.colunaId === "imc")).toBeUndefined();
+    expect(execucoes[0].valores).toHaveLength(1);
+  });
+
+  it("calculada aparece na linha da comparação e na série numérica", () => {
+    const execucoes = acrescentarValoresCalculados(
+      exame,
+      [
+        { id: "a", valores: [{ colunaId: "peso", linha: 0, valor: "80" }, { colunaId: "altura", linha: 0, valor: "2" }] },
+        { id: "b", valores: [{ colunaId: "peso", linha: 0, valor: "72" }, { colunaId: "altura", linha: 0, valor: "2" }] },
+      ],
+    );
+    const secoes = montarLinhasComparacaoRapida(
+      {
+        secoes: exame.secoes.map((s, i) => ({
+          id: `s${i}`,
+          nome: "S",
+          ordem: 0,
+          campos: s.campos.map((c, j) => ({
+            id: `c${j}`,
+            nome: "",
+            ordem: 0,
+            repetivel: c.repetivel,
+            colunas: c.colunas.map((col, k) => ({
+              id: col.id,
+              titulo: col.titulo,
+              ordem: k,
+              tipo: col.tipo,
+              multiplaSelecao: false,
+            })),
+          })),
+        })),
+      },
+      execucoes,
+    );
+    const linhaImc = secoes[0].linhas.find((l) => l.coluna.id === "imc")!;
+    expect(linhaImc.valoresPorExecucaoId.get("a")).toBe("20");
+    const series = montarSeriesNumericas(secoes, ["a", "b"]);
+    expect(series.find((s) => s.titulo === "IMC")?.pontos.map((p) => p.valor)).toEqual([20, 18]);
+  });
+
+  it("exame sem coluna calculada devolve as execuções como vieram", () => {
+    const execucoes = [{ id: "a", valores: [] }];
+    expect(
+      acrescentarValoresCalculados(
+        { secoes: [{ campos: [{ repetivel: false, colunas: [{ id: "x", titulo: "X", tipo: "NUMERO" }] }] }] },
+        execucoes,
+      ),
+    ).toBe(execucoes);
   });
 });

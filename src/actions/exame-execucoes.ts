@@ -5,7 +5,11 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { exameExecucaoSchema } from "@/lib/validations/exame-execucao";
 import { montarComparativo } from "@/lib/relatorio-comparativo";
-import { montarLinhasComparacaoRapida } from "@/lib/comparacao-rapida";
+import {
+  acrescentarValoresCalculados,
+  montarLinhasComparacaoRapida,
+} from "@/lib/comparacao-rapida";
+import { parseVariaveis } from "@/lib/exame-formula";
 import { copyObject, deleteObject, deleteObjects, headObject } from "@/lib/r2";
 import {
   chaveTmpDoPaciente,
@@ -178,7 +182,7 @@ export async function getComparacaoRapida(
   const avaliacao = await prisma.exameExecucao.findUnique({
     where: { id: avaliacaoId },
     include: {
-      paciente: { select: { id: true, nome: true } },
+      paciente: { select: { id: true, nome: true, sexo: true, idade: true } },
       exame: {
         include: {
           secoes: {
@@ -207,10 +211,15 @@ export async function getComparacaoRapida(
 
   if (retornos.length !== idsUnicos.length) return null;
 
-  const execucoes = [
-    { id: avaliacao.id, tipo: avaliacao.tipo, data: avaliacao.data, valores: avaliacao.valores },
-    ...retornos.map((r) => ({ id: r.id, tipo: r.tipo, data: r.data, valores: r.valores })),
-  ].sort((a, b) => a.data.getTime() - b.data.getTime());
+  const execucoes = acrescentarValoresCalculados(
+    avaliacao.exame,
+    [
+      { id: avaliacao.id, tipo: avaliacao.tipo, data: avaliacao.data, valores: avaliacao.valores },
+      ...retornos.map((r) => ({ id: r.id, tipo: r.tipo, data: r.data, valores: r.valores })),
+    ].sort((a, b) => a.data.getTime() - b.data.getTime()),
+    { sexo: avaliacao.paciente.sexo, idade: avaliacao.paciente.idade },
+    parseVariaveis(avaliacao.exame.variaveis),
+  );
 
   const secoes = montarLinhasComparacaoRapida(avaliacao.exame, execucoes);
 
