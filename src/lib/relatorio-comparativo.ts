@@ -233,7 +233,7 @@ export function numeroParaGrafico(
   raw: string | null | undefined,
 ): number | null {
   if (!raw) return null;
-  if (tipo === "NUMERO") return parseNumero(raw);
+  if (tipo === "NUMERO" || tipo === "CALCULADO") return parseNumero(raw);
   if (tipo === "SIM_NAO") return raw === "Sim" ? 1 : raw === "Não" ? 0 : null;
   if (tipo === "MULTIPLA_ESCOLHA" && !multiplaSelecao) {
     const indice = opcoes.indexOf(raw);
@@ -384,8 +384,8 @@ export function montarComparativo(
           let avalDist: number | null = null;
           let retDist: number | null = null;
           let progresso: number | null = null;
-          const faixa =
-            coluna.tipo === "NUMERO" ? parseFaixaIdeal(coluna.valorIdeal) : null;
+          const numerica = coluna.tipo === "NUMERO" || coluna.tipo === "CALCULADO";
+          const faixa = numerica ? parseFaixaIdeal(coluna.valorIdeal) : null;
 
           const avalNumGrafico = numeroParaGrafico(
             coluna.tipo,
@@ -426,7 +426,7 @@ export function montarComparativo(
             lado: null,
             contexto: null,
             unidade: coluna.formatacao,
-            valorIdeal: coluna.tipo === "NUMERO" ? coluna.valorIdeal : null,
+            valorIdeal: numerica ? coluna.valorIdeal : null,
             avaliacaoValor: avalRaw || null,
             avaliacaoDist: avalDist,
             avaliacaoNumero: avalNumGrafico,

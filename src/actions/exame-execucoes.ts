@@ -111,6 +111,7 @@ export async function getComparativo(avaliacaoId: string, retornoId: string) {
           select: {
             id: true,
             nome: true,
+            sexo: true,
             idade: true,
             dataNascimento: true,
             cpf: true,
@@ -155,10 +156,18 @@ export async function getComparativo(avaliacaoId: string, retornoId: string) {
     return null;
   }
 
+  // CALCULADO nunca é gravado: recalcula em cada execução para entrar na comparação.
+  const [avaliacaoComCalculados, retornoComCalculados] = acrescentarValoresCalculados(
+    avaliacao.exame,
+    [{ valores: avaliacao.valores }, { valores: retorno.valores }],
+    { sexo: avaliacao.paciente.sexo, idade: avaliacao.paciente.idade },
+    parseVariaveis(avaliacao.exame.variaveis),
+  );
+
   const secoes = montarComparativo(
     avaliacao.exame,
-    avaliacao.valores,
-    retorno.valores,
+    avaliacaoComCalculados.valores,
+    retornoComCalculados.valores,
     movimentos,
   );
 
