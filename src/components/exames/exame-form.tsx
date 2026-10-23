@@ -1207,7 +1207,6 @@ export function ExameForm({
   );
 
   const [tabelas, setTabelas] = useState<TabelaReferencia[]>(defaultValues?.tabelas ?? []);
-  const [tabelasAbertas, setTabelasAbertas] = useState((defaultValues?.tabelas ?? []).length > 0);
   const variaveisTabelas = compilarTabelas(tabelas);
 
   function renomearVariavelNasColunas(antigo: string, novo: string) {
@@ -1268,16 +1267,11 @@ export function ExameForm({
     if (path?.[0] === "tabelas" && typeof path[1] === "number") {
       const tabelaIndex = path[1];
       const timerTabela = setTimeout(() => {
-        setTabelasAbertas(true);
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            const el = document.getElementById(`tabela-ref-${tabelaIndex}`);
-            if (!el) return;
-            el.scrollIntoView({ behavior: "smooth", block: "center" });
-            el.classList.add("ring-2", "ring-destructive", "ring-offset-2");
-            setTimeout(() => el.classList.remove("ring-2", "ring-destructive", "ring-offset-2"), 2500);
-          });
-        });
+        const el = document.getElementById(`tabela-ref-${tabelaIndex}`);
+        if (!el) return;
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add("ring-2", "ring-destructive", "ring-offset-2");
+        setTimeout(() => el.classList.remove("ring-2", "ring-destructive", "ring-offset-2"), 2500);
       }, 100);
       return () => clearTimeout(timerTabela);
     }
@@ -1898,28 +1892,13 @@ export function ExameForm({
       </label>
 
       <div className="flex flex-col gap-3 rounded-xl border bg-card p-3">
-        <button
-          type="button"
-          onClick={() => setTabelasAbertas((v) => !v)}
-          aria-expanded={tabelasAbertas}
-          className="flex min-h-8 items-center justify-between gap-2 text-left text-sm font-semibold"
-        >
-          <span>
-            Tabelas de referência
-            {tabelas.length > 0 && (
-              <span className="ml-2 text-xs font-normal text-muted-foreground">({tabelas.length})</span>
-            )}
-          </span>
-          <ChevronDown className={cn("size-4 transition-transform", tabelasAbertas && "rotate-180")} />
-        </button>
-        {tabelasAbertas && (
-          <TabelasReferenciaEditor
-            tabelas={tabelas}
-            onChange={setTabelas}
-            colunasNumericas={colunasNumericas}
-            onRenomearReferencia={renomearVariavelNasColunas}
-          />
-        )}
+        <p className="text-sm font-semibold">Tabelas de referência</p>
+        <TabelasReferenciaEditor
+          tabelas={tabelas}
+          onChange={setTabelas}
+          colunasNumericas={colunasNumericas}
+          onRenomearReferencia={renomearVariavelNasColunas}
+        />
       </div>
 
       {/* Mobile: uma seção por vez, como um passo-a-passo */}

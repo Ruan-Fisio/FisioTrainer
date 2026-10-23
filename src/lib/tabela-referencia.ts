@@ -181,6 +181,92 @@ export function validarTabelas(tabelas: TabelaReferencia[]): ErroTabela | null {
   return null;
 }
 
+/** Coluna da grade de edição: cada chave vira "de"/"até" (Sexo vira uma só,
+ * mín = máx), cada saída vira uma coluna de valor. */
+export type ColunaGrade =
+  | { tipo: "faixa"; chave: number; lado: "min" | "max" }
+  | { tipo: "sexo"; chave: number }
+  | { tipo: "valor"; saida: number };
+
+export function ehChaveSexo(chave: string): boolean {
+  return normalizarTitulo(chave) === "sexo";
+}
+
+export function colunasDaGrade(tabela: Pick<TabelaReferencia, "chaves" | "saidas">): ColunaGrade[] {
+  const colunas: ColunaGrade[] = [];
+  tabela.chaves.forEach((chave, i) => {
+    if (ehChaveSexo(chave)) colunas.push({ tipo: "sexo", chave: i });
+    else colunas.push({ tipo: "faixa", chave: i, lado: "min" }, { tipo: "faixa", chave: i, lado: "max" });
+  });
+  tabela.saidas.forEach((_, i) => colunas.push({ tipo: "valor", saida: i }));
+  return colunas;
+}
+
+export function lerCelula(linha: LinhaTabela, coluna: ColunaGrade): string {
+  if (coluna.tipo === "valor") return linha.valores[coluna.saida] ?? "";
+  const faixa = linha.faixas[coluna.chave] ?? { min: "", max: "" };
+  if (coluna.tipo === "sexo") {
+    return faixa.min === faixa.max && (faixa.min === "1" || faixa.min === "0") ? faixa.min : "";
+  }
+  return faixa[coluna.lado];
+}
+
+export function escreverCelula(linha: LinhaTabela, coluna: ColunaGrade, valor: string): LinhaTabela {
+  if (coluna.tipo === "valor") {
+    return { ...linha, valores: linha.valores.map((v, i) => (i === coluna.saida ? valor : v)) };
+  }
+  return {
+    ...linha,
+    faixas: linha.faixas.map((f, i) => {
+      if (i !== coluna.chave) return f;
+      return coluna.tipo === "sexo" ? { min: valor, max: valor } : { ...f, [coluna.lado]: valor };
+    }),
+  };
+}
+
+/** Texto colado numa célula de Sexo → "1" | "0" | "" (qualquer). */
+function sexoDoTexto(texto: string): string {
+  const t = normalizarTitulo(texto);
+  if (["1", "m", "masc", "masculino"].includes(t)) return "1";
+  if (["0", "f", "fem", "feminino"].includes(t)) return "0";
+  return "";
+}
+
+/**
+ * Cola um bloco copiado de planilha (linhas por quebra de linha, células por
+ * tab) a partir da célula (linha, coluna) da grade, criando linhas que faltarem.
+ * Células além da última coluna são ignoradas.
+ */
+export function colarNaTabela(
+  tabela: TabelaReferencia,
+  linhaInicio: number,
+  colunaInicio: number,
+  texto: string,
+): TabelaReferencia {
+  const colunas = colunasDaGrade(tabela);
+  const blocos = texto.replace(/\r/g, "").split("\n");
+  while (blocos.length > 0 && blocos[blocos.length - 1].trim() === "") blocos.pop();
+  const linhas = [...tabela.linhas];
+  blocos.forEach((bloco, offset) => {
+    const indice = linhaInicio + offset;
+    while (linhas.length <= indice) {
+      linhas.push({
+        faixas: tabela.chaves.map(() => ({ min: "", max: "" })),
+        valores: tabela.saidas.map(() => ""),
+      });
+    }
+    let linha = linhas[indice];
+    bloco.split("\t").forEach((celula, c) => {
+      const coluna = colunas[colunaInicio + c];
+      if (!coluna) return;
+      const valor = celula.trim();
+      linha = escreverCelula(linha, coluna, coluna.tipo === "sexo" ? sexoDoTexto(valor) : valor);
+    });
+    linhas[indice] = linha;
+  });
+  return { ...tabela, linhas };
+}
+
 /** Renomeia uma chave de busca (coluna renomeada no cadastro) em todas as tabelas. */
 export function renomearChaveTabelas(
   tabelas: TabelaReferencia[],

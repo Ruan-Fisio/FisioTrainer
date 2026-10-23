@@ -5,6 +5,8 @@ import {
   type ColunaCalculo,
 } from "@/lib/exame-formula";
 import {
+  colarNaTabela,
+  colunasDaGrade,
   compilarTabelas,
   parseTabelas,
   renomearChaveTabelas,
@@ -190,5 +192,34 @@ describe("parseTabelas / variaveisComTabelas / renomearChaveTabelas", () => {
   it("renomear coluna propaga para as chaves", () => {
     const [t] = renomearChaveTabelas([flex], "idade", "Anos");
     expect(t.chaves).toEqual(["Sexo", "Anos"]);
+  });
+});
+
+describe("grade de edição / colar de planilha", () => {
+  it("Sexo vira uma coluna só; demais chaves viram de/até; depois os resultados", () => {
+    expect(colunasDaGrade(flex)).toEqual([
+      { tipo: "sexo", chave: 0 },
+      { tipo: "faixa", chave: 1, lado: "min" },
+      { tipo: "faixa", chave: 1, lado: "max" },
+      { tipo: "valor", saida: 0 },
+      { tipo: "valor", saida: 1 },
+    ]);
+  });
+
+  it("cola um bloco de planilha criando linhas e traduzindo o sexo", () => {
+    const vazia: TabelaReferencia = { ...flex, linhas: [] };
+    const TAB = String.fromCharCode(9);
+    const texto = ["Masculino", "15", "19", "23", "33"].join(TAB) + String.fromCharCode(13, 10) + ["F", "20", "29", "24", "33"].join(TAB) + String.fromCharCode(10);
+    const r = colarNaTabela(vazia, 0, 0, texto);
+    expect(r.linhas).toEqual([
+      { faixas: [faixa("1", "1"), faixa("15", "19")], valores: ["23", "33"] },
+      { faixas: [faixa("0", "0"), faixa("20", "29")], valores: ["24", "33"] },
+    ]);
+  });
+
+  it("colar a partir do meio preserva o resto e ignora células além da última coluna", () => {
+    const r = colarNaTabela(flex, 1, 3, "99\t98\t97");
+    expect(r.linhas[1]).toEqual({ faixas: flex.linhas[1].faixas, valores: ["99", "98"] });
+    expect(r.linhas[0]).toEqual(flex.linhas[0]);
   });
 });

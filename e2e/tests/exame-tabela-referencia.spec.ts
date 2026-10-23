@@ -28,21 +28,24 @@ test.describe("tabela de referência do exame — cadastro e execução", () => 
       .last()
       .fill("{Ref.Fator} * 10");
 
-    // Tabela "Ref": chave Peso → resultado Fator, duas linhas.
-    await page.getByRole("button", { name: /Tabelas de referência/ }).click();
+    // Tabela "Ref" (modal com grade): chave Peso -> resultado Fator, duas linhas.
     await page.getByRole("button", { name: "Adicionar tabela" }).click();
-    await page.getByLabel("Nome da tabela").fill("Ref");
-    await page.getByLabel("Chave 1").fill("Peso");
-    await page.getByLabel("Resultado 1").fill("Fator");
+    const modal = page.getByRole("dialog");
+    await modal.getByLabel("Nome da tabela").fill("Ref");
+    await modal.getByLabel("Chave 1").fill("Peso");
+    await modal.getByLabel("Resultado 1").fill("Fator");
 
-    await page.getByLabel("Peso de", { exact: true }).nth(0).fill("40");
-    await page.getByLabel("Peso até", { exact: true }).nth(0).fill("79.9");
-    await page.getByLabel("Fator", { exact: true }).nth(0).fill("1");
+    await modal.getByLabel("Peso de (linha 1)").fill("40");
+    await modal.getByLabel("Peso até (linha 1)").fill("79.9");
+    await modal.getByLabel("Fator (linha 1)").fill("1");
 
-    await page.getByRole("button", { name: "Adicionar linha" }).click();
-    await page.getByLabel("Peso de", { exact: true }).nth(1).fill("80");
-    await page.getByLabel("Peso até", { exact: true }).nth(1).fill("200");
-    await page.getByLabel("Fator", { exact: true }).nth(1).fill("2");
+    await modal.getByRole("button", { name: "Adicionar linha" }).click();
+    await modal.getByLabel("Peso de (linha 2)").fill("80");
+    await modal.getByLabel("Peso até (linha 2)").fill("200");
+    await modal.getByLabel("Fator (linha 2)").fill("2");
+    await modal.getByRole("button", { name: "Salvar tabela" }).click();
+    await expect(modal).toHaveCount(0);
+    await expect(page.getByText("{Ref.Fator}")).toBeVisible();
 
     await page.getByRole("button", { name: "Criar exame" }).click();
     await expect(page.getByText("Exame criado com sucesso.")).toBeVisible();
@@ -74,18 +77,16 @@ test.describe("tabela de referência do exame — cadastro e execução", () => 
     await expect(page.getByText("20", { exact: true }).filter({ visible: true })).toBeVisible();
   });
 
-  test("tabela com resultado sem número barra o salvamento e leva até a tabela", async ({ page }) => {
+  test("modal da tabela não salva com resultado sem número", async ({ page }) => {
     await page.goto("/exames/novo");
-    await page.getByLabel("Nome do exame").fill(nomeUnico("Exame Tabela Erro"));
-    await page.getByPlaceholder("Ex: Membros Superiores").last().fill("Dados");
-    await page.getByPlaceholder("Ex: Nome do membro").last().fill("Peso");
-
-    await page.getByRole("button", { name: /Tabelas de referência/ }).click();
     await page.getByRole("button", { name: "Adicionar tabela" }).click();
-    await page.getByLabel("Chave 1").fill("Peso");
+    const modal = page.getByRole("dialog");
+    await modal.getByRole("button", { name: "Salvar tabela" }).click();
+    await expect(modal.getByText(/preencha um número/)).toBeVisible();
+    await expect(modal).toBeVisible();
 
-    await page.getByRole("button", { name: "Criar exame" }).click();
-    await expect(page.getByText(/preencha um número/).first()).toBeVisible();
-    await expect(page).toHaveURL(/\/exames\/novo/);
+    // Cancelar descarta a tabela nova.
+    await modal.getByRole("button", { name: "Cancelar" }).click();
+    await expect(page.getByRole("button", { name: "Editar" })).toHaveCount(0);
   });
 });
