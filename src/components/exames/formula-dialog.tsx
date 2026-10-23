@@ -34,6 +34,7 @@ import {
   type Sugestao,
   type TipoSugestao,
 } from "@/lib/formula-autocomplete";
+import { useVariaveisTabelas } from "@/components/exames/tabelas-referencia-editor";
 
 const ROTULO_TIPO: Record<TipoSugestao, string> = {
   coluna: "coluna",
@@ -85,6 +86,12 @@ export function FormulaDialog({
   onFechar: () => void;
 }) {
   const idBase = useId();
+  const variaveisTabelas = useVariaveisTabelas();
+  // Variáveis do usuário + saídas das tabelas: o que uma fórmula pode citar e expandir.
+  const variaveisTodas = useMemo(
+    () => [...variaveis, ...variaveisTabelas],
+    [variaveis, variaveisTabelas],
+  );
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [texto, setTexto] = useState(valorInicial);
   const [cursor, setCursor] = useState(valorInicial.length);
@@ -109,6 +116,12 @@ export function FormulaDialog({
           insercao: `{${v.nome.trim()}}`,
           detalhe: v.formula || undefined,
         })),
+      ...variaveisTabelas.map<Sugestao>((v) => ({
+        tipo: "variavel",
+        rotulo: v.nome,
+        insercao: `{${v.nome}}`,
+        detalhe: "tabela de referência",
+      })),
       ...VARIAVEIS_PACIENTE.map<Sugestao>((nome) => ({
         tipo: "paciente",
         rotulo: nome,
@@ -123,7 +136,7 @@ export function FormulaDialog({
       },
       SUGESTAO_SE,
     ],
-    [colunasDisponiveis, variaveis],
+    [colunasDisponiveis, variaveis, variaveisTabelas],
   );
 
   const token = useMemo(
@@ -241,12 +254,12 @@ export function FormulaDialog({
 
   // --- Prévia com valores fictícios -------------------------------------
 
-  const expandida = expandirVariaveis(texto, variaveis);
+  const expandida = expandirVariaveis(texto, variaveisTodas);
   const referenciasTeste = useMemo(() => {
     const nomes = new Map<string, string>();
     const fontes = [
-      expandirVariaveis(texto, variaveis),
-      ...variaveis.map((v) => expandirVariaveis(v.formula, variaveis)),
+      expandirVariaveis(texto, variaveisTodas),
+      ...variaveis.map((v) => expandirVariaveis(v.formula, variaveisTodas)),
     ];
     for (const fonte of fontes) {
       for (const nome of extrairReferencias(fonte)) {
@@ -255,7 +268,7 @@ export function FormulaDialog({
       }
     }
     return Array.from(nomes.entries());
-  }, [texto, variaveis]);
+  }, [texto, variaveis, variaveisTodas]);
 
   const mapaTeste = useMemo(() => {
     const mapa = new Map<string, number>();

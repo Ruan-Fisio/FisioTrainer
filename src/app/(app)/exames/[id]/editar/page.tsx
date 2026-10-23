@@ -1,5 +1,6 @@
 import { coresPersistidasParaAlinhar } from "@/lib/cor-opcao";
 import { parseVariaveis } from "@/lib/exame-formula";
+import { parseTabelas } from "@/lib/tabela-referencia";
 import {
   parsePontuacoes,
   pontuacoesPersistidasParaAlinhar,
@@ -37,6 +38,7 @@ export default async function EditarExamePage({
           tipo: exame.tipo,
           sombra: exame.sombra,
           variaveis: parseVariaveis(exame.variaveis),
+          tabelas: parseTabelas(exame.tabelas),
           secoes: exame.secoes.map((secao) => ({
             id: secao.id,
             nome: secao.nome,

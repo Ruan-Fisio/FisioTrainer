@@ -2,6 +2,7 @@ import { z } from "zod";
 import { CORES_OPCAO } from "@/lib/cor-opcao";
 import { validarFormulasDoExameDetalhado } from "@/lib/exame-formula";
 import { parsePontosTexto, type OpcaoPontuada } from "@/lib/pontuacao-opcao";
+import { compilarTabelas, validarTabelas } from "@/lib/tabela-referencia";
 
 export const exameColunaSchema = z
   .object({
@@ -107,8 +108,46 @@ export const exameSchema = z
       )
       .optional()
       .default([]),
+    // Conteúdo validado em `validarTabelas` (mensagem contextual), não aqui.
+    tabelas: z
+      .array(
+        z.object({
+          nome: z.string().trim().optional().default(""),
+          chaves: z.array(z.string()).optional().default([]),
+          saidas: z.array(z.string()).optional().default([]),
+          linhas: z
+            .array(
+              z.object({
+                faixas: z
+                  .array(
+                    z.object({
+                      min: z.string().optional().default(""),
+                      max: z.string().optional().default(""),
+                    }),
+                  )
+                  .optional()
+                  .default([]),
+                valores: z.array(z.string()).optional().default([]),
+              }),
+            )
+            .optional()
+            .default([]),
+        }),
+      )
+      .optional()
+      .default([]),
   })
   .superRefine((exame, ctx) => {
+    const erroTabela = validarTabelas(exame.tabelas);
+    if (erroTabela) {
+      ctx.addIssue({
+        code: "custom",
+        message: erroTabela.mensagem,
+        path: ["tabelas", erroTabela.tabelaIndex],
+      });
+      return;
+    }
+
     // Mesma travessia (seção → campo → coluna) que gera `colunasEmOrdem" para
     // o validador, guardando em paralelo as coordenadas de cada uma — assim
     // dá pra converter o `colunaIndex`/`opcaoIndex` (posições no array achatado)
@@ -150,8 +189,22 @@ export const exameSchema = z
       });
     });
 
-    const erro = validarFormulasDoExameDetalhado(colunasEmOrdem, exame.variaveis);
-    if (erro && erro.variavelIndex !== undefined) {
+    // As saídas das tabelas entram como variáveis (depois das do usuário) — um
+    // erro nelas aponta para a tabela de origem, não para a lista de variáveis.
+    const variaveisTabelas = compilarTabelas(exame.tabelas);
+    const erro = validarFormulasDoExameDetalhado(colunasEmOrdem, [
+      ...exame.variaveis,
+      ...variaveisTabelas,
+    ]);
+    if (erro && erro.variavelIndex !== undefined && erro.variavelIndex >= exame.variaveis.length) {
+      const nomeVariavel = variaveisTabelas[erro.variavelIndex - exame.variaveis.length].nome;
+      const tabelaIndex = exame.tabelas.findIndex((t) => nomeVariavel.startsWith(`${t.nome.trim()}.`));
+      ctx.addIssue({
+        code: "custom",
+        message: erro.mensagem,
+        path: ["tabelas", Math.max(tabelaIndex, 0)],
+      });
+    } else if (erro && erro.variavelIndex !== undefined) {
       ctx.addIssue({
         code: "custom",
         message: erro.mensagem,

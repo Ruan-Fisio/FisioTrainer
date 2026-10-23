@@ -38,6 +38,16 @@ import {
   type VariavelExame,
 } from "@/lib/exame-formula";
 import { FormulaDialog } from "@/components/exames/formula-dialog";
+import {
+  TabelasReferenciaEditor,
+  useVariaveisTabelas,
+  VariaveisTabelasContext,
+} from "@/components/exames/tabelas-referencia-editor";
+import {
+  compilarTabelas,
+  renomearChaveTabelas,
+  type TabelaReferencia,
+} from "@/lib/tabela-referencia";
 import { CorOpcaoSelect } from "@/components/exames/cor-opcao-select";
 import { COR_OPCAO_CLASSES, ehCorOpcao } from "@/lib/cor-opcao";
 
@@ -178,6 +188,7 @@ function FormulaEditor({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [modalAberto, setModalAberto] = useState(false);
+  const variaveisTabelas = useVariaveisTabelas();
 
   function inserirNoCursor(texto: string) {
     const input = inputRef.current;
@@ -201,7 +212,8 @@ function FormulaEditor({
       !colunasDisponiveis.some((c) => normalizarTitulo(c) === normalizarTitulo(nome)) &&
       !VARIAVEIS_PACIENTE.some((v) => normalizarTitulo(v) === normalizarTitulo(nome)) &&
       !ehSomaPontuacoes(nome) &&
-      !variaveis.some((v) => normalizarTitulo(v.nome) === normalizarTitulo(nome)),
+      !variaveis.some((v) => normalizarTitulo(v.nome) === normalizarTitulo(nome)) &&
+      !variaveisTabelas.some((v) => normalizarTitulo(v.nome) === normalizarTitulo(nome)),
   );
 
   return (
@@ -1179,6 +1191,7 @@ export function ExameForm({
     sombra: boolean;
     secoes: SecaoDraft[];
     variaveis: VariavelExame[];
+    tabelas: TabelaReferencia[];
   };
   mode: "create" | "edit";
 }) {
@@ -1192,6 +1205,10 @@ export function ExameForm({
   const [variaveis, setVariaveis] = useState<VariavelExame[]>(
     defaultValues?.variaveis ?? [],
   );
+
+  const [tabelas, setTabelas] = useState<TabelaReferencia[]>(defaultValues?.tabelas ?? []);
+  const [tabelasAbertas, setTabelasAbertas] = useState((defaultValues?.tabelas ?? []).length > 0);
+  const variaveisTabelas = compilarTabelas(tabelas);
 
   function renomearVariavelNasColunas(antigo: string, novo: string) {
     setSecoes((prev) => renomearReferenciaEmSecoes(prev, antigo, novo));
@@ -1248,6 +1265,22 @@ export function ExameForm({
     const path = state.errorPath;
     // Erro numa variável: o toast já traz a mensagem com o nome da variável.
     if (path?.[0] === "variaveis") return;
+    if (path?.[0] === "tabelas" && typeof path[1] === "number") {
+      const tabelaIndex = path[1];
+      const timerTabela = setTimeout(() => {
+        setTabelasAbertas(true);
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            const el = document.getElementById(`tabela-ref-${tabelaIndex}`);
+            if (!el) return;
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el.classList.add("ring-2", "ring-destructive", "ring-offset-2");
+            setTimeout(() => el.classList.remove("ring-2", "ring-destructive", "ring-offset-2"), 2500);
+          });
+        });
+      }, 100);
+      return () => clearTimeout(timerTabela);
+    }
     if (!path || path[0] !== "secoes" || typeof path[1] !== "number") return;
     const secaoIndex = path[1];
     const campoIndex = typeof path[3] === "number" ? path[3] : undefined;
@@ -1424,6 +1457,18 @@ export function ExameForm({
     colunaIndex: number,
     patch: Partial<ColunaDraft>,
   ) {
+    // Chave de busca de uma tabela acompanha a renomeação da coluna.
+    const tituloAnterior = secoes[secaoIndex]?.campos[campoIndex]?.colunas[colunaIndex]?.titulo;
+    if (
+      typeof patch.titulo === "string" &&
+      tituloAnterior &&
+      patch.titulo.trim() &&
+      normalizarTitulo(patch.titulo) !== normalizarTitulo(tituloAnterior)
+    ) {
+      const novoTitulo = patch.titulo;
+      setTabelas((prev) => renomearChaveTabelas(prev, tituloAnterior, novoTitulo));
+    }
+
     setSecoes((prev) => {
       const tituloAntigo =
         prev[secaoIndex]?.campos[campoIndex]?.colunas[colunaIndex]?.titulo;
@@ -1755,6 +1800,16 @@ export function ExameForm({
     );
   }
 
+  const colunasNumericas = secoes.flatMap((secao) =>
+    secao.campos
+      .filter((campo) => !campo.repetivel)
+      .flatMap((campo) =>
+        campo.colunas
+          .filter((c) => (c.tipo === "NUMERO" || c.tipo === "CALCULADO") && c.titulo.trim())
+          .map((c) => c.titulo.trim()),
+      ),
+  );
+
   const passoClamped = Math.min(passoAtual, secoes.length - 1);
   const secaoAtualMobile = secoes[passoClamped];
 
@@ -1781,6 +1836,7 @@ export function ExameForm({
   };
 
   return (
+    <VariaveisTabelasContext.Provider value={variaveisTabelas}>
     <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
     <form
       action={formAction}
@@ -1788,6 +1844,7 @@ export function ExameForm({
     >
       <input type="hidden" name="secoes" value={JSON.stringify(secoes)} />
       <input type="hidden" name="variaveis" value={JSON.stringify(variaveis)} />
+      <input type="hidden" name="tabelas" value={JSON.stringify(tabelas)} />
       <input type="hidden" name="sombra" value={sombra ? "true" : "false"} />
 
       <div className="flex flex-col gap-2">
@@ -1839,6 +1896,31 @@ export function ExameForm({
         Exame sombra (retornos vêm pré-preenchidos com os valores do exame
         anterior)
       </label>
+
+      <div className="flex flex-col gap-3 rounded-xl border bg-card p-3">
+        <button
+          type="button"
+          onClick={() => setTabelasAbertas((v) => !v)}
+          aria-expanded={tabelasAbertas}
+          className="flex min-h-8 items-center justify-between gap-2 text-left text-sm font-semibold"
+        >
+          <span>
+            Tabelas de referência
+            {tabelas.length > 0 && (
+              <span className="ml-2 text-xs font-normal text-muted-foreground">({tabelas.length})</span>
+            )}
+          </span>
+          <ChevronDown className={cn("size-4 transition-transform", tabelasAbertas && "rotate-180")} />
+        </button>
+        {tabelasAbertas && (
+          <TabelasReferenciaEditor
+            tabelas={tabelas}
+            onChange={setTabelas}
+            colunasNumericas={colunasNumericas}
+            onRenomearReferencia={renomearVariavelNasColunas}
+          />
+        )}
+      </div>
 
       {/* Mobile: uma seção por vez, como um passo-a-passo */}
       <div className="flex flex-col gap-4 md:hidden">
@@ -1945,6 +2027,7 @@ export function ExameForm({
       <ExamePreview nome={nomeExame} secoes={secoes} />
     </aside>
     </div>
+    </VariaveisTabelasContext.Provider>
   );
 }
 

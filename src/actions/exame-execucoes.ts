@@ -10,6 +10,7 @@ import {
   montarLinhasComparacaoRapida,
 } from "@/lib/comparacao-rapida";
 import { parseVariaveis } from "@/lib/exame-formula";
+import { variaveisComTabelas } from "@/lib/tabela-referencia";
 import { copyObject, deleteObject, deleteObjects, headObject } from "@/lib/r2";
 import {
   chaveTmpDoPaciente,
@@ -161,7 +162,7 @@ export async function getComparativo(avaliacaoId: string, retornoId: string) {
     avaliacao.exame,
     [{ valores: avaliacao.valores }, { valores: retorno.valores }],
     { sexo: avaliacao.paciente.sexo, idade: avaliacao.paciente.idade },
-    parseVariaveis(avaliacao.exame.variaveis),
+    variaveisComTabelas(parseVariaveis(avaliacao.exame.variaveis), avaliacao.exame.tabelas),
   );
 
   const secoes = montarComparativo(
@@ -227,7 +228,7 @@ export async function getComparacaoRapida(
       ...retornos.map((r) => ({ id: r.id, tipo: r.tipo, data: r.data, valores: r.valores })),
     ].sort((a, b) => a.data.getTime() - b.data.getTime()),
     { sexo: avaliacao.paciente.sexo, idade: avaliacao.paciente.idade },
-    parseVariaveis(avaliacao.exame.variaveis),
+    variaveisComTabelas(parseVariaveis(avaliacao.exame.variaveis), avaliacao.exame.tabelas),
   );
 
   const secoes = montarLinhasComparacaoRapida(avaliacao.exame, execucoes);

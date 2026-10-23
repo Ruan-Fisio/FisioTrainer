@@ -72,6 +72,7 @@ import {
   parseVariaveis,
   type ResultadoOpcoesAutomaticas,
 } from "@/lib/exame-formula";
+import { variaveisComTabelas } from "@/lib/tabela-referencia";
 
 const initialState: ExameExecucaoActionState = {};
 
@@ -82,6 +83,8 @@ export type ExameCompleto = {
   nome: string;
   tipo: "FISIOTERAPIA" | "EDUCACAO_FISICA";
   variaveis?: unknown;
+  /** `Exame.tabelas` (Json) — tabelas de referência, viram variáveis `{Tabela.Saída}`. */
+  tabelas?: unknown;
   secoes: {
     id: string;
     nome: string;
@@ -668,7 +671,7 @@ export function ExameExecucaoForm({
         colunasEmOrdem,
         (colunaId) => valores[chaveValor(colunaId, LINHA_UNICA)],
         paciente,
-        parseVariaveis(exame?.variaveis),
+        variaveisComTabelas(parseVariaveis(exame?.variaveis), exame?.tabelas),
       ),
     [colunasEmOrdem, valores, paciente, exame],
   );

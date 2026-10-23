@@ -18,6 +18,7 @@ import {
   formatarNumeroFormula,
   type ResultadoFormula,
 } from "@/lib/exame-formula";
+import { variaveisComTabelas } from "@/lib/tabela-referencia";
 
 export type Execucao = NonNullable<Awaited<ReturnType<typeof getExecucao>>>;
 
@@ -149,7 +150,7 @@ export function ExecucaoValores({
       sexo: execucao.paciente.sexo,
       idade: execucao.paciente.idade,
     },
-    parseVariaveis(execucao.exame.variaveis),
+    variaveisComTabelas(parseVariaveis(execucao.exame.variaveis), execucao.exame.tabelas),
   );
 
   function linhasDoCampo(campo: {

@@ -548,7 +548,9 @@ function avaliarCondicaoSubstituida(expressao: string): ResultadoCondicao {
 function validarSintaxeCondicao(formula: string): boolean {
   const substituida = formula.replace(TOKEN_REGEX, "1");
   const resultado = avaliarCondicaoSubstituida(substituida);
-  return "valor" in resultado;
+  // Com `1` no lugar de cada referência, um `SE` de tabela de referência cai no
+  // `1/0` final (nenhuma faixa bate) — não é erro de sintaxe, só valor não finito.
+  return "valor" in resultado || resultado.erro.includes("divisão por zero");
 }
 
 /**

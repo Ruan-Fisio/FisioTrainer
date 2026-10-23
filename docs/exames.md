@@ -54,6 +54,18 @@ Uma coluna `MULTIPLA_ESCOLHA` pode "funcionar como pontuação" (checkbox no cad
 - **Execução** (`exame-execucao-form.tsx`): "(N pts)" ao lado de cada opção. **A pontuação final/subtotal não é exibida** (decisão do usuário: ela existe para alimentar fórmulas; quem quiser ver o total cria um `CALCULADO` com `{Soma pontuações}`). **Detalhe** (`execucao-detalhe.tsx`, clínica e portal): usa o valor **gravado** da coluna (não reavalia as condições) para alimentar fórmulas.
 - Fora de escopo: Comparação Rápida e relatório comparativo não mostram a pontuação.
 
+## Tabelas de referência (valores por faixa de busca)
+
+Tabela nomeada **genérica** do exame (`Exame.tabelas`, `Json`; migration aditiva `20261023120000_exame_tabelas_referencia`) para qualquer valor que dependa de faixas — ex. limites de uma escala por sexo e idade. Serve a condições de opções automáticas, `CALCULADO`, variáveis do exame etc.; não é específica de classificação.
+
+- **Modelo** (`src/lib/tabela-referencia.ts`): `{nome, chaves[], saidas[], linhas[{faixas[{min,max}], valores[]}]}`. Chave = `Idade`, `Sexo` (1 = masc., 0 = fem.) ou título de coluna `NUMERO`/`CALCULADO` não-repetível. Faixa com extremos inclusivos, vazio = aberto. **Primeira linha em que todas as faixas batem vale.** Números ficam como texto (permitem `-`/`1,5`).
+- **Uso**: cada saída vira a variável `{Tabela.Saída}`. Ex.: opções "Fraco / Média / Acima" com `{Medida} <= {Flex.Fraco até}`, `{Medida} <= {Flex.Média até}`, `{Medida} > {Flex.Média até}` — seleção única, a primeira que bate vence (por isso limites "até" tapam buracos como 23 → 23,5).
+- **Implementação sem tocar no motor**: `compilarTabelas` gera uma variável por saída com `SE` aninhado (`SE(cond linha 1; v; SE(cond linha 2; v; 1/0))`), e `variaveisComTabelas(variaveis, exame.tabelas)` junta com as variáveis do usuário — **todo ponto que recebe `variaveis` (execução, detalhe, comparação) deve usar essa função**, nunca `parseVariaveis` sozinho. Paciente fora de todas as faixas cai no `1/0` e mostra o erro de divisão por zero no campo (nunca um valor inventado). `validarSintaxeCondicao` aceita esse erro de valor (não é erro de sintaxe).
+- **Validação**: `validarTabelas` (nome sem `{}`/`.`, único; ≥1 chave/saída/linha; saídas únicas; todo valor numérico; faixa numérica com mín ≤ máx) no `superRefine` de `exameSchema`, antes das fórmulas; erros das variáveis geradas (chave inexistente, ciclo) apontam `path: ["tabelas", i]`. O form navega até `#tabela-ref-{i}` (mesmo padrão do erro de coluna).
+- **Ciclo**: chave pode ser `CALCULADO` (resolvido sob demanda como qualquer dependência); `CALCULADO` que usa `{Tabela.Saída}` cuja chave depende dele é ciclo e é barrado.
+- **Cadastro** (`tabelas-referencia-editor.tsx`, card "Tabelas de referência" em `exame-form.tsx`): linhas como cards (responsivo), chave `Sexo` vira select Qualquer/Masculino/Feminino. Renomear tabela/resultado propaga para fórmulas/condições; renomear a coluna usada como chave propaga para a tabela (`renomearChaveTabelas`). `VariaveisTabelasContext` alimenta autocomplete e checagem de referência do `FormulaEditor`/`FormulaDialog` sem passar props pela árvore.
+- Testes: `tabela-referencia.test.ts`, `validations/exame.test.ts` (bloco de tabelas) e E2E `e2e/tests/exame-tabela-referencia.spec.ts`.
+
 ## Cor de destaque por opção de MULTIPLA_ESCOLHA
 
 Cada opção (manual **ou** automática por fórmula) pode ter uma cor — **Azul, Verde, Amarelo, Laranja ou Vermelho** (escala do melhor ao pior; paleta fechada, `CORES_OPCAO` em `src/lib/cor-opcao.ts`) — que destaca a opção quando ela está marcada. Sem cor = sem destaque.

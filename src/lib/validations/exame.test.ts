@@ -106,3 +106,55 @@ describe("exameSchema — permiteAnexo", () => {
     expect(parse({ permiteAnexo: true }).permiteAnexo).toBe(true);
   });
 });
+
+describe("exameSchema — tabelas de referência", () => {
+  const classificacao = {
+    titulo: "Classificação",
+    tipo: "MULTIPLA_ESCOLHA" as const,
+    opcoes: ["Fraco", "Forte"],
+    opcoesCondicionais: [
+      { opcao: "Fraco", formula: "{IMC} <= {Ref.Limite}" },
+      { opcao: "Forte", formula: "{IMC} > {Ref.Limite}" },
+    ],
+  };
+  const tabela = {
+    nome: "Ref",
+    chaves: ["Idade"],
+    saidas: ["Limite"],
+    linhas: [{ faixas: [{ min: "20", max: "29" }], valores: ["24"] }],
+  };
+
+  it("aceita condição que cita {Tabela.Resultado} de uma tabela válida", () => {
+    const r = exameSchema.safeParse({ ...baseExame(classificacao), tabelas: [tabela] });
+    expect(r.success).toBe(true);
+  });
+
+  it("sem a tabela, a referência {Ref.Limite} não existe", () => {
+    const r = exameSchema.safeParse(baseExame(classificacao));
+    expect(r.success).toBe(false);
+  });
+
+  it("erro estrutural da tabela aponta o path da tabela", () => {
+    const r = exameSchema.safeParse({
+      ...baseExame(classificacao),
+      tabelas: [{ ...tabela, linhas: [{ faixas: [{ min: "20", max: "29" }], valores: [""] }] }],
+    });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues[0].path).toEqual(["tabelas", 0]);
+      expect(r.error.issues[0].message).toContain("preencha um número");
+    }
+  });
+
+  it("chave que não existe no exame aponta a tabela de origem", () => {
+    const r = exameSchema.safeParse({
+      ...baseExame(classificacao),
+      tabelas: [{ ...tabela, chaves: ["Inexistente"] }],
+    });
+    expect(r.success).toBe(false);
+    if (!r.success) {
+      expect(r.error.issues[0].path).toEqual(["tabelas", 0]);
+      expect(r.error.issues[0].message).toContain("Inexistente");
+    }
+  });
+});

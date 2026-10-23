@@ -99,6 +99,9 @@ model Exame {
   tipo          TipoExame       @default(FISIOTERAPIA)
   sombra        Boolean         @default(false)
   variaveis     Json            @default("[]")
+  /// Tabelas de referência (faixas de busca → valores): cada saída vira a variável
+  /// `{Tabela.Saída}` — ver src/lib/tabela-referencia.ts.
+  tabelas       Json            @default("[]")
   versaoAtual   Boolean         @default(true)
   exameOrigemId String?
   origem        Exame?          @relation("VersoesExame", fields: [exameOrigemId], references: [id], onDelete: SetNull)
