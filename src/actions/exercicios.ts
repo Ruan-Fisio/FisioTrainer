@@ -27,6 +27,11 @@ export async function listExercicios(
       take: PAGE_SIZE,
       include: {
         categorias: { select: { id: true, name: true } },
+        links: {
+          select: { url: true },
+          orderBy: { createdAt: "asc" },
+          take: 1,
+        },
         _count: { select: { links: true } },
       },
     }),

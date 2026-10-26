@@ -1,10 +1,13 @@
 export type LinkPreview =
   | { type: "youtube"; videoId: string; thumbnailUrl: string; url: string }
+  | { type: "image"; url: string }
   | { type: "site"; domain: string; faviconUrl: string; url: string };
 
 const YOUTUBE_PATTERNS = [
   /(?:youtube\.com\/watch\?v=|youtube\.com\/shorts\/|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
 ];
+
+const IMAGE_EXTENSION_PATTERN = /\.(jpe?g|png|gif|webp|avif|svg)(\?.*)?$/i;
 
 export function getLinkPreview(url: string): LinkPreview | null {
   try {
@@ -21,6 +24,10 @@ export function getLinkPreview(url: string): LinkPreview | null {
           url,
         };
       }
+    }
+
+    if (IMAGE_EXTENSION_PATTERN.test(parsed.pathname)) {
+      return { type: "image", url };
     }
 
     return {

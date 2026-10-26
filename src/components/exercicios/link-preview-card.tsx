@@ -43,6 +43,31 @@ export function LinkPreviewCard({ url }: { url: string }) {
     );
   }
 
+  if (preview.type === "image") {
+    return (
+      <a
+        href={preview.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="group flex items-center gap-3 rounded-md border p-2 hover:bg-muted/50"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={preview.url}
+          alt=""
+          className="h-12 w-20 shrink-0 rounded object-cover"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium">Imagem</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {preview.url}
+          </p>
+        </div>
+        <ExternalLink className="size-4 shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100" />
+      </a>
+    );
+  }
+
   return (
     <a
       href={preview.url}

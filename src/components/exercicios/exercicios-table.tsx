@@ -53,6 +53,7 @@ export async function ExerciciosTable({
             name={exercicio.name}
             categorias={exercicio.categorias}
             linksCount={exercicio._count.links}
+            previewUrl={exercicio.links[0]?.url}
           />
         ))}
       </div>
@@ -76,6 +77,7 @@ export async function ExerciciosTable({
                 name={exercicio.name}
                 categorias={exercicio.categorias}
                 linksCount={exercicio._count.links}
+                previewUrl={exercicio.links[0]?.url}
               />
             ))}
           </TableBody>

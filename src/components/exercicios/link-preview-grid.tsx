@@ -29,6 +29,24 @@ function LinkTile({ url }: { url: string }) {
     );
   }
 
+  if (preview?.type === "image") {
+    return (
+      <a
+        href={preview.url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="aspect-square w-full overflow-hidden rounded-lg border bg-muted"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={preview.url}
+          alt=""
+          className="size-full object-cover"
+        />
+      </a>
+    );
+  }
+
   if (preview?.type === "site") {
     return (
       <a
