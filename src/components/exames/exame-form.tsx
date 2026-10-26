@@ -562,8 +562,8 @@ function SecaoCard({
             <div className="flex items-start gap-2">
               <div className="flex-1">
                 <div className="flex flex-col gap-1.5">
-                  <Label>
-                    Nome{" "}
+                  <Label className="text-xs text-muted-foreground">
+                    Nome do campo{" "}
                     <span className="text-muted-foreground">(opcional)</span>
                   </Label>
                   <Input
@@ -1086,7 +1086,7 @@ function SecaoCard({
     <CardHeader className="flex flex-row items-start justify-between gap-2">
       <div className="flex-1">
         <div className="flex flex-col gap-1.5">
-          <Label>Nome</Label>
+          <Label className="text-sm font-semibold">Nome da seção</Label>
           <Input
             value={secao.nome}
             onChange={(e) =>

@@ -51,7 +51,7 @@ function ExercicioThumbnail({
     <div
       className={`${className} flex items-center justify-center bg-muted text-muted-foreground`}
     >
-      <Link2 className="size-4" />
+      <Link2 className="size-6" />
     </div>
   );
 }
@@ -74,7 +74,7 @@ export function ExercicioTableRow({
         <div className="flex items-center gap-3">
           <ExercicioThumbnail
             previewUrl={previewUrl}
-            className="size-10 shrink-0 rounded border"
+            className="size-14 shrink-0 rounded border"
           />
           {name}
         </div>
@@ -120,7 +120,7 @@ export function ExercicioCard({
           <div className="flex items-center gap-3">
             <ExercicioThumbnail
               previewUrl={previewUrl}
-              className="size-12 shrink-0 rounded border"
+              className="size-20 shrink-0 rounded border"
             />
             <p className="font-medium">{name}</p>
           </div>
