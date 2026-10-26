@@ -54,7 +54,26 @@ import {
   GoniometriaField,
   type MovimentoOption,
 } from "@/components/exame-execucoes/goniometria-field";
-import { COR_OPCAO_CLASSES, mapaCoresOpcoes } from "@/lib/cor-opcao";
+import {
+  COR_OPCAO_CLASSES,
+  type CorOpcao,
+  mapaCoresOpcoes,
+} from "@/lib/cor-opcao";
+
+/** Igual a `COR_OPCAO_CLASSES[cor].destaque`, porém mais saturado — usado só
+ * quando a opção foi marcada automaticamente pela fórmula (não manualmente),
+ * pra ficar perceptivelmente mais forte que a seleção manual comum. */
+const COR_OPCAO_DESTAQUE_AUTOMATICO: Record<CorOpcao, string> = {
+  AZUL: "border-blue-600 bg-blue-500/35 text-blue-900 dark:text-blue-100 font-medium",
+  VERDE:
+    "border-green-600 bg-green-500/35 text-green-900 dark:text-green-100 font-medium",
+  AMARELO:
+    "border-yellow-600 bg-yellow-400/45 text-yellow-950 dark:text-yellow-50 font-medium",
+  LARANJA:
+    "border-orange-600 bg-orange-500/35 text-orange-900 dark:text-orange-100 font-medium",
+  VERMELHO:
+    "border-red-600 bg-red-500/35 text-red-900 dark:text-red-100 font-medium",
+};
 import { parsePontuacoes } from "@/lib/pontuacao-opcao";
 import { cn } from "@/lib/utils";
 import { valorPreenchido } from "@/lib/exame-sombra";
@@ -238,7 +257,9 @@ function SecaoFields({
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{secao.nome}</CardTitle>
+          <CardTitle className="text-base font-semibold">
+            {secao.nome}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
@@ -253,7 +274,9 @@ function SecaoFields({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">{secao.nome}</CardTitle>
+        <CardTitle className="text-base font-semibold">
+          {secao.nome}
+        </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {camposVisiveis.map((campo) => {
@@ -261,7 +284,9 @@ function SecaoFields({
           return (
             <div key={campo.id} className="flex flex-col gap-2">
               {campo.nome && (
-                <Label className="text-sm font-medium">{campo.nome}</Label>
+                <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {campo.nome}
+                </Label>
               )}
               <div className="flex flex-col gap-3">
                 {linhas.map((linhaId, linhaIndex) => {
@@ -407,7 +432,12 @@ function SecaoFields({
                                                 : "cursor-pointer",
                                               checked &&
                                                 cor &&
-                                                COR_OPCAO_CLASSES[cor].destaque,
+                                                (automatico
+                                                  ? COR_OPCAO_DESTAQUE_AUTOMATICO[
+                                                      cor
+                                                    ]
+                                                  : COR_OPCAO_CLASSES[cor]
+                                                      .destaque),
                                             )}
                                           >
                                             {coluna.multiplaSelecao ? (

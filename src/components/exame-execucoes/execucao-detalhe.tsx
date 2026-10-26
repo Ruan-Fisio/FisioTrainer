@@ -172,7 +172,9 @@ export function ExecucaoValores({
       {execucao.exame.secoes.map((secao) => (
         <Card key={secao.id}>
           <CardHeader>
-            <CardTitle className="text-base">{secao.nome}</CardTitle>
+            <CardTitle className="text-base font-semibold">
+              {secao.nome}
+            </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {secao.campos.map((campo) => {
@@ -180,7 +182,9 @@ export function ExecucaoValores({
               return (
                 <div key={campo.id} className="flex flex-col gap-2">
                   {campo.nome && (
-                    <p className="text-sm font-medium">{campo.nome}</p>
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {campo.nome}
+                    </p>
                   )}
                   <div className="flex flex-col gap-2">
                     {linhas.map((linha) => (
