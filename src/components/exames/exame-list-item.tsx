@@ -37,7 +37,11 @@ export function ExameTableRow({
       onClick={() => router.push(`/exames/${id}`)}
     >
       <TableCell className="font-medium">{nome}</TableCell>
-      <TableCell className="text-muted-foreground">
+      {/* Descrição longa não estica a tabela: corta com reticências (texto completo no title). */}
+      <TableCell
+        className="max-w-xs truncate text-muted-foreground lg:max-w-md"
+        title={descricao ?? undefined}
+      >
         {descricao || "—"}
       </TableCell>
       <TableCell>
@@ -77,7 +81,7 @@ export function ExameCard({
           <ExameRowActions id={id} nome={nome} execucoesCount={execucoesCount} />
         </div>
         {descricao && (
-          <p className="text-sm text-muted-foreground">{descricao}</p>
+          <p className="line-clamp-2 text-sm text-muted-foreground">{descricao}</p>
         )}
         <div className="flex items-center justify-between gap-2">
           <Badge variant="secondary">{TIPO_EXAME_LABELS[tipo]}</Badge>
