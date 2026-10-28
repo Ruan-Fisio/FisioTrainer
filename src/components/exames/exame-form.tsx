@@ -13,10 +13,6 @@ import {
   ChevronRight,
   Sigma,
   Hash,
-  Loader2,
-  Check,
-  AlertTriangle,
-  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,11 +43,8 @@ import {
   mesclarValor,
   remapearSecoes,
 } from "@/lib/exame-merge";
-import { formatarHora } from "@/lib/format";
-import {
-  useEdicaoTempoReal,
-  type StatusEdicao,
-} from "@/components/exames/use-edicao-tempo-real";
+import { useEdicaoTempoReal } from "@/components/exames/use-edicao-tempo-real";
+import { StatusEdicaoFlutuante } from "@/components/exames/status-edicao-flutuante";
 import {
   ehSomaPontuacoes,
   extrairReferencias,
@@ -1904,8 +1897,8 @@ export function ExameForm({
     >
       {mode === "edit" && (
         <StatusEdicaoFlutuante
-          status={tempoReal.status}
-          editores={tempoReal.editores}
+          estado={tempoReal.estado}
+          onSincronizarAgora={() => void tempoReal.sincronizarAgora()}
           onMostrarErro={(path) =>
             destacarErroNoForm(path, setSecoesRetraidas, setPassoAtual)
           }
@@ -2201,85 +2194,5 @@ function ExamePreview({ nome, secoes }: { nome: string; secoes: SecaoDraft[] }) 
         ))}
       </CardContent>
     </Card>
-  );
-}
-
-/**
- * Indicador flutuante da edição em tempo real (fixo na tela, não no topo do
- * form — quem edita lá embaixo vê o feedback sem rolar): salvando / salvo /
- * não salvo, e quem mais está editando. Mobile: canto inferior esquerdo (o
- * botão de salvar flutua à direita); desktop: acima da barra do rodapé.
- */
-function StatusEdicaoFlutuante({
-  status,
-  editores,
-  onMostrarErro,
-}: {
-  status: StatusEdicao;
-  editores: string[];
-  onMostrarErro: (path?: (string | number)[]) => void;
-}) {
-  const invalido = status.tipo === "invalido" || status.tipo === "falha";
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      className={cn(
-        "fixed bottom-5 left-5 z-40 flex max-w-[calc(100vw-7rem)] flex-col gap-1 rounded-2xl border bg-card/95 px-3 py-2 text-sm shadow-lg ring-1 ring-foreground/5 backdrop-blur md:right-8 md:bottom-24 md:left-auto md:max-w-sm",
-        invalido && "border-destructive/50",
-      )}
-    >
-      <div className="flex min-w-0 items-start gap-2">
-        {status.tipo === "salvando" && (
-          <>
-            <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-primary" />
-            <span>Salvando...</span>
-          </>
-        )}
-        {status.tipo === "pendente" && (
-          <>
-            <Loader2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-            <span className="text-muted-foreground">Alterações não salvas ainda</span>
-          </>
-        )}
-        {status.tipo === "salvo" && (
-          <>
-            <Check className="mt-0.5 size-4 shrink-0 text-green-600" />
-            <span className="text-muted-foreground">
-              {status.em ? `Salvo às ${formatarHora(status.em)}` : "Salvamento automático"}
-            </span>
-          </>
-        )}
-        {status.tipo === "falha" && (
-          <>
-            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
-            <span className="text-destructive">Sem conexão — tentando de novo</span>
-          </>
-        )}
-        {status.tipo === "invalido" && (
-          <>
-            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
-            <span className="min-w-0 text-destructive">
-              Não salvo: {status.mensagem}{" "}
-              <button
-                type="button"
-                className="font-medium underline underline-offset-2"
-                onClick={() => onMostrarErro(status.path)}
-              >
-                Mostrar onde
-              </button>
-            </span>
-          </>
-        )}
-      </div>
-      {editores.length > 0 && (
-        <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
-          <Users className="size-3.5 shrink-0" />
-          <span className="truncate">
-            {editores.join(", ")} {editores.length === 1 ? "também está" : "também estão"} editando
-          </span>
-        </div>
-      )}
-    </div>
   );
 }

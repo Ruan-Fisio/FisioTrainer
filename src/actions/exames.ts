@@ -514,6 +514,8 @@ export type SincronizacaoExame = {
   mapaIds: Record<string, string>;
   /** Outras pessoas com esta edição aberta agora. */
   editores: string[];
+  /** Quem gravou a versão atual por último (trilha de auditoria) e quando. */
+  ultimaAlteracao: { por: string | null; em: string } | null;
 };
 
 /** Estado atual do exame para a edição em tempo real (e heartbeat de presença). */
@@ -522,13 +524,23 @@ export async function sincronizarExame(id: string): Promise<SincronizacaoExame |
   if (!versao) return null;
   const exame = await getExame(versao.id);
   if (!exame) return null;
-  const editores = await registrarPresenca(exame.id);
+  const [editores, ultimoLog] = await Promise.all([
+    registrarPresenca(exame.id),
+    prisma.auditLog.findFirst({
+      where: { modulo: "Exame", registroId: exame.id },
+      orderBy: { criadoEm: "desc" },
+      select: { usuarioNome: true, criadoEm: true },
+    }),
+  ]);
   return {
     id: exame.id,
     carregadoEm: exame.updatedAt.toISOString(),
     draft: exameParaDraft(exame),
     mapaIds: versao.mapaIds,
     editores,
+    ultimaAlteracao: ultimoLog
+      ? { por: ultimoLog.usuarioNome, em: ultimoLog.criadoEm.toISOString() }
+      : null,
   };
 }
 

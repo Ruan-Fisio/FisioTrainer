@@ -52,6 +52,11 @@ test.describe("edição em tempo real do modelo de exame", () => {
     await expect(outra.getByText("Tabela A", { exact: true })).toBeVisible(SINCRONIZA);
     await expect(page.getByText(/Salvo às/)).toBeVisible(SINCRONIZA);
 
+    // O detalhe do indicador diz o que chegou de outra pessoa.
+    await page.getByRole("button", { name: "Ver detalhes do salvamento" }).click();
+    await expect(page.getByText(/alterou às/)).toBeVisible();
+    await expect(page.getByText(/Tabela B \(nova\)/)).toBeVisible();
+
     // E as duas estão gravadas.
     await page.reload();
     await expect(page.getByText("Tabela A", { exact: true })).toBeVisible();
@@ -65,9 +70,13 @@ test.describe("edição em tempo real do modelo de exame", () => {
 
     // Seção sem nome é inválida: aparece o motivo e nada é gravado.
     await page.getByPlaceholder("Ex: Membros Superiores").filter({ visible: true }).first().fill("");
-    await expect(page.getByText(/Não salvo: Nome da seção é obrigatório/)).toBeVisible(SINCRONIZA);
+    await expect(page.getByText(/Nome da seção é obrigatório/)).toBeVisible(SINCRONIZA);
+    await expect(page.getByText("Não salvo", { exact: true })).toBeVisible();
 
     await page.getByPlaceholder("Ex: Membros Superiores").filter({ visible: true }).first().fill("Medidas");
+    // "Salvar agora" grava sem esperar o ciclo.
+    await page.getByRole("button", { name: "Salvar agora" }).click();
+    await expect(page.getByText(/Salvo às/)).toBeVisible({ timeout: 10_000 });
     await page.getByLabel("Descrição").fill("Salva pelo Concluir");
     await page.getByRole("button", { name: "Concluir" }).filter({ visible: true }).first().click();
     await expect(page.getByText("Exame salvo.")).toBeVisible(SINCRONIZA);
