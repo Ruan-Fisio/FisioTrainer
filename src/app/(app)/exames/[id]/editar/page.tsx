@@ -32,6 +32,7 @@ export default async function EditarExamePage({
       </div>
       <ExameForm
         action={updateExameWithId}
+        carregadoEm={exame.updatedAt.toISOString()}
         defaultValues={{
           nome: exame.nome,
           descricao: exame.descricao ?? "",

@@ -4,6 +4,12 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { coresAlinhadasParaPersistir } from "@/lib/cor-opcao";
 import { pontuacoesAlinhadasParaPersistir } from "@/lib/pontuacao-opcao";
+import {
+  ehRegistroNaoEncontrado,
+  exameAlteradoDesde,
+  MENSAGEM_EDICAO_CONCORRENTE,
+  parseCarregadoEm,
+} from "@/lib/exame-edicao-concorrente";
 import { exameSchema } from "@/lib/validations/exame";
 
 const PAGE_SIZE = 10;
@@ -251,7 +257,11 @@ export async function createExame(
  * o timeout de 5s no pooler do Neon em produção para exames com muitas
  * colunas (erro P2028).
  */
-async function updateExameInPlace(id: string, data: ExameFormData) {
+async function updateExameInPlace(
+  id: string,
+  data: ExameFormData,
+  carregadoEm: Date | null,
+) {
   const existente = await prisma.exame.findUniqueOrThrow({
     where: { id },
     include: {
@@ -322,7 +332,7 @@ async function updateExameInPlace(id: string, data: ExameFormData) {
   const secoesMantidas = idsMantidos(data.secoes);
 
   await prisma.exame.update({
-    where: { id },
+    where: { id, ...(carregadoEm ? { updatedAt: carregadoEm } : {}) },
     data: {
       nome: data.nome,
       descricao: data.descricao || null,
@@ -367,9 +377,20 @@ async function updateExameInPlace(id: string, data: ExameFormData) {
  * elas continuam apontando para a versão antiga, intacta; só as avaliações
  * futuras passam a usar a versão nova.
  */
-async function criarNovaVersaoExame(id: string, data: ExameFormData) {
+async function criarNovaVersaoExame(
+  id: string,
+  data: ExameFormData,
+  carregadoEm: Date | null,
+) {
   await prisma.$transaction([
-    prisma.exame.update({ where: { id }, data: { versaoAtual: false } }),
+    prisma.exame.update({
+      where: {
+        id,
+        versaoAtual: true,
+        ...(carregadoEm ? { updatedAt: carregadoEm } : {}),
+      },
+      data: { versaoAtual: false },
+    }),
     prisma.exame.create({
       data: {
         nome: data.nome,
@@ -401,27 +422,33 @@ export async function updateExame(
     };
   }
 
-  // Um form aberto antes da última edição (outra aba, botão Voltar) aponta
-  // para uma versão já arquivada: salvar criaria outra versão "atual" a partir
-  // de dados velhos, apagando o que foi salvo depois (ex. tabelas novas).
+  // Trava otimista: o form envia o exame inteiro, então salvar a partir de uma
+  // tela aberta antes do último salvamento (outra pessoa, outra aba, botão
+  // Voltar) apagaria o que foi gravado nesse meio-tempo — ver
+  // src/lib/exame-edicao-concorrente.ts.
+  const carregadoEm = parseCarregadoEm(formData.get("carregadoEm"));
   const atual = await prisma.exame.findUnique({
     where: { id },
-    select: { versaoAtual: true },
+    select: { versaoAtual: true, updatedAt: true },
   });
-  if (!atual?.versaoAtual) {
-    return {
-      error:
-        "Este exame foi alterado depois que esta tela foi aberta. Volte para a lista de exames e abra a edição novamente.",
-    };
+  if (exameAlteradoDesde(atual, carregadoEm)) {
+    return { error: MENSAGEM_EDICAO_CONCORRENTE };
   }
 
   const emUso =
     (await prisma.exameExecucao.count({ where: { exameId: id } })) > 0;
 
-  if (emUso) {
-    await criarNovaVersaoExame(id, parsed.data);
-  } else {
-    await updateExameInPlace(id, parsed.data);
+  try {
+    if (emUso) {
+      await criarNovaVersaoExame(id, parsed.data, carregadoEm);
+    } else {
+      await updateExameInPlace(id, parsed.data, carregadoEm);
+    }
+  } catch (erro) {
+    // Alguém salvou entre a checagem acima e a escrita: o `where` com
+    // `updatedAt` não bate e nada é gravado.
+    if (ehRegistroNaoEncontrado(erro)) return { error: MENSAGEM_EDICAO_CONCORRENTE };
+    throw erro;
   }
 
   revalidatePath("/exames");

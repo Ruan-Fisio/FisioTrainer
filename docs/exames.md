@@ -57,7 +57,7 @@ Uma coluna `MULTIPLA_ESCOLHA` pode "funcionar como pontuação" (checkbox no cad
 ## Versões do exame
 
 - Editar exame **com** avaliações cria uma nova versão (`criarNovaVersaoExame`) e arquiva a anterior (`versaoAtual: false`); sem avaliações, edita no lugar.
-- **`updateExame` recusa editar versão não-atual** (form aberto antes da última edição — outra aba, botão Voltar): sem isso, salvar dados velhos criava mais uma versão "atual", apagando o que foi salvo depois (ex. tabelas novas) e deixando duas versões atuais na listagem.
+- **Trava otimista na edição** (`src/lib/exame-edicao-concorrente.ts`): o form envia o exame inteiro, então quem salvava de uma tela aberta antes do último salvamento apagava o que o outro gravou (caso real: duas pessoas editando as tabelas de referência do RIE-FIT ao mesmo tempo, uma sobrescrevendo a outra). A página de edição manda o `updatedAt` do exame (`carregadoEm`, input hidden); `updateExame` recusa se o exame mudou desde então ou se é versão arquivada, e repete a condição no `where` do próprio update (`updatedAt` + `versaoAtual`) para fechar a corrida — P2025 vira a mesma mensagem. Quem foi barrado precisa recarregar e refazer. E2E: `e2e/tests/exame-edicao-concorrente.spec.ts`.
 
 ## Tabelas de referência (valores por faixa de busca)
 

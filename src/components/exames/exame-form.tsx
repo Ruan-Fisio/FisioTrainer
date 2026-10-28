@@ -1179,7 +1179,10 @@ export function ExameForm({
   action,
   defaultValues,
   mode,
+  carregadoEm,
 }: {
+  /** `updatedAt` (ISO) do exame quando a edição abriu — trava otimista no server. */
+  carregadoEm?: string;
   action: (
     prevState: ExameActionState,
     formData: FormData,
@@ -1840,6 +1843,7 @@ export function ExameForm({
       <input type="hidden" name="variaveis" value={JSON.stringify(variaveis)} />
       <input type="hidden" name="tabelas" value={JSON.stringify(tabelas)} />
       <input type="hidden" name="sombra" value={sombra ? "true" : "false"} />
+      {carregadoEm && <input type="hidden" name="carregadoEm" value={carregadoEm} />}
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="nome">Nome do exame</Label>
