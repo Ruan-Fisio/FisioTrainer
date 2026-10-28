@@ -1,15 +1,17 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { coresAlinhadasParaPersistir } from "@/lib/cor-opcao";
 import { pontuacoesAlinhadasParaPersistir } from "@/lib/pontuacao-opcao";
+import { exameParaDraft, type ExameDraft } from "@/lib/exame-draft";
 import {
   ehRegistroNaoEncontrado,
   exameAlteradoDesde,
-  MENSAGEM_EDICAO_CONCORRENTE,
   parseCarregadoEm,
 } from "@/lib/exame-edicao-concorrente";
+import { comporMapas, mapaDeOrigem } from "@/lib/exame-merge";
 import { exameSchema } from "@/lib/validations/exame";
 
 const PAGE_SIZE = 10;
@@ -185,30 +187,49 @@ function campoIdentificaMembro(campo: CampoInput) {
   return (campo.repetivel || temGoniometria(campo)) && campo.identificarMembro;
 }
 
-function campoCreateData(campo: CampoInput, ordem: number) {
+/**
+ * Como os ids do form viram registros novos. "manter": o item é criado com o
+ * id que o form mandou (do banco ou gerado no cliente — a edição em tempo real
+ * precisa reconhecer o item antes e depois de gravado). "origem": versão nova
+ * do exame — ids novos, e o do form vai para `origemId`, de onde sai o mapa
+ * id antigo → novo para quem estava editando a versão anterior.
+ */
+type ModoIds = "manter" | "origem";
+
+function idsCriacao(id: string | undefined, modo: ModoIds) {
+  if (!id) return {};
+  return modo === "manter" ? { id } : { origemId: id };
+}
+
+function campoCreateData(campo: CampoInput, ordem: number, modo: ModoIds) {
   return {
+    ...idsCriacao(campo.id, modo),
     nome: campo.nome,
     ordem,
     repetivel: campo.repetivel,
     identificarMembro: campoIdentificaMembro(campo),
     colunas: {
-      create: colunasComMembro(campo).map((coluna, i) => colunaData(coluna, i)),
+      create: colunasComMembro(campo).map((coluna, i) => ({
+        ...idsCriacao(coluna.id, modo),
+        ...colunaData(coluna, i),
+      })),
     },
   };
 }
 
-function secaoCreateData(secao: SecaoInput, ordem: number) {
+function secaoCreateData(secao: SecaoInput, ordem: number, modo: ModoIds) {
   return {
+    ...idsCriacao(secao.id, modo),
     nome: secao.nome,
     ordem,
     campos: {
-      create: secao.campos.map((campo, i) => campoCreateData(campo, i)),
+      create: secao.campos.map((campo, i) => campoCreateData(campo, i, modo)),
     },
   };
 }
 
-function secoesCreateData(secoes: ExameFormData["secoes"]) {
-  return secoes.map((secao, i) => secaoCreateData(secao, i));
+function secoesCreateData(secoes: ExameFormData["secoes"], modo: ModoIds) {
+  return secoes.map((secao, i) => secaoCreateData(secao, i, modo));
 }
 
 export async function createExame(
@@ -233,7 +254,7 @@ export async function createExame(
       sombra: parsed.data.sombra,
       variaveis: parsed.data.variaveis,
       tabelas: parsed.data.tabelas,
-      secoes: { create: secoesCreateData(parsed.data.secoes) },
+      secoes: { create: secoesCreateData(parsed.data.secoes, "manter") },
     },
   });
 
@@ -292,7 +313,9 @@ async function updateExameInPlace(
       }),
       create: colunasInput.flatMap((coluna, i) => {
         const atual = campoExistente.colunas.find((c) => c.id === coluna.id);
-        return atual ? [] : [colunaData(coluna, i)];
+        return atual
+          ? []
+          : [{ ...idsCriacao(coluna.id, "manter"), ...colunaData(coluna, i) }];
       }),
     };
   };
@@ -324,7 +347,7 @@ async function updateExameInPlace(
         const campoExistente = secaoExistente.campos.find(
           (c) => c.id === campo.id,
         );
-        return campoExistente ? [] : [campoCreateData(campo, i)];
+        return campoExistente ? [] : [campoCreateData(campo, i, "manter")];
       }),
     };
   };
@@ -363,7 +386,7 @@ async function updateExameInPlace(
           const secaoExistente = existente.secoes.find(
             (s) => s.id === secao.id,
           );
-          return secaoExistente ? [] : [secaoCreateData(secao, i)];
+          return secaoExistente ? [] : [secaoCreateData(secao, i, "manter")];
         }),
       },
     },
@@ -381,8 +404,8 @@ async function criarNovaVersaoExame(
   id: string,
   data: ExameFormData,
   carregadoEm: Date | null,
-) {
-  await prisma.$transaction([
+): Promise<string> {
+  const [, nova] = await prisma.$transaction([
     prisma.exame.update({
       where: {
         id,
@@ -401,38 +424,157 @@ async function criarNovaVersaoExame(
         tabelas: data.tabelas,
         versaoAtual: true,
         exameOrigemId: id,
-        secoes: { create: secoesCreateData(data.secoes) },
+        secoes: { create: secoesCreateData(data.secoes, "origem") },
       },
     }),
   ]);
+  return nova.id;
 }
 
-export async function updateExame(
+/**
+ * Segue a cadeia de versões a partir de `id` até a atual, compondo o mapa de
+ * ids (seção/campo/coluna) antigo → novo. Quem editava uma versão que foi
+ * arquivada continua editando a atual sem perder o rascunho.
+ */
+async function resolverVersaoAtual(
   id: string,
-  _prevState: ExameActionState,
-  formData: FormData,
-): Promise<ExameActionState> {
-  const parsed = parseExameForm(formData);
+): Promise<{ id: string; mapaIds: Record<string, string> } | null> {
+  let atual = await prisma.exame.findUnique({
+    where: { id },
+    select: { id: true, versaoAtual: true },
+  });
+  let mapaIds: Record<string, string> = {};
+  for (let salto = 0; atual && !atual.versaoAtual && salto < 50; salto++) {
+    const proxima = await prisma.exame.findFirst({
+      where: { exameOrigemId: atual.id },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        versaoAtual: true,
+        secoes: {
+          select: {
+            id: true,
+            origemId: true,
+            campos: {
+              select: {
+                id: true,
+                origemId: true,
+                colunas: { select: { id: true, origemId: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+    if (!proxima) return null;
+    mapaIds = comporMapas(mapaIds, mapaDeOrigem(proxima.secoes));
+    atual = proxima;
+  }
+  return atual?.versaoAtual ? { id: atual.id, mapaIds } : null;
+}
 
-  if (!parsed || !parsed.success) {
-    const issue = parsed?.error.issues[0];
+/** Presença "também está editando": válida por este tempo sem heartbeat. */
+const PRESENCA_VALIDADE_MS = 30_000;
+
+/** Registra que o usuário logado está editando `exameId` e devolve os nomes dos outros. */
+async function registrarPresenca(exameId: string): Promise<string[]> {
+  const usuario = (await auth())?.user;
+  const agora = Date.now();
+  if (usuario?.id) {
+    const usuarioNome = usuario.name || usuario.email || "Alguém";
+    await prisma.exameEdicaoPresenca.upsert({
+      where: { exameId_usuarioId: { exameId, usuarioId: usuario.id } },
+      create: { exameId, usuarioId: usuario.id, usuarioNome },
+      update: { vistoEm: new Date(agora), usuarioNome },
+    });
+  }
+  // Limpeza barata (índice em vistoEm) das presenças abandonadas.
+  await prisma.exameEdicaoPresenca.deleteMany({
+    where: { vistoEm: { lt: new Date(agora - 24 * 60 * 60 * 1000) } },
+  });
+  const outros = await prisma.exameEdicaoPresenca.findMany({
+    where: {
+      exameId,
+      vistoEm: { gte: new Date(agora - PRESENCA_VALIDADE_MS) },
+      ...(usuario?.id ? { NOT: { usuarioId: usuario.id } } : {}),
+    },
+    orderBy: { usuarioNome: "asc" },
+    select: { usuarioNome: true },
+  });
+  return outros.map((o) => o.usuarioNome);
+}
+
+export type SincronizacaoExame = {
+  /** Id da versão atual (muda quando o exame em uso ganha versão nova). */
+  id: string;
+  /** `updatedAt` (ISO) da versão atual — trava otimista do próximo salvamento. */
+  carregadoEm: string;
+  draft: ExameDraft;
+  /** Ids antigos → novos, quando o `id` pedido já foi arquivado. */
+  mapaIds: Record<string, string>;
+  /** Outras pessoas com esta edição aberta agora. */
+  editores: string[];
+};
+
+/** Estado atual do exame para a edição em tempo real (e heartbeat de presença). */
+export async function sincronizarExame(id: string): Promise<SincronizacaoExame | null> {
+  const versao = await resolverVersaoAtual(id);
+  if (!versao) return null;
+  const exame = await getExame(versao.id);
+  if (!exame) return null;
+  const editores = await registrarPresenca(exame.id);
+  return {
+    id: exame.id,
+    carregadoEm: exame.updatedAt.toISOString(),
+    draft: exameParaDraft(exame),
+    mapaIds: versao.mapaIds,
+    editores,
+  };
+}
+
+/** Fechou a tela de edição: some da lista "também está editando". */
+export async function sairDaEdicaoExame(id: string) {
+  const usuario = (await auth())?.user;
+  if (!usuario?.id) return;
+  await prisma.exameEdicaoPresenca.deleteMany({
+    where: { exameId: id, usuarioId: usuario.id },
+  });
+}
+
+export type AutosalvarExameResultado =
+  | { ok: true; sincronizacao: SincronizacaoExame }
+  /** Alguém salvou desde `carregadoEm`: o cliente mescla e tenta de novo. */
+  | { ok: false; conflito: true }
+  | { ok: false; conflito?: false; error: string; errorPath?: (string | number)[] };
+
+/**
+ * Salvamento automático da edição em tempo real. O cliente já mesclou o
+ * rascunho com a versão `carregadoEm`; se outra pessoa gravou nesse meio-tempo,
+ * nada é gravado (`conflito`) — o cliente sincroniza, mescla e tenta de novo.
+ * Rascunho inválido (fórmula, tabela, campo obrigatório) não é gravado.
+ */
+export async function autosalvarExame(
+  id: string,
+  dados: ExameDraft,
+  carregadoEm: string,
+): Promise<AutosalvarExameResultado> {
+  const parsed = exameSchema.safeParse(dados);
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
     return {
+      ok: false,
       error: issue?.message ?? "Dados inválidos.",
       errorPath: issue?.path as (string | number)[] | undefined,
     };
   }
 
-  // Trava otimista: o form envia o exame inteiro, então salvar a partir de uma
-  // tela aberta antes do último salvamento (outra pessoa, outra aba, botão
-  // Voltar) apagaria o que foi gravado nesse meio-tempo — ver
-  // src/lib/exame-edicao-concorrente.ts.
-  const carregadoEm = parseCarregadoEm(formData.get("carregadoEm"));
+  const carregado = parseCarregadoEm(carregadoEm);
   const atual = await prisma.exame.findUnique({
     where: { id },
     select: { versaoAtual: true, updatedAt: true },
   });
-  if (exameAlteradoDesde(atual, carregadoEm)) {
-    return { error: MENSAGEM_EDICAO_CONCORRENTE };
+  if (!carregado || exameAlteradoDesde(atual, carregado)) {
+    return { ok: false, conflito: true };
   }
 
   const emUso =
@@ -440,19 +582,22 @@ export async function updateExame(
 
   try {
     if (emUso) {
-      await criarNovaVersaoExame(id, parsed.data, carregadoEm);
+      await criarNovaVersaoExame(id, parsed.data, carregado);
     } else {
-      await updateExameInPlace(id, parsed.data, carregadoEm);
+      await updateExameInPlace(id, parsed.data, carregado);
     }
   } catch (erro) {
-    // Alguém salvou entre a checagem acima e a escrita: o `where` com
-    // `updatedAt` não bate e nada é gravado.
-    if (ehRegistroNaoEncontrado(erro)) return { error: MENSAGEM_EDICAO_CONCORRENTE };
+    // Alguém salvou entre a checagem e a escrita: o `where` com `updatedAt`
+    // não bate e nada é gravado.
+    if (ehRegistroNaoEncontrado(erro)) return { ok: false, conflito: true };
     throw erro;
   }
 
   revalidatePath("/exames");
-  return { success: true };
+  // A partir do id antigo: se virou versão nova, o mapa de ids vem junto.
+  const sincronizacao = await sincronizarExame(id);
+  if (!sincronizacao) return { ok: false, conflito: true };
+  return { ok: true, sincronizacao };
 }
 
 export async function deleteExame(id: string) {

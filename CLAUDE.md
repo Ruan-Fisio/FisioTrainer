@@ -55,6 +55,7 @@ Este `CLAUDE.md` é só um **índice + regras críticas** (mantê-lo em ~100 lin
 - `Agendamento` de Fisio/EF sempre resolve sala via `PlanoSala` (nunca cria sem sala); capacidade por paciente; uma sala nunca atende Fisio e EF ao mesmo tempo. Limite do plano tem dois tetos (total do período + mensal), checados no client e no server.
 - Profissional de Fisio/EF é filtrado por `User.atendeFisioterapia/atendeEducacaoFisica` — validar também no server.
 - `/agenda` é **só visualização**; criar/remarcar/alterar acontece na aba Agendamentos do paciente ou no dashboard.
+- Edição de modelo de exame é **em tempo real** (autosave 10s + merge de três vias, sem botão Salvar): mudou o formato do exame → atualizar `exame-draft.ts` e `exame-merge.ts` (ver `docs/exames.md`).
 - Exames: nunca `split(",")`/`join(",")` em MULTIPLA_ESCOLHA (usar `src/lib/multipla-escolha.ts`); CALCULADO nunca é gravado, sempre recalculado (`src/lib/exame-formula.ts`).
 - Plano: nota fiscal sempre inclusa; mensal nunca parcela (exceto estendido em plano híbrido); trimestral até 3x.
 - Portal público: navegação lista → detalhe; seleção dentro de aba usa `useState`, nunca query param; o paciente **nunca** vê saldo de créditos de remarcação.

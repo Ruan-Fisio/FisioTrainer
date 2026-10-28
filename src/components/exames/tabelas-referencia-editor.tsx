@@ -14,11 +14,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { novoIdLocal } from "@/lib/exame-draft";
 import { normalizarTitulo, VARIAVEIS_PACIENTE, type VariavelExame } from "@/lib/exame-formula";
 import {
   colarNaTabela,
   colunasDaGrade,
   escreverCelula,
+  idTabela,
   lerCelula,
   nomeVariavelTabela,
   validarTabelas,
@@ -47,6 +49,7 @@ function novaLinha(chaves: number, saidas: number): LinhaTabela {
 
 function novaTabela(numero: number): TabelaReferencia {
   return {
+    id: novoIdLocal(),
     nome: `Tabela ${numero}`,
     chaves: ["Idade"],
     saidas: ["Valor"],
@@ -68,24 +71,29 @@ export function TabelasReferenciaEditor({
   /** Propaga `{Tabela.Saída}` renomeada para as fórmulas/condições do exame. */
   onRenomearReferencia: (antigo: string, novo: string) => void;
 }) {
-  // `index: null` = tabela nova (só entra na lista ao salvar o modal).
-  const [editando, setEditando] = useState<{ index: number | null; tabela: TabelaReferencia } | null>(
+  // `id: null` = tabela nova (só entra na lista ao salvar o modal). Pelo id, e
+  // não pelo índice: na edição em tempo real a lista pode mudar com o modal aberto.
+  const [editando, setEditando] = useState<{ id: string | null; tabela: TabelaReferencia } | null>(
     null,
   );
 
   function adicionarTabela() {
     let n = tabelas.length + 1;
     while (tabelas.some((t) => normalizarTitulo(t.nome) === `tabela ${n}`)) n++;
-    setEditando({ index: null, tabela: novaTabela(n) });
+    setEditando({ id: null, tabela: novaTabela(n) });
   }
 
   function salvar(tabela: TabelaReferencia, renomeacoes: [string, string][]) {
     if (!editando) return;
-    if (editando.index === null) {
+    const id = editando.id;
+    if (id === null || !tabelas.some((t) => idTabela(t) === id)) {
+      // Nova — ou apagada por outra pessoa enquanto o modal estava aberto:
+      // entra de novo em vez de perder o que foi preenchido.
       onChange([...tabelas, tabela]);
     } else {
-      const index = editando.index;
-      onChange(tabelas.map((t, i) => (i === index ? tabela : t)));
+      onChange(tabelas.map((t) => (idTabela(t) === id ? tabela : t)));
+    }
+    if (id !== null) {
       for (const [antigo, novo] of renomeacoes) onRenomearReferencia(antigo, novo);
     }
     setEditando(null);
@@ -104,7 +112,7 @@ export function TabelasReferenciaEditor({
         const saidas = tabela.saidas.filter((s) => s.trim());
         return (
           <div
-            key={index}
+            key={idTabela(tabela)}
             id={`tabela-ref-${index}`}
             className="flex flex-col gap-2 rounded-lg border bg-background p-3 transition-shadow"
           >
@@ -124,7 +132,7 @@ export function TabelasReferenciaEditor({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => setEditando({ index, tabela })}
+                  onClick={() => setEditando({ id: idTabela(tabela), tabela })}
                 >
                   <Pencil />
                   Editar
@@ -134,7 +142,7 @@ export function TabelasReferenciaEditor({
                   variant="ghost"
                   size="icon-sm"
                   aria-label={`Remover tabela ${tabela.nome}`}
-                  onClick={() => onChange(tabelas.filter((_, i) => i !== index))}
+                  onClick={() => onChange(tabelas.filter((t) => idTabela(t) !== idTabela(tabela)))}
                 >
                   <Trash2 />
                 </Button>
@@ -164,7 +172,7 @@ export function TabelasReferenciaEditor({
       {editando && (
         <TabelaDialog
           tabelaInicial={editando.tabela}
-          nova={editando.index === null}
+          nova={editando.id === null}
           colunasNumericas={colunasNumericas}
           onSalvar={salvar}
           onFechar={() => setEditando(null)}

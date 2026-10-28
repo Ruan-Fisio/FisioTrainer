@@ -121,6 +121,9 @@ model ExameSecao {
   exameId   String
   exame     Exame         @relation(fields: [exameId], references: [id], onDelete: Cascade)
   campos    ExameCampo[]
+  /// Id do item equivalente na versão anterior do exame (ver criarNovaVersaoExame):
+  /// a edição em tempo real usa para seguir o item quando o exame vira versão nova.
+  origemId  String?
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 }
@@ -134,6 +137,9 @@ model ExameCampo {
   secaoId   String
   secao     ExameSecao           @relation(fields: [secaoId], references: [id], onDelete: Cascade)
   colunas   ExameCampoColuna[]
+  /// Id do item equivalente na versão anterior do exame (ver criarNovaVersaoExame):
+  /// a edição em tempo real usa para seguir o item quando o exame vira versão nova.
+  origemId  String?
   createdAt DateTime             @default(now())
   updatedAt DateTime             @updatedAt
 }
@@ -168,6 +174,9 @@ model ExameCampoColuna {
   campoId      String
   campo        ExameCampo          @relation(fields: [campoId], references: [id], onDelete: Cascade)
   valores      ExameExecucaoValor[]
+  /// Id do item equivalente na versão anterior do exame (ver criarNovaVersaoExame):
+  /// a edição em tempo real usa para seguir o item quando o exame vira versão nova.
+  origemId     String?
   createdAt    DateTime            @default(now())
   updatedAt    DateTime            @updatedAt
 }
@@ -654,6 +663,18 @@ model ConfiguracaoTaxa {
 enum TipoExecucaoExame {
   AVALIACAO
   RETORNO
+}
+
+/// Quem está com a edição de um modelo de exame aberta (heartbeat da sincronização
+/// em tempo real). Fora da auditoria: é escrita a cada poucos segundos.
+model ExameEdicaoPresenca {
+  exameId     String
+  usuarioId   String
+  usuarioNome String
+  vistoEm     DateTime @default(now())
+
+  @@id([exameId, usuarioId])
+  @@index([vistoEm])
 }
 
 model ExameExecucao {

@@ -13,6 +13,10 @@ import {
   ChevronRight,
   Sigma,
   Hash,
+  Loader2,
+  Check,
+  AlertTriangle,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +32,26 @@ import {
 import { cn } from "@/lib/utils";
 import { FormActions } from "@/components/ui/form-actions";
 import type { ExameActionState } from "@/actions/exames";
+import {
+  novoIdLocal,
+  type CampoDraft,
+  type ColunaDraft,
+  type DirecaoIdealDraft,
+  type ExameDraft,
+  type SecaoDraft,
+  type TipoColunaDraft,
+} from "@/lib/exame-draft";
+import {
+  mesclarSecoes,
+  mesclarTabelas,
+  mesclarValor,
+  remapearSecoes,
+} from "@/lib/exame-merge";
+import { formatarHora } from "@/lib/format";
+import {
+  useEdicaoTempoReal,
+  type StatusEdicao,
+} from "@/components/exames/use-edicao-tempo-real";
 import {
   ehSomaPontuacoes,
   extrairReferencias,
@@ -52,43 +76,10 @@ import { CorOpcaoSelect } from "@/components/exames/cor-opcao-select";
 import { COR_OPCAO_CLASSES, ehCorOpcao } from "@/lib/cor-opcao";
 
 const initialState: ExameActionState = {};
+const semAcao = async (estado: ExameActionState) => estado;
 
-type TipoColuna =
-  | "NUMERO"
-  | "TEXTO"
-  | "MULTIPLA_ESCOLHA"
-  | "SIM_NAO"
-  | "GONIOMETRIA"
-  | "CALCULADO";
-type DirecaoIdeal = "MAIOR_MELHOR" | "MENOR_MELHOR" | "PROXIMO_IDEAL";
-type ColunaDraft = {
-  id?: string;
-  titulo: string;
-  tipo: TipoColuna;
-  formatacao: string;
-  opcoes: string[];
-  multiplaSelecao: boolean;
-  opcoesCondicionais: { opcao: string; formula: string }[];
-  /** Cor de destaque por opção, alinhada por índice com `opcoes` ("" = sem cor). */
-  coresOpcoes: string[];
-  /** Cada opção vale um número fixo, referenciável em fórmulas como `{Coluna}`. */
-  usaPontuacao: boolean;
-  /** Pontos por opção (texto, alinhado por índice com `opcoes`; "" = sem). */
-  pontuacoes: string[];
-  /** A coluna aceita anexos (arquivos) na execução do exame. */
-  permiteAnexo: boolean;
-  valorIdeal: string;
-  direcaoIdeal: DirecaoIdeal;
-  formula: string;
-};
-type CampoDraft = {
-  id?: string;
-  nome: string;
-  repetivel: boolean;
-  identificarMembro: boolean;
-  colunas: ColunaDraft[];
-};
-type SecaoDraft = { id?: string; nome: string; campos: CampoDraft[] };
+type TipoColuna = TipoColunaDraft;
+type DirecaoIdeal = DirecaoIdealDraft;
 
 const TIPO_COLUNA_LABELS: Record<TipoColuna, string> = {
   TEXTO: "Texto",
@@ -391,6 +382,7 @@ const DIRECAO_IDEAL_LABELS: Record<DirecaoIdeal, string> = {
 
 function novaColuna(): ColunaDraft {
   return {
+    id: novoIdLocal(),
     titulo: "",
     tipo: "TEXTO",
     formatacao: "",
@@ -410,6 +402,7 @@ function novaColuna(): ColunaDraft {
 
 function novoCampo(): CampoDraft {
   return {
+    id: novoIdLocal(),
     nome: "",
     repetivel: false,
     identificarMembro: false,
@@ -418,23 +411,23 @@ function novoCampo(): CampoDraft {
 }
 
 function novaSecao(): SecaoDraft {
-  return { nome: "", campos: [novoCampo()] };
+  return { id: novoIdLocal(), nome: "", campos: [novoCampo()] };
 }
 
-/** Remove os ids de uma cópia de campo (e suas colunas), para que duplicar não reaproveite o registro original. */
+/** Ids novos para uma cópia de campo (e suas colunas), para que duplicar não reaproveite o registro original. */
 function semIdsCampo(campo: CampoDraft): CampoDraft {
   return {
     ...campo,
-    id: undefined,
-    colunas: campo.colunas.map((coluna) => ({ ...coluna, id: undefined })),
+    id: novoIdLocal(),
+    colunas: campo.colunas.map((coluna) => ({ ...coluna, id: novoIdLocal() })),
   };
 }
 
-/** Remove os ids de uma cópia de seção (e seus campos/colunas), para que duplicar não reaproveite o registro original. */
+/** Ids novos para uma cópia de seção (e seus campos/colunas), para que duplicar não reaproveite o registro original. */
 function semIds(secao: SecaoDraft): SecaoDraft {
   return {
     ...secao,
-    id: undefined,
+    id: novoIdLocal(),
     campos: secao.campos.map(semIdsCampo),
   };
 }
@@ -1175,36 +1168,110 @@ function SecaoCard({
   );
 }
 
+/**
+ * Leva o usuário até o campo problemático de um erro de validação — expande a
+ * seção se estiver retraída (desktop) / troca de passo (mobile) e rola até a
+ * coluna ou opção exata, com um destaque temporário. Sem isso o usuário só via
+ * uma frase solta, sem saber onde no exame (que pode ter várias
+ * seções/campos) o problema estava.
+ */
+function destacarErroNoForm(
+  path: (string | number)[] | undefined,
+  setSecoesRetraidas: React.Dispatch<React.SetStateAction<Set<number>>>,
+  setPassoAtual: React.Dispatch<React.SetStateAction<number>>,
+): (() => void) | undefined {
+  // Erro numa variável: o toast já traz a mensagem com o nome da variável.
+  if (path?.[0] === "variaveis") return;
+  if (path?.[0] === "tabelas" && typeof path[1] === "number") {
+    const tabelaIndex = path[1];
+    const timerTabela = setTimeout(() => {
+      const el = document.getElementById(`tabela-ref-${tabelaIndex}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-destructive", "ring-offset-2");
+      setTimeout(() => el.classList.remove("ring-2", "ring-destructive", "ring-offset-2"), 2500);
+    }, 100);
+    return () => clearTimeout(timerTabela);
+  }
+  if (!path || path[0] !== "secoes" || typeof path[1] !== "number") return;
+  const secaoIndex = path[1];
+  const campoIndex = typeof path[3] === "number" ? path[3] : undefined;
+  const colunaIndex = typeof path[5] === "number" ? path[5] : undefined;
+  const opcaoIndex =
+    (path[6] === "opcoesCondicionais" || path[6] === "pontuacoes") &&
+    typeof path[7] === "number"
+      ? path[7]
+      : undefined;
+
+  // setState roda dentro do timeout (não sincronamente no corpo do efeito)
+  // pra não disparar o lint de cascata de render — e de quebra já serve
+  // pra dar tempo do toast aparecer antes da seção mudar embaixo dele.
+  const timer = setTimeout(() => {
+    setSecoesRetraidas((prev) => {
+      if (!prev.has(secaoIndex)) return prev;
+      const next = new Set(prev);
+      next.delete(secaoIndex);
+      return next;
+    });
+    setPassoAtual(secaoIndex);
+
+    if (campoIndex === undefined || colunaIndex === undefined) return;
+    const elementId =
+      opcaoIndex !== undefined
+        ? `exame-opcao-${secaoIndex}-${campoIndex}-${colunaIndex}-${opcaoIndex}`
+        : `exame-coluna-${secaoIndex}-${campoIndex}-${colunaIndex}`;
+
+    // Espera dois paints (seção expandida / passo trocado já refletidos no
+    // DOM) antes de rolar até o elemento.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = document.getElementById(elementId);
+        if (!el) return;
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.classList.add(
+          "ring-2",
+          "ring-destructive",
+          "ring-offset-2",
+          "ring-offset-background",
+        );
+        setTimeout(() => {
+          el.classList.remove(
+            "ring-2",
+            "ring-destructive",
+            "ring-offset-2",
+            "ring-offset-background",
+          );
+        }, 2500);
+      });
+    });
+  }, 150);
+  return () => clearTimeout(timer);
+}
+
 export function ExameForm({
   action,
   defaultValues,
   mode,
-  carregadoEm,
+  edicao,
 }: {
-  /** `updatedAt` (ISO) do exame quando a edição abriu — trava otimista no server. */
-  carregadoEm?: string;
-  action: (
+  /** Só no cadastro: a edição salva sozinha (ver `edicao`). */
+  action?: (
     prevState: ExameActionState,
     formData: FormData,
   ) => Promise<ExameActionState>;
-  defaultValues?: {
-    nome: string;
-    descricao: string;
-    tipo: "FISIOTERAPIA" | "EDUCACAO_FISICA";
-    sombra: boolean;
-    secoes: SecaoDraft[];
-    variaveis: VariavelExame[];
-    tabelas: TabelaReferencia[];
-  };
+  defaultValues?: ExameDraft;
   mode: "create" | "edit";
+  /** Edição em tempo real: salva automaticamente e mescla o que os outros salvam. */
+  edicao?: { exameId: string; carregadoEm: string; editores: string[] };
 }) {
   const router = useRouter();
-  const [state, formAction] = useActionState(action, initialState);
+  const [state, formAction] = useActionState(action ?? semAcao, initialState);
   const [nomeExame, setNomeExame] = useState(defaultValues?.nome ?? "");
   const [tipoExame, setTipoExame] = useState<
     "FISIOTERAPIA" | "EDUCACAO_FISICA"
   >(defaultValues?.tipo ?? "FISIOTERAPIA");
   const [sombra, setSombra] = useState(defaultValues?.sombra ?? false);
+  const [descricao, setDescricao] = useState(defaultValues?.descricao ?? "");
   const [variaveis, setVariaveis] = useState<VariavelExame[]>(
     defaultValues?.variaveis ?? [],
   );
@@ -1231,6 +1298,65 @@ export function ExameForm({
   const [secaoArrastada, setSecaoArrastada] = useState<number | null>(null);
   const [passoAtual, setPassoAtual] = useState(0);
 
+  const draftAtual: ExameDraft = {
+    nome: nomeExame,
+    descricao,
+    tipo: tipoExame,
+    sombra,
+    variaveis,
+    tabelas,
+    secoes,
+  };
+
+  // Merge three-way do que os outros salvaram no rascunho local (setters
+  // funcionais: roda sobre o estado mais recente) — ver src/lib/exame-merge.ts.
+  function aplicarMerge(base: ExameDraft, deles: ExameDraft, mapaIds: Record<string, string>) {
+    setNomeExame((m) => mesclarValor(base.nome, m, deles.nome));
+    setDescricao((m) => mesclarValor(base.descricao, m, deles.descricao));
+    setTipoExame((m) => mesclarValor(base.tipo, m, deles.tipo));
+    setSombra((m) => mesclarValor(base.sombra, m, deles.sombra));
+    setVariaveis((m) => mesclarValor(base.variaveis, m, deles.variaveis));
+    setTabelas((m) => mesclarTabelas(base.tabelas, m, deles.tabelas));
+    setSecoes((m) => {
+      const mescladas = mesclarSecoes(
+        remapearSecoes(base.secoes, mapaIds),
+        remapearSecoes(m, mapaIds),
+        deles.secoes,
+      );
+      return mescladas.length > 0 ? mescladas : m;
+    });
+    setPassoAtual((p) => Math.min(p, Math.max(0, deles.secoes.length - 1)));
+  }
+
+  const tempoReal = useEdicaoTempoReal({
+    ativo: mode === "edit" && Boolean(edicao),
+    inicial:
+      edicao && defaultValues
+        ? { id: edicao.exameId, carregadoEm: edicao.carregadoEm, draft: defaultValues }
+        : null,
+    editoresIniciais: edicao?.editores ?? [],
+    draftAtual,
+    aplicarMerge,
+  });
+  const [concluindo, setConcluindo] = useState(false);
+
+  async function concluir() {
+    setConcluindo(true);
+    try {
+      const tudoSalvo = await tempoReal.sincronizarAgora();
+      if (tudoSalvo) {
+        toast.success("Exame salvo.");
+        router.push("/exames");
+        return;
+      }
+      toast.error("Há alterações que não puderam ser salvas — veja o aviso no topo do formulário.", {
+        duration: 8000,
+      });
+    } finally {
+      setConcluindo(false);
+    }
+  }
+
   function toggleSecaoRetraida(index: number) {
     setSecoesRetraidas((prev) => {
       const next = new Set(prev);
@@ -1245,14 +1371,10 @@ export function ExameForm({
 
   useEffect(() => {
     if (state.success) {
-      toast.success(
-        mode === "create"
-          ? "Exame criado com sucesso."
-          : "Exame atualizado com sucesso.",
-      );
+      toast.success("Exame criado com sucesso.");
       router.push("/exames");
     }
-  }, [state.success, mode, router]);
+  }, [state.success, router]);
 
   // Notifica o erro de validação de forma destacada (toast, não só o texto
   // discreto no rodapé) e leva o usuário até o campo problemático — expande a
@@ -1263,74 +1385,7 @@ export function ExameForm({
   useEffect(() => {
     if (!state.error) return;
     toast.error(state.error, { duration: 8000 });
-
-    const path = state.errorPath;
-    // Erro numa variável: o toast já traz a mensagem com o nome da variável.
-    if (path?.[0] === "variaveis") return;
-    if (path?.[0] === "tabelas" && typeof path[1] === "number") {
-      const tabelaIndex = path[1];
-      const timerTabela = setTimeout(() => {
-        const el = document.getElementById(`tabela-ref-${tabelaIndex}`);
-        if (!el) return;
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-        el.classList.add("ring-2", "ring-destructive", "ring-offset-2");
-        setTimeout(() => el.classList.remove("ring-2", "ring-destructive", "ring-offset-2"), 2500);
-      }, 100);
-      return () => clearTimeout(timerTabela);
-    }
-    if (!path || path[0] !== "secoes" || typeof path[1] !== "number") return;
-    const secaoIndex = path[1];
-    const campoIndex = typeof path[3] === "number" ? path[3] : undefined;
-    const colunaIndex = typeof path[5] === "number" ? path[5] : undefined;
-    const opcaoIndex =
-      (path[6] === "opcoesCondicionais" || path[6] === "pontuacoes") &&
-      typeof path[7] === "number"
-        ? path[7]
-        : undefined;
-
-    // setState roda dentro do timeout (não sincronamente no corpo do efeito)
-    // pra não disparar o lint de cascata de render — e de quebra já serve
-    // pra dar tempo do toast aparecer antes da seção mudar embaixo dele.
-    const timer = setTimeout(() => {
-      setSecoesRetraidas((prev) => {
-        if (!prev.has(secaoIndex)) return prev;
-        const next = new Set(prev);
-        next.delete(secaoIndex);
-        return next;
-      });
-      setPassoAtual(secaoIndex);
-
-      if (campoIndex === undefined || colunaIndex === undefined) return;
-      const elementId =
-        opcaoIndex !== undefined
-          ? `exame-opcao-${secaoIndex}-${campoIndex}-${colunaIndex}-${opcaoIndex}`
-          : `exame-coluna-${secaoIndex}-${campoIndex}-${colunaIndex}`;
-
-      // Espera dois paints (seção expandida / passo trocado já refletidos no
-      // DOM) antes de rolar até o elemento.
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          const el = document.getElementById(elementId);
-          if (!el) return;
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
-          el.classList.add(
-            "ring-2",
-            "ring-destructive",
-            "ring-offset-2",
-            "ring-offset-background",
-          );
-          setTimeout(() => {
-            el.classList.remove(
-              "ring-2",
-              "ring-destructive",
-              "ring-offset-2",
-              "ring-offset-background",
-            );
-          }, 2500);
-        });
-      });
-    }, 150);
-    return () => clearTimeout(timer);
+    return destacarErroNoForm(state.errorPath, setSecoesRetraidas, setPassoAtual);
   }, [state]);
 
   function updateSecao(index: number, patch: Partial<SecaoDraft>) {
@@ -1562,7 +1617,7 @@ export function ExameForm({
               ...secao,
               campos: secao.campos.map((campo, ci) => {
                 if (ci !== campoIndex) return campo;
-                const copia = { ...structuredClone(campo.colunas[colunaIndex]), id: undefined };
+                const copia = { ...structuredClone(campo.colunas[colunaIndex]), id: novoIdLocal() };
                 return {
                   ...campo,
                   colunas: [
@@ -1836,14 +1891,30 @@ export function ExameForm({
     <VariaveisTabelasContext.Provider value={variaveisTabelas}>
     <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
     <form
-      action={formAction}
+      action={mode === "create" ? formAction : undefined}
+      onSubmit={
+        mode === "edit"
+          ? (e) => {
+              e.preventDefault();
+              void concluir();
+            }
+          : undefined
+      }
       className="flex max-w-3xl flex-1 flex-col gap-6 pb-24"
     >
+      {mode === "edit" && (
+        <StatusEdicaoBarra
+          status={tempoReal.status}
+          editores={tempoReal.editores}
+          onMostrarErro={(path) =>
+            destacarErroNoForm(path, setSecoesRetraidas, setPassoAtual)
+          }
+        />
+      )}
       <input type="hidden" name="secoes" value={JSON.stringify(secoes)} />
       <input type="hidden" name="variaveis" value={JSON.stringify(variaveis)} />
       <input type="hidden" name="tabelas" value={JSON.stringify(tabelas)} />
       <input type="hidden" name="sombra" value={sombra ? "true" : "false"} />
-      {carregadoEm && <input type="hidden" name="carregadoEm" value={carregadoEm} />}
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="nome">Nome do exame</Label>
@@ -1862,7 +1933,8 @@ export function ExameForm({
         <Textarea
           id="descricao"
           name="descricao"
-          defaultValue={defaultValues?.descricao}
+          value={descricao}
+          onChange={(e) => setDescricao(e.target.value)}
           placeholder="Descrição opcional do exame"
         />
       </div>
@@ -2001,7 +2073,10 @@ export function ExameForm({
       )}
 
       <FormActions
-        submitLabel={mode === "create" ? "Criar exame" : "Salvar alterações"}
+        submitLabel={mode === "create" ? "Criar exame" : "Concluir"}
+        cancelLabel={mode === "create" ? "Cancelar" : "Voltar"}
+        submitDisabled={concluindo}
+        submitDisabledLabel="Salvando..."
         onCancel={() => router.push("/exames")}
       />
     </form>
@@ -2126,5 +2201,79 @@ function ExamePreview({ nome, secoes }: { nome: string; secoes: SecaoDraft[] }) 
         ))}
       </CardContent>
     </Card>
+  );
+}
+
+/** Barra da edição em tempo real: estado do salvamento automático e quem mais está editando. */
+function StatusEdicaoBarra({
+  status,
+  editores,
+  onMostrarErro,
+}: {
+  status: StatusEdicao;
+  editores: string[];
+  onMostrarErro: (path?: (string | number)[]) => void;
+}) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      className={cn(
+        "sticky top-2 z-20 flex flex-col gap-2 rounded-xl border bg-card/95 px-3 py-2 text-sm shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between",
+        status.tipo === "invalido" && "border-destructive/50",
+      )}
+    >
+      <div className="flex min-w-0 items-start gap-2">
+        {status.tipo === "salvando" && (
+          <>
+            <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-primary" />
+            <span>Salvando...</span>
+          </>
+        )}
+        {status.tipo === "pendente" && (
+          <>
+            <Loader2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+            <span className="text-muted-foreground">Alterações serão salvas em instantes</span>
+          </>
+        )}
+        {status.tipo === "salvo" && (
+          <>
+            <Check className="mt-0.5 size-4 shrink-0 text-green-600" />
+            <span className="text-muted-foreground">
+              {status.em ? `Tudo salvo às ${formatarHora(status.em)}` : "Salvamento automático ativo"}
+            </span>
+          </>
+        )}
+        {status.tipo === "falha" && (
+          <>
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+            <span className="text-destructive">
+              Sem conexão com o servidor — tentando de novo.
+            </span>
+          </>
+        )}
+        {status.tipo === "invalido" && (
+          <>
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
+            <span className="min-w-0 text-destructive">
+              Não salvo: {status.mensagem}{" "}
+              <button
+                type="button"
+                className="font-medium underline underline-offset-2"
+                onClick={() => onMostrarErro(status.path)}
+              >
+                Mostrar onde
+              </button>
+            </span>
+          </>
+        )}
+      </div>
+      {editores.length > 0 && (
+        <div className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-primary">
+          <Users className="size-4" />
+          {editores.join(", ")} {editores.length === 1 ? "também está" : "também estão"} editando
+        </div>
+      )}
+    </div>
   );
 }

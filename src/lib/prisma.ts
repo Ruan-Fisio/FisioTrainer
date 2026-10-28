@@ -123,6 +123,8 @@ function criarPrisma() {
             !auditoriaAtiva ||
             !model ||
             model === "AuditLog" ||
+            // Heartbeat da edição em tempo real: escrito a cada poucos segundos.
+            model === "ExameEdicaoPresenca" ||
             !WRITE_OPS.has(operation)
           ) {
             return query(args);

@@ -21,6 +21,9 @@ export type LinhaTabela = {
 };
 
 export type TabelaReferencia = {
+  /** Identidade estável da tabela (merge da edição em tempo real). Tabelas
+   * gravadas antes dele ganham um id derivado do nome — ver `idTabela`. */
+  id?: string;
   nome: string;
   /** Variáveis de busca: `Idade`, `Sexo` ou o título de uma coluna numérica/calculada. */
   chaves: string[];
@@ -37,6 +40,12 @@ export function nomeVariavelTabela(tabela: string, saida: string): string {
 
 function textoOuVazio(valor: unknown): string {
   return typeof valor === "string" ? valor : typeof valor === "number" ? String(valor) : "";
+}
+
+/** Id da tabela; sem `id` gravado, deriva do nome (único no exame), igual em
+ * todo cliente que ler o mesmo JSON. */
+export function idTabela(tabela: Pick<TabelaReferencia, "id" | "nome">): string {
+  return tabela.id || `nome:${normalizarTitulo(tabela.nome)}`;
 }
 
 /** `Exame.tabelas` vem do Prisma como `Json` — normaliza, ignorando formato inesperado. */
@@ -61,7 +70,8 @@ export function parseTabelas(valor: unknown): TabelaReferencia[] {
         valores: saidas.map((_, i) => textoOuVazio(valoresBrutos[i])),
       };
     });
-    tabelas.push({ nome: bruto.nome, chaves, saidas, linhas });
+    const id = typeof bruto.id === "string" && bruto.id ? bruto.id : undefined;
+    tabelas.push({ id: idTabela({ id, nome: bruto.nome }), nome: bruto.nome, chaves, saidas, linhas });
   }
   return tabelas;
 }

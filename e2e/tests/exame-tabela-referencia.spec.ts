@@ -45,7 +45,7 @@ test.describe("tabela de referência do exame — cadastro e execução", () => 
     await modal.getByLabel("Fator (linha 2)").fill("2");
     await modal.getByRole("button", { name: "Salvar tabela" }).click();
     await expect(modal).toHaveCount(0);
-    await expect(page.getByText("{Ref.Fator}")).toBeVisible();
+    await expect(page.getByText("{Ref.Fator}", { exact: true })).toBeVisible();
 
     await page.getByRole("button", { name: "Criar exame" }).click();
     await expect(page.getByText("Exame criado com sucesso.")).toBeVisible();

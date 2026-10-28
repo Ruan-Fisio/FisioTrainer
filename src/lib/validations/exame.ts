@@ -4,9 +4,16 @@ import { validarFormulasDoExameDetalhado } from "@/lib/exame-formula";
 import { parsePontosTexto, type OpcaoPontuada } from "@/lib/pontuacao-opcao";
 import { compilarTabelas, validarTabelas } from "@/lib/tabela-referencia";
 
+// Id de seção/campo/coluna: o do banco, ou um gerado no cliente para item novo
+// (a edição em tempo real precisa de identidade estável antes de gravar).
+const idItemSchema = z
+  .string()
+  .regex(/^[A-Za-z0-9_-]{1,64}$/, "Identificador inválido")
+  .optional();
+
 export const exameColunaSchema = z
   .object({
-    id: z.string().trim().optional(),
+    id: idItemSchema,
     titulo: z.string().trim().min(1, "Título da coluna é obrigatório"),
     tipo: z.enum([
       "NUMERO",
@@ -75,7 +82,7 @@ export const exameColunaSchema = z
   });
 
 export const exameCampoSchema = z.object({
-  id: z.string().trim().optional(),
+  id: idItemSchema,
   nome: z.string().trim().optional().default(""),
   repetivel: z.boolean().optional().default(false),
   identificarMembro: z.boolean().optional().default(false),
@@ -85,7 +92,7 @@ export const exameCampoSchema = z.object({
 });
 
 export const exameSecaoSchema = z.object({
-  id: z.string().trim().optional(),
+  id: idItemSchema,
   nome: z.string().trim().min(1, "Nome da seção é obrigatório"),
   campos: z.array(exameCampoSchema).min(1, "Adicione ao menos um campo"),
 });
@@ -112,6 +119,7 @@ export const exameSchema = z
     tabelas: z
       .array(
         z.object({
+          id: z.string().max(80).optional(),
           nome: z.string().trim().optional().default(""),
           chaves: z.array(z.string()).optional().default([]),
           saidas: z.array(z.string()).optional().default([]),

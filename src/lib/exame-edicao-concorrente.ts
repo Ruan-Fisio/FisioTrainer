@@ -1,13 +1,11 @@
 /**
  * Trava otimista da edição de exame. O form guarda o `updatedAt` do exame no
  * momento em que a tela foi aberta. Ao salvar, se o exame mudou desde então
- * (outra pessoa salvou ou virou versão antiga), o salvamento é recusado: o
- * form envia o exame inteiro e sobrescreveria o que o outro gravou (ex. tabelas
- * de referência criadas em paralelo).
+ * (outra pessoa salvou ou virou versão antiga), nada é gravado: o form envia o
+ * exame inteiro e sobrescreveria o que o outro gravou (ex. tabelas de
+ * referência criadas em paralelo). A edição em tempo real então sincroniza,
+ * mescla (exame-merge.ts) e tenta de novo.
  */
-
-export const MENSAGEM_EDICAO_CONCORRENTE =
-  "Outra pessoa salvou este exame depois que você abriu esta tela. Para não apagar as alterações dela, seu salvamento foi recusado: recarregue a página e refaça suas alterações.";
 
 /** Lê o `updatedAt` (ISO) enviado pelo form; ausente/inválido = `null`. */
 export function parseCarregadoEm(valor: FormDataEntryValue | null): Date | null {
