@@ -593,7 +593,10 @@ export async function autosalvarExame(
     throw erro;
   }
 
-  revalidatePath("/exames");
+  // Sem revalidatePath aqui de propósito: numa server action ele faz o Next
+  // re-renderizar a página atual — a edição pulava para o topo (e, com versão
+  // nova, redirecionava pela URL nova, trocando o form pelo skeleton). A
+  // listagem /exames é dinâmica e busca dados novos ao navegar.
   // A partir do id antigo: se virou versão nova, o mapa de ids vem junto.
   const sincronizacao = await sincronizarExame(id);
   if (!sincronizacao) return { ok: false, conflito: true };

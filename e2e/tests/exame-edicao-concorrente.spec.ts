@@ -1,5 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { nomeUnico } from "../fixtures/nomes";
+import { criarPaciente } from "../fixtures/pacientes";
 
 // Sincronização a cada 10s: dá folga para um ciclo de cada lado.
 const SINCRONIZA = { timeout: 35_000 };
@@ -49,7 +50,7 @@ test.describe("edição em tempo real do modelo de exame", () => {
     // Cada aba recebe a tabela da outra sem recarregar.
     await expect(page.getByText("Tabela B", { exact: true })).toBeVisible(SINCRONIZA);
     await expect(outra.getByText("Tabela A", { exact: true })).toBeVisible(SINCRONIZA);
-    await expect(page.getByText(/Tudo salvo às/)).toBeVisible(SINCRONIZA);
+    await expect(page.getByText(/Salvo às/)).toBeVisible(SINCRONIZA);
 
     // E as duas estão gravadas.
     await page.reload();
@@ -74,5 +75,40 @@ test.describe("edição em tempo real do modelo de exame", () => {
 
     await page.goto(urlEdicao);
     await expect(page.getByLabel("Descrição")).toHaveValue("Salva pelo Concluir");
+  });
+
+  test("exame em uso: salvar cria a versão nova sem recarregar a tela nem pular para o topo", async ({
+    page,
+  }) => {
+    const nome = nomeUnico("Exame Em Uso");
+    const urlEdicao = await criarExame(page, nome);
+
+    // Uma avaliação deixa o exame "em uso": o próximo salvamento vira versão nova.
+    const paciente = await criarPaciente(page);
+    await page.goto(`/pacientes/${paciente.id}/exames/novo`);
+    await page.getByRole("button", { name: "Fisioterapia" }).click();
+    await page.getByLabel(/Exame \(Fisioterapia\)/).selectOption({ label: nome });
+    await page.getByRole("button", { name: "Salvar" }).click();
+    await expect(page.getByText("Avaliação registrada com sucesso.")).toBeVisible();
+
+    await page.goto(urlEdicao);
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    const descricao = page.getByLabel("Descrição");
+    await page.getByRole("button", { name: "Adicionar tabela" }).scrollIntoViewIfNeeded();
+    await adicionarTabela(page, "Tabela Versao");
+    const rolagem = await page.evaluate(() => window.scrollY);
+    expect(rolagem).toBeGreaterThan(0);
+
+    await expect(page.getByText(/Salvo às/)).toBeVisible(SINCRONIZA);
+    // A URL aponta para a versão nova, sem navegação: o form continua o mesmo.
+    await expect(page).not.toHaveURL(urlEdicao);
+    await expect(page).toHaveURL(/\/exames\/.+\/editar$/);
+    expect(Math.abs((await page.evaluate(() => window.scrollY)) - rolagem)).toBeLessThan(50);
+    await expect(page.getByText("Tabela Versao", { exact: true })).toBeVisible();
+
+    // Continua editando a versão nova normalmente.
+    await descricao.fill("Depois da versão nova");
+    await page.getByRole("button", { name: "Concluir" }).filter({ visible: true }).first().click();
+    await expect(page.getByText("Exame salvo.")).toBeVisible(SINCRONIZA);
   });
 });

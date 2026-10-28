@@ -76,6 +76,11 @@ export function useEdicaoTempoReal({
       // Depois de salvar, a base do merge é o que foi enviado (o rascunho pode
       // ter mudado durante a requisição); numa busca, a última base.
       aplicarRef.current(enviado ?? base.draft, s.draft, s.mapaIds);
+      if (s.id !== base.id) {
+        // Virou versão nova: atualiza a URL sem navegar (navegar remontaria o
+        // form e jogaria a tela para o topo); recarregar já abre a versão atual.
+        window.history.replaceState(null, "", `/exames/${s.id}/editar`);
+      }
       baseRef.current = { id: s.id, carregadoEm: s.carregadoEm, draft: s.draft };
       setBaseDraft(s.draft);
     }

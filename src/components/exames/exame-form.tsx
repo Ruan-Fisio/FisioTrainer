@@ -1903,7 +1903,7 @@ export function ExameForm({
       className="flex max-w-3xl flex-1 flex-col gap-6 pb-24"
     >
       {mode === "edit" && (
-        <StatusEdicaoBarra
+        <StatusEdicaoFlutuante
           status={tempoReal.status}
           editores={tempoReal.editores}
           onMostrarErro={(path) =>
@@ -2204,8 +2204,13 @@ function ExamePreview({ nome, secoes }: { nome: string; secoes: SecaoDraft[] }) 
   );
 }
 
-/** Barra da edição em tempo real: estado do salvamento automático e quem mais está editando. */
-function StatusEdicaoBarra({
+/**
+ * Indicador flutuante da edição em tempo real (fixo na tela, não no topo do
+ * form — quem edita lá embaixo vê o feedback sem rolar): salvando / salvo /
+ * não salvo, e quem mais está editando. Mobile: canto inferior esquerdo (o
+ * botão de salvar flutua à direita); desktop: acima da barra do rodapé.
+ */
+function StatusEdicaoFlutuante({
   status,
   editores,
   onMostrarErro,
@@ -2214,13 +2219,14 @@ function StatusEdicaoBarra({
   editores: string[];
   onMostrarErro: (path?: (string | number)[]) => void;
 }) {
+  const invalido = status.tipo === "invalido" || status.tipo === "falha";
   return (
     <div
       role="status"
       aria-live="polite"
       className={cn(
-        "sticky top-2 z-20 flex flex-col gap-2 rounded-xl border bg-card/95 px-3 py-2 text-sm shadow-sm backdrop-blur sm:flex-row sm:items-center sm:justify-between",
-        status.tipo === "invalido" && "border-destructive/50",
+        "fixed bottom-5 left-5 z-40 flex max-w-[calc(100vw-7rem)] flex-col gap-1 rounded-2xl border bg-card/95 px-3 py-2 text-sm shadow-lg ring-1 ring-foreground/5 backdrop-blur md:right-8 md:bottom-24 md:left-auto md:max-w-sm",
+        invalido && "border-destructive/50",
       )}
     >
       <div className="flex min-w-0 items-start gap-2">
@@ -2233,23 +2239,21 @@ function StatusEdicaoBarra({
         {status.tipo === "pendente" && (
           <>
             <Loader2 className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-            <span className="text-muted-foreground">Alterações serão salvas em instantes</span>
+            <span className="text-muted-foreground">Alterações não salvas ainda</span>
           </>
         )}
         {status.tipo === "salvo" && (
           <>
             <Check className="mt-0.5 size-4 shrink-0 text-green-600" />
             <span className="text-muted-foreground">
-              {status.em ? `Tudo salvo às ${formatarHora(status.em)}` : "Salvamento automático ativo"}
+              {status.em ? `Salvo às ${formatarHora(status.em)}` : "Salvamento automático"}
             </span>
           </>
         )}
         {status.tipo === "falha" && (
           <>
             <AlertTriangle className="mt-0.5 size-4 shrink-0 text-destructive" />
-            <span className="text-destructive">
-              Sem conexão com o servidor — tentando de novo.
-            </span>
+            <span className="text-destructive">Sem conexão — tentando de novo</span>
           </>
         )}
         {status.tipo === "invalido" && (
@@ -2269,9 +2273,11 @@ function StatusEdicaoBarra({
         )}
       </div>
       {editores.length > 0 && (
-        <div className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-primary">
-          <Users className="size-4" />
-          {editores.join(", ")} {editores.length === 1 ? "também está" : "também estão"} editando
+        <div className="flex items-center gap-1.5 text-xs font-medium text-primary">
+          <Users className="size-3.5 shrink-0" />
+          <span className="truncate">
+            {editores.join(", ")} {editores.length === 1 ? "também está" : "também estão"} editando
+          </span>
         </div>
       )}
     </div>
