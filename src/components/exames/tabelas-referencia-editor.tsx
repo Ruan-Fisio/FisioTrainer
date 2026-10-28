@@ -209,6 +209,15 @@ function TabelaDialog({
     nova ? tabelaInicial.saidas.map(() => null) : [...tabelaInicial.saidas],
   );
   const [tentouSalvar, setTentouSalvar] = useState(false);
+  const [confirmandoDescarte, setConfirmandoDescarte] = useState(false);
+  const alterada = JSON.stringify(tabela) !== JSON.stringify(tabelaInicial);
+
+  // Fechar (X, Esc, clique fora, Cancelar) com alterações pede confirmação —
+  // o rascunho só vai para o exame em "Salvar tabela" e sumia sem aviso.
+  function pedirFechar() {
+    if (alterada) setConfirmandoDescarte(true);
+    else onFechar();
+  }
 
   const colunas = colunasDaGrade(tabela);
   const erro = validarTabelas([tabela]);
@@ -281,7 +290,7 @@ function TabelaDialog({
   }
 
   return (
-    <Dialog open onOpenChange={(aberto) => !aberto && onFechar()}>
+    <Dialog open onOpenChange={(aberto) => !aberto && pedirFechar()}>
       <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-5xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -444,7 +453,7 @@ function TabelaDialog({
         {tentouSalvar && erro && <p className="text-sm text-destructive">{erro.mensagem}</p>}
 
         <DialogFooter className="sm:justify-between">
-          <Button type="button" variant="outline" onClick={onFechar}>
+          <Button type="button" variant="outline" onClick={pedirFechar}>
             Cancelar
           </Button>
           <Button type="button" onClick={salvar}>
@@ -452,6 +461,26 @@ function TabelaDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      <Dialog open={confirmandoDescarte} onOpenChange={setConfirmandoDescarte}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Descartar alterações da tabela?</DialogTitle>
+            <DialogDescription>
+              A tabela só entra no exame ao clicar em &quot;Salvar tabela&quot;. Se
+              fechar agora, o que foi preenchido será perdido.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-between">
+            <Button type="button" variant="outline" onClick={() => setConfirmandoDescarte(false)}>
+              Continuar editando
+            </Button>
+            <Button type="button" variant="destructive" onClick={onFechar}>
+              Descartar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

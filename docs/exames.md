@@ -54,6 +54,11 @@ Uma coluna `MULTIPLA_ESCOLHA` pode "funcionar como pontuação" (checkbox no cad
 - **Execução** (`exame-execucao-form.tsx`): "(N pts)" ao lado de cada opção. **A pontuação final/subtotal não é exibida** (decisão do usuário: ela existe para alimentar fórmulas; quem quiser ver o total cria um `CALCULADO` com `{Soma pontuações}`). **Detalhe** (`execucao-detalhe.tsx`, clínica e portal): usa o valor **gravado** da coluna (não reavalia as condições) para alimentar fórmulas.
 - Fora de escopo: Comparação Rápida e relatório comparativo não mostram a pontuação.
 
+## Versões do exame
+
+- Editar exame **com** avaliações cria uma nova versão (`criarNovaVersaoExame`) e arquiva a anterior (`versaoAtual: false`); sem avaliações, edita no lugar.
+- **`updateExame` recusa editar versão não-atual** (form aberto antes da última edição — outra aba, botão Voltar): sem isso, salvar dados velhos criava mais uma versão "atual", apagando o que foi salvo depois (ex. tabelas novas) e deixando duas versões atuais na listagem.
+
 ## Tabelas de referência (valores por faixa de busca)
 
 Tabela nomeada **genérica** do exame (`Exame.tabelas`, `Json`; migration aditiva `20261023120000_exame_tabelas_referencia`) para qualquer valor que dependa de faixas — ex. limites de uma escala por sexo e idade. Serve a condições de opções automáticas, `CALCULADO`, variáveis do exame etc.; não é específica de classificação.
@@ -64,6 +69,8 @@ Tabela nomeada **genérica** do exame (`Exame.tabelas`, `Json`; migration aditiv
 - **Validação**: `validarTabelas` (nome sem `{}`/`.`, único; ≥1 chave/saída/linha; saídas únicas; todo valor numérico; faixa numérica com mín ≤ máx) no `superRefine` de `exameSchema`, antes das fórmulas; erros das variáveis geradas (chave inexistente, ciclo) apontam `path: ["tabelas", i]`. O form navega até `#tabela-ref-{i}` (mesmo padrão do erro de coluna).
 - **Ciclo**: chave pode ser `CALCULADO` (resolvido sob demanda como qualquer dependência); `CALCULADO` que usa `{Tabela.Saída}` cuja chave depende dele é ciclo e é barrado.
 - **Cadastro** (`tabelas-referencia-editor.tsx`, card "Tabelas de referência" em `exame-form.tsx`): lista resumida (nome, chaves, nº de linhas, variáveis geradas) e **modal** de edição com rascunho local (só aplica em "Salvar tabela"; valida com `validarTabelas` antes). As linhas são uma **grade de planilha** (decisão do usuário: familiaridade): cabeçalho = cada chave em "de/até" (`Sexo` vira uma coluna só, select Qualquer/Masculino/Feminino) + resultados; sem coluna "Linha". Colar bloco copiado de planilha numa célula preenche a grade a partir dela (`colarNaTabela`, aceita M/F/Masculino/Feminino). Renomear tabela/resultado propaga para fórmulas/condições ao salvar o modal; renomear a coluna usada como chave propaga para a tabela (`renomearChaveTabelas`). `VariaveisTabelasContext` alimenta autocomplete e checagem de referência do `FormulaEditor`/`FormulaDialog` sem passar props pela árvore.
+- **Fechar o modal com alterações pede confirmação** (X, Esc, clique fora ou Cancelar → "Descartar alterações da tabela?"): o rascunho só entra no exame em "Salvar tabela", e o cliente perdia tabelas preenchidas fechando o modal achando que tinha salvo.
+- **Retorno usa a versão do exame da avaliação** (`avaliacao.exameId`): tabela criada depois que o exame ganhou nova versão **não aparece** em retornos de avaliações antigas — só em avaliações novas. Comportamento conhecido, ainda não decidido se deve mudar.
 - Testes: `tabela-referencia.test.ts`, `validations/exame.test.ts` (bloco de tabelas) e E2E `e2e/tests/exame-tabela-referencia.spec.ts`.
 
 ## Cor de destaque por opção de MULTIPLA_ESCOLHA

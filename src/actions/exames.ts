@@ -401,6 +401,20 @@ export async function updateExame(
     };
   }
 
+  // Um form aberto antes da última edição (outra aba, botão Voltar) aponta
+  // para uma versão já arquivada: salvar criaria outra versão "atual" a partir
+  // de dados velhos, apagando o que foi salvo depois (ex. tabelas novas).
+  const atual = await prisma.exame.findUnique({
+    where: { id },
+    select: { versaoAtual: true },
+  });
+  if (!atual?.versaoAtual) {
+    return {
+      error:
+        "Este exame foi alterado depois que esta tela foi aberta. Volte para a lista de exames e abra a edição novamente.",
+    };
+  }
+
   const emUso =
     (await prisma.exameExecucao.count({ where: { exameId: id } })) > 0;
 

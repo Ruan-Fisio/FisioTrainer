@@ -89,4 +89,24 @@ test.describe("tabela de referência do exame — cadastro e execução", () => 
     await modal.getByRole("button", { name: "Cancelar" }).click();
     await expect(page.getByRole("button", { name: "Editar" })).toHaveCount(0);
   });
+
+  test("fechar o modal com alterações pede confirmação antes de descartar", async ({ page }) => {
+    await page.goto("/exames/novo");
+    await page.getByRole("button", { name: "Adicionar tabela" }).click();
+    const modal = page.getByRole("dialog", { name: "Nova tabela de referência" });
+    await modal.getByLabel("Nome da tabela").fill("Flex");
+
+    // Esc não descarta direto: pergunta, e "Continuar editando" mantém o rascunho.
+    await page.keyboard.press("Escape");
+    const confirmacao = page.getByRole("dialog", { name: "Descartar alterações da tabela?" });
+    await expect(confirmacao).toBeVisible();
+    await confirmacao.getByRole("button", { name: "Continuar editando" }).click();
+    await expect(confirmacao).toHaveCount(0);
+    await expect(modal.getByLabel("Nome da tabela")).toHaveValue("Flex");
+
+    await modal.getByRole("button", { name: "Cancelar" }).click();
+    await confirmacao.getByRole("button", { name: "Descartar" }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Editar" })).toHaveCount(0);
+  });
 });
