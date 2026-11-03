@@ -59,6 +59,7 @@ import {
   VARIAVEIS_PACIENTE,
   type VariavelExame,
 } from "@/lib/exame-formula";
+import { SUGESTAO_ABS } from "@/lib/formula-autocomplete";
 import { AlvosAgregacaoContext, FormulaDialog } from "@/components/exames/formula-dialog";
 import {
   TabelasReferenciaEditor,
@@ -115,7 +116,7 @@ function FormulaEditor({
   const variaveisTabelas = useVariaveisTabelas();
   const alvosAgregacao = useContext(AlvosAgregacaoContext);
 
-  function inserirNoCursor(texto: string) {
+  function inserirNoCursor(texto: string, cursorNoTexto = texto.length) {
     const input = inputRef.current;
     if (!input) {
       onChange(value + texto);
@@ -127,7 +128,7 @@ function FormulaEditor({
     onChange(novoValor);
     requestAnimationFrame(() => {
       input.focus();
-      const posicao = inicio + texto.length;
+      const posicao = inicio + cursorNoTexto;
       input.setSelectionRange(posicao, posicao);
     });
   }
@@ -280,6 +281,16 @@ function FormulaEditor({
                 SE
               </Button>
             )}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs font-mono"
+              title={SUGESTAO_ABS.detalhe}
+              onClick={() => inserirNoCursor(SUGESTAO_ABS.insercao, SUGESTAO_ABS.cursorNaInsercao)}
+            >
+              ABS
+            </Button>
           </>
       </div>
       <Button

@@ -381,7 +381,7 @@ function escapeRegExp(texto: string): string {
   return texto.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-/** Parser recursivo simples de +,-,*,/,^,() sobre números literais — nunca `eval`. */
+/** Parser recursivo simples de +,-,*,/,^,(),ABS() sobre números literais — nunca `eval`. */
 function avaliarExpressaoAritmetica(expressao: string): number {
   let pos = 0;
 
@@ -443,17 +443,24 @@ function avaliarExpressaoAritmetica(expressao: string): number {
     return condicao.valor ? seVerdadeiro : seFalso;
   }
 
+  function parseEntreParenteses(): number {
+    pos++; // "("
+    const valor = parseExpressao();
+    skipSpaces();
+    if (expressao[pos] !== ")") throw new Error("Parêntese não fechado");
+    pos++;
+    return valor;
+  }
+
   function parsePrimario(): number {
     skipSpaces();
     if (/^se\s*\(/i.test(expressao.slice(pos))) return parseSe();
-    if (expressao[pos] === "(") {
-      pos++;
-      const valor = parseExpressao();
-      skipSpaces();
-      if (expressao[pos] !== ")") throw new Error("Parêntese não fechado");
-      pos++;
-      return valor;
+    const abs = /^abs\s*\(/i.exec(expressao.slice(pos));
+    if (abs) {
+      pos += abs[0].length - 1; // fica no "("
+      return Math.abs(parseEntreParenteses());
     }
+    if (expressao[pos] === "(") return parseEntreParenteses();
     return parseNumero();
   }
 

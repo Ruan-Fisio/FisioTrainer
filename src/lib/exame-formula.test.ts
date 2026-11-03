@@ -835,6 +835,50 @@ describe("SE(condição; verdadeiro; falso)", () => {
   });
 });
 
+describe("ABS(valor)", () => {
+  const v = (o: Record<string, number>) => new Map(Object.entries(o));
+  const f = "ABS({a} - {b})";
+
+  it("devolve o valor sem sinal, nos dois sentidos", () => {
+    expect(avaliarFormula(f, v({ a: 3, b: 10 }))).toEqual({ valor: 7 });
+    expect(avaliarFormula(f, v({ a: 10, b: 3 }))).toEqual({ valor: 7 });
+    expect(avaliarFormula("ABS(0)", v({}))).toEqual({ valor: 0 });
+  });
+
+  it("aceita qualquer caixa e espaço antes do parêntese", () => {
+    expect(avaliarFormula("abs ({a} - 5)", v({ a: 2.5 }))).toEqual({ valor: 2.5 });
+  });
+
+  it("compõe com expressão, potência, SE e outro ABS", () => {
+    expect(avaliarFormula("2 * ABS({a} - 5) + 1", v({ a: 2 }))).toEqual({ valor: 7 });
+    expect(avaliarFormula("-ABS({a} - 5)", v({ a: 2 }))).toEqual({ valor: -3 });
+    expect(avaliarFormula("ABS({a} - 5)^2", v({ a: 2 }))).toEqual({ valor: 9 });
+    expect(avaliarFormula("ABS(SE({a} > 0; {a} - 5; 1))", v({ a: 2 }))).toEqual({ valor: 3 });
+    expect(avaliarFormula("ABS(ABS({a} - 5) - 5)", v({ a: 2 }))).toEqual({ valor: 2 });
+  });
+
+  it("funciona em condição de opção automática, com comparador e intervalo", () => {
+    expect(avaliarCondicaoOpcao("ABS({a} - {b}) > 5", v({ a: 1, b: 10 }))).toEqual({ valor: true });
+    expect(avaliarCondicaoOpcao("ABS({a} - 5) entre 2 e 4", v({ a: 2 }))).toEqual({ valor: true });
+  });
+
+  it("avisa quando falta valor, em vez de calcular", () => {
+    expect(avaliarFormula(f, v({ a: 3 }))).toHaveProperty("erro");
+  });
+
+  it("valida a sintaxe no cadastro", () => {
+    const col = (formula: string) => [
+      { titulo: "A", tipo: "NUMERO", repetivel: false },
+      { titulo: "B", tipo: "NUMERO", repetivel: false },
+      { titulo: "X", tipo: "CALCULADO", formula, repetivel: false },
+    ];
+    expect(validarFormulasDoExame(col("ABS({A} - {B})"))).toBeNull();
+    expect(validarFormulasDoExame(col("ABS({A} - {B}"))).toMatch(/sintaxe/);
+    expect(validarFormulasDoExame(col("{A} + ABS()"))).toMatch(/sintaxe/);
+    expect(validarFormulasDoExame(col("ABS{A}"))).toMatch(/sintaxe/);
+  });
+});
+
 describe("variáveis do exame", () => {
   const colunas = [
     { id: "a", titulo: "Tríceps", tipo: "NUMERO", repetivel: false },

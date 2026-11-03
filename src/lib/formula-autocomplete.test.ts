@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   aplicarSugestao,
   filtrarSugestoes,
+  SUGESTAO_ABS,
   SUGESTAO_SE,
   tokenNoCursor,
   type Sugestao,
@@ -60,6 +61,18 @@ describe("aplicarSugestao", () => {
       texto: "SE(; ; )",
       cursor: 3,
     });
+  });
+});
+
+describe("autocomplete de ABS", () => {
+  it("deixa o cursor dentro dos parênteses", () => {
+    const { texto, cursor } = aplicarSugestao(
+      "ab",
+      { inicio: 0, fim: 2, prefixo: "ab" },
+      SUGESTAO_ABS,
+    );
+    expect(texto).toBe("ABS()");
+    expect(cursor).toBe(4);
   });
 });
 

@@ -107,3 +107,12 @@ export const SUGESTAO_SE: Sugestao = {
   cursorNaInsercao: 3,
   detalhe: "SE(condição; se verdadeiro; se falso)",
 };
+
+/** Cursor dentro dos parênteses, onde entra o cálculo. */
+export const SUGESTAO_ABS: Sugestao = {
+  tipo: "funcao",
+  rotulo: "ABS",
+  insercao: "ABS()",
+  cursorNaInsercao: 4,
+  detalhe: "ABS(cálculo): valor absoluto, sem sinal. Ex: ABS({Lado A} - {Lado B})",
+};

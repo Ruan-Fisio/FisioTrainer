@@ -32,6 +32,7 @@ import {
   aplicarSugestao,
   dentroDeAgregacao,
   filtrarSugestoes,
+  SUGESTAO_ABS,
   SUGESTAO_SE,
   SUGESTOES_AGREGACAO,
   tokenNoCursor,
@@ -157,6 +158,7 @@ export function FormulaDialog({
         detalhe: "soma dos pontos de todas as colunas de pontuação",
       },
       SUGESTAO_SE,
+      SUGESTAO_ABS,
       ...SUGESTOES_AGREGACAO,
     ],
     [colunasDisponiveis, variaveis, variaveisTabelas],
@@ -497,6 +499,16 @@ export function FormulaDialog({
                 onClick={() => inserir(SUGESTAO_SE.insercao, SUGESTAO_SE.cursorNaInsercao)}
               >
                 SE
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 font-mono text-xs"
+                title={SUGESTAO_ABS.detalhe}
+                onClick={() => inserir(SUGESTAO_ABS.insercao, SUGESTAO_ABS.cursorNaInsercao)}
+              >
+                ABS
               </Button>
             </div>
 
