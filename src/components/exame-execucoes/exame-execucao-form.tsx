@@ -85,6 +85,7 @@ import {
 } from "@/lib/multipla-escolha";
 import {
   calcularColunas,
+  calcularLinhasRepetiveis,
   type DadosPacienteFormula,
   formatarNumeroFormula,
   parseOpcoesCondicionais,
@@ -362,7 +363,7 @@ function SecaoFields({
                             {coluna.tipo === "MULTIPLA_ESCOLHA" ? (
                               (() => {
                                 const automatico = opcoesAutomaticas.get(
-                                  coluna.id,
+                                  campo.repetivel ? chave : coluna.id,
                                 );
                                 const cores = mapaCoresOpcoes(
                                   coluna.coresOpcoes,
@@ -526,7 +527,7 @@ function SecaoFields({
                             ) : coluna.tipo === "CALCULADO" ? (
                               (() => {
                                 const resultado = resultadosCalculados.get(
-                                  coluna.id,
+                                  campo.repetivel ? chave : coluna.id,
                                 );
                                 return (
                                   <div className="flex min-h-8 items-center gap-1.5 rounded-lg border border-violet-500/40 bg-violet-500/10 px-2.5 py-1">
@@ -682,6 +683,7 @@ export function ExameExecucaoForm({
                 tipo: coluna.tipo,
                 formula: coluna.formula,
                 repetivel: campo.repetivel,
+                campoId: campo.id,
                 opcoes: coluna.opcoes,
                 multiplaSelecao: coluna.multiplaSelecao,
                 opcoesCondicionais: parseOpcoesCondicionais(
@@ -695,16 +697,34 @@ export function ExameExecucaoForm({
     [exame],
   );
 
-  const { calculados: resultadosCalculados, opcoesAutomaticas } = useMemo(
-    () =>
-      calcularColunas(
-        colunasEmOrdem,
-        (colunaId) => valores[chaveValor(colunaId, LINHA_UNICA)],
-        paciente,
-        variaveisComTabelas(parseVariaveis(exame?.variaveis), exame?.tabelas),
-      ),
-    [colunasEmOrdem, valores, paciente, exame],
-  );
+  // Colunas do exame ficam indexadas pelo id; as de campo repetível, por entrada
+  // (`chaveValor`), porque cada entrada tem o próprio resultado.
+  const { resultadosCalculados, opcoesAutomaticas } = useMemo(() => {
+    const variaveis = variaveisComTabelas(
+      parseVariaveis(exame?.variaveis),
+      exame?.tabelas,
+    );
+    const doExame = calcularColunas(
+      colunasEmOrdem,
+      (colunaId) => valores[chaveValor(colunaId, LINHA_UNICA)],
+      paciente,
+      variaveis,
+    );
+    const porLinha = calcularLinhasRepetiveis(
+      colunasEmOrdem,
+      (campoId) => linhasPorCampo[campoId] ?? [LINHA_UNICA],
+      (colunaId, linhaId) => valores[chaveValor(colunaId, linhaId)],
+      doExame.valoresDoExame,
+      variaveis,
+    );
+    return {
+      resultadosCalculados: new Map([...doExame.calculados, ...porLinha.calculados]),
+      opcoesAutomaticas: new Map([
+        ...doExame.opcoesAutomaticas,
+        ...porLinha.opcoesAutomaticas,
+      ]),
+    };
+  }, [colunasEmOrdem, valores, linhasPorCampo, paciente, exame]);
 
   // Colunas MULTIPLA_ESCOLHA com preenchimento automático são travadas (como
   // CALCULADO), mas — diferente de CALCULADO — o valor É persistido, então
@@ -713,15 +733,22 @@ export function ExameExecucaoForm({
     const patches: [string, string][] = [];
     for (const coluna of colunasEmOrdem) {
       if (coluna.opcoesCondicionais.length === 0) continue;
-      const resultado = opcoesAutomaticas.get(coluna.id);
-      const novoValor = resultado
-        ? coluna.multiplaSelecao
-          ? serializeSelecionadas(resultado.selecionadas)
-          : (resultado.selecionadas[0] ?? "")
-        : "";
-      const chave = chaveValor(coluna.id, LINHA_UNICA);
-      if ((valores[chave] ?? "") !== novoValor) {
-        patches.push([chave, novoValor]);
+      const linhas = coluna.repetivel
+        ? (linhasPorCampo[coluna.campoId] ?? [LINHA_UNICA])
+        : [LINHA_UNICA];
+      for (const linhaId of linhas) {
+        const chave = chaveValor(coluna.id, linhaId);
+        const resultado = opcoesAutomaticas.get(
+          coluna.repetivel ? chave : coluna.id,
+        );
+        const novoValor = resultado
+          ? coluna.multiplaSelecao
+            ? serializeSelecionadas(resultado.selecionadas)
+            : (resultado.selecionadas[0] ?? "")
+          : "";
+        if ((valores[chave] ?? "") !== novoValor) {
+          patches.push([chave, novoValor]);
+        }
       }
     }
     if (patches.length > 0) {

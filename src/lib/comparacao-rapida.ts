@@ -1,5 +1,7 @@
 import {
-  calcularColunasFormula,
+  calcularColunas,
+  calcularLinhasRepetiveis,
+  chaveLinha,
   formatarNumeroFormula,
   type DadosPacienteFormula,
   type VariavelExame,
@@ -102,8 +104,8 @@ export type ExameParaCalculo = {
  * Colunas CALCULADO nunca são gravadas (ver `exame-formula.ts`), então a
  * comparação — que só enxerga `ExameExecucaoValor` — as mostraria vazias.
  * Recalcula cada coluna calculada, execução por execução (mesma regra do
- * detalhe da execução), e devolve os valores com ela acrescentada na linha 0,
- * já formatada. Cálculo com erro (dado de origem faltando) fica sem valor.
+ * detalhe da execução), e devolve os valores com ela acrescentada na linha
+ * dela (0, ou cada entrada em campo repetível), já formatada. Cálculo com erro (dado de origem faltando) fica sem valor.
  */
 export function acrescentarValoresCalculados<
   E extends { valores: ComparacaoRapidaValor[] },
@@ -113,14 +115,15 @@ export function acrescentarValoresCalculados<
   paciente?: DadosPacienteFormula | null,
   variaveis?: VariavelExame[],
 ): E[] {
-  const colunas = exame.secoes.flatMap((secao) =>
-    secao.campos.flatMap((campo) =>
+  const colunas = exame.secoes.flatMap((secao, secaoIndex) =>
+    secao.campos.flatMap((campo, campoIndex) =>
       campo.colunas.map((coluna) => ({
         id: coluna.id,
         titulo: coluna.titulo,
         tipo: coluna.tipo,
         formula: coluna.formula,
         repetivel: campo.repetivel,
+        campoId: `${secaoIndex}-${campoIndex}`,
         opcoes: coluna.opcoes,
         multiplaSelecao: coluna.multiplaSelecao,
         pontuacoes: parsePontuacoes(coluna.pontuacoes),
@@ -128,6 +131,9 @@ export function acrescentarValoresCalculados<
     ),
   );
   if (!colunas.some((c) => c.tipo === "CALCULADO")) return execucoes;
+  const campoPorColuna = new Map(
+    colunas.filter((c) => c.repetivel).map((c) => [c.id, c.campoId]),
+  );
 
   return execucoes.map((execucao) => {
     const brutos = new Map(
@@ -135,7 +141,7 @@ export function acrescentarValoresCalculados<
         .filter((v) => v.linha === 0)
         .map((v) => [v.colunaId, v.valor]),
     );
-    const calculados = calcularColunasFormula(
+    const { calculados, valoresDoExame } = calcularColunas(
       colunas,
       (colunaId) => brutos.get(colunaId),
       paciente,
@@ -146,6 +152,41 @@ export function acrescentarValoresCalculados<
     for (const [colunaId, resultado] of calculados) {
       if ("valor" in resultado) {
         extras.push({ colunaId, linha: 0, valor: formatarNumeroFormula(resultado.valor) });
+      }
+    }
+
+    const brutosPorLinha = new Map(
+      execucao.valores.map((v) => [chaveLinha(v.colunaId, v.linha), v.valor]),
+    );
+    const linhasPorCampo = new Map<string, Set<number>>();
+    for (const v of execucao.valores) {
+      const campoId = campoPorColuna.get(v.colunaId);
+      if (campoId === undefined) continue;
+      const linhas = linhasPorCampo.get(campoId) ?? new Set<number>();
+      linhas.add(v.linha);
+      linhasPorCampo.set(campoId, linhas);
+    }
+    const linhasDoCampoRepetivel = (campoId: string) => [
+      ...(linhasPorCampo.get(campoId) ?? [0]),
+    ];
+    const porLinha = calcularLinhasRepetiveis(
+      colunas,
+      linhasDoCampoRepetivel,
+      (colunaId, linha) => brutosPorLinha.get(chaveLinha(colunaId, linha)),
+      valoresDoExame,
+      variaveis,
+    );
+    for (const coluna of colunas) {
+      if (!coluna.repetivel || coluna.tipo !== "CALCULADO") continue;
+      for (const linha of linhasDoCampoRepetivel(coluna.campoId)) {
+        const resultado = porLinha.calculados.get(chaveLinha(coluna.id, linha));
+        if (resultado && "valor" in resultado) {
+          extras.push({
+            colunaId: coluna.id,
+            linha,
+            valor: formatarNumeroFormula(resultado.valor),
+          });
+        }
       }
     }
     return { ...execucao, valores: [...execucao.valores, ...extras] };

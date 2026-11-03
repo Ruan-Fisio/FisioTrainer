@@ -4,6 +4,8 @@ import {
   avaliarFormula,
   calcularColunas,
   calcularColunasFormula,
+  calcularLinhasRepetiveis,
+  chaveLinha,
   extrairReferencias,
   expandirVariaveis,
   formatarNumeroFormula,
@@ -15,6 +17,8 @@ import {
   validarFormulasDoExame,
   type ColunaCalculo,
   type ColunaValidavel,
+  type DadosPacienteFormula,
+  type VariavelExame,
 } from "./exame-formula";
 import { serializeSelecionadas } from "./multipla-escolha";
 
@@ -195,7 +199,7 @@ describe("validarFormulasDoExame", () => {
     expect(validarFormulasDoExame(colunas)).toMatch(/precisa de uma fórmula/);
   });
 
-  it("rejeita coluna calculada em campo repetível", () => {
+  it("aceita coluna calculada em campo repetível referenciando colunas do exame", () => {
     const colunas: ColunaValidavel[] = [
       ...base,
       {
@@ -203,9 +207,10 @@ describe("validarFormulasDoExame", () => {
         tipo: "CALCULADO",
         formula: "{Peso}/{Altura}",
         repetivel: true,
+        campoId: "c1",
       },
     ];
-    expect(validarFormulasDoExame(colunas)).toMatch(/múltiplas entradas/);
+    expect(validarFormulasDoExame(colunas)).toBeNull();
   });
 
   it("aceita referência a coluna que vem depois (ordem dos campos não importa)", () => {
@@ -1389,6 +1394,282 @@ describe("{Soma pontuações} — soma global das colunas de pontuação", () =>
           { nome: "Soma pontuacoes", formula: "1" },
         ]),
       ).toMatch(/Soma pontuações/);
+    });
+  });
+});
+
+describe("fórmulas em campo com múltiplas entradas", () => {
+  const COLUNAS: ColunaCalculo[] = [
+    { id: "fator", titulo: "Fator", tipo: "NUMERO", repetivel: false },
+    { id: "carga", titulo: "Carga", tipo: "NUMERO", repetivel: true, campoId: "serie" },
+    { id: "reps", titulo: "Reps", tipo: "NUMERO", repetivel: true, campoId: "serie" },
+    {
+      id: "volume",
+      titulo: "Volume",
+      tipo: "CALCULADO",
+      formula: "{Carga} * {Reps} * {Fator}",
+      repetivel: true,
+      campoId: "serie",
+    },
+  ];
+
+  function calcular(
+    colunas: ColunaCalculo[],
+    valores: Record<string, string>,
+    linhas: number[] = [0, 1],
+    paciente?: DadosPacienteFormula,
+    variaveis?: VariavelExame[],
+  ) {
+    const { valoresDoExame } = calcularColunas(
+      colunas,
+      (id) => valores[`${id}::0`],
+      paciente,
+      variaveis,
+    );
+    return calcularLinhasRepetiveis(
+      colunas,
+      () => linhas,
+      (id, linha) => valores[chaveLinha(id, linha)],
+      valoresDoExame,
+      variaveis,
+    );
+  }
+
+  it("cada entrada calcula com os próprios valores e os do exame", () => {
+    const { calculados } = calcular(COLUNAS, {
+      "fator::0": "2",
+      "carga::0": "10",
+      "reps::0": "3",
+      "carga::1": "20",
+      "reps::1": "5",
+    });
+    expect(calculados.get("volume::0")).toEqual({ valor: 60 });
+    expect(calculados.get("volume::1")).toEqual({ valor: 200 });
+  });
+
+  it("entrada incompleta mostra o erro só nela", () => {
+    const { calculados } = calcular(COLUNAS, {
+      "fator::0": "2",
+      "carga::0": "10",
+      "reps::0": "3",
+      "carga::1": "20",
+    });
+    expect(calculados.get("volume::0")).toEqual({ valor: 60 });
+    expect(calculados.get("volume::1")).toEqual({ erro: "Preencha Reps para calcular" });
+  });
+
+  it("coluna da entrada tem precedência sobre a do exame, mesmo vazia", () => {
+    const colunas: ColunaCalculo[] = [
+      { id: "global", titulo: "Carga", tipo: "NUMERO", repetivel: false },
+      { id: "carga", titulo: "Carga", tipo: "NUMERO", repetivel: true, campoId: "serie" },
+      {
+        id: "dobro",
+        titulo: "Dobro",
+        tipo: "CALCULADO",
+        formula: "{Carga} * 2",
+        repetivel: true,
+        campoId: "serie",
+      },
+    ];
+    const { calculados } = calcular(colunas, { "global::0": "100", "carga::0": "7" });
+    expect(calculados.get("dobro::0")).toEqual({ valor: 14 });
+    expect(calculados.get("dobro::1")).toEqual({ erro: "Preencha Carga para calcular" });
+  });
+
+  it("calculada encadeada na mesma entrada resolve em qualquer ordem", () => {
+    const colunas: ColunaCalculo[] = [
+      {
+        id: "b",
+        titulo: "B",
+        tipo: "CALCULADO",
+        formula: "{A} + 1",
+        repetivel: true,
+        campoId: "c",
+      },
+      {
+        id: "a",
+        titulo: "A",
+        tipo: "CALCULADO",
+        formula: "{N} * 2",
+        repetivel: true,
+        campoId: "c",
+      },
+      { id: "n", titulo: "N", tipo: "NUMERO", repetivel: true, campoId: "c" },
+    ];
+    const { calculados } = calcular(colunas, { "n::0": "1", "n::1": "5" });
+    expect(calculados.get("b::0")).toEqual({ valor: 3 });
+    expect(calculados.get("b::1")).toEqual({ valor: 11 });
+  });
+
+  it("campos repetíveis diferentes não se enxergam", () => {
+    const colunas: ColunaCalculo[] = [
+      { id: "x", titulo: "X", tipo: "NUMERO", repetivel: true, campoId: "c1" },
+      {
+        id: "y",
+        titulo: "Y",
+        tipo: "CALCULADO",
+        formula: "{X} * 2",
+        repetivel: true,
+        campoId: "c2",
+      },
+    ];
+    const { calculados } = calcular(colunas, { "x::0": "4" }, [0]);
+    expect(calculados.get("y::0")).toEqual({ erro: "Preencha X para calcular" });
+  });
+
+  it("usa paciente, variáveis (que enxergam a entrada) e Soma pontuações do exame", () => {
+    const colunas: ColunaCalculo[] = [
+      {
+        id: "p",
+        titulo: "P",
+        tipo: "MULTIPLA_ESCOLHA",
+        repetivel: false,
+        opcoes: ["A"],
+        pontuacoes: [{ opcao: "A", pontos: 5 }],
+      },
+      { id: "n", titulo: "N", tipo: "NUMERO", repetivel: true, campoId: "c" },
+      {
+        id: "r",
+        titulo: "R",
+        tipo: "CALCULADO",
+        formula: "{Dobro} + {Idade} + {Soma pontuações}",
+        repetivel: true,
+        campoId: "c",
+      },
+    ];
+    const { calculados } = calcular(
+      colunas,
+      { "p::0": "A", "n::0": "1", "n::1": "2" },
+      [0, 1],
+      { idade: 30 },
+      [{ nome: "Dobro", formula: "{N} * 2" }],
+    );
+    expect(calculados.get("r::0")).toEqual({ valor: 37 });
+    expect(calculados.get("r::1")).toEqual({ valor: 39 });
+  });
+
+  it("opção automática é marcada por entrada, primeira que bate na seleção única", () => {
+    const colunas: ColunaCalculo[] = [
+      { id: "n", titulo: "N", tipo: "NUMERO", repetivel: true, campoId: "c" },
+      {
+        id: "classe",
+        titulo: "Classe",
+        tipo: "MULTIPLA_ESCOLHA",
+        repetivel: true,
+        campoId: "c",
+        opcoes: ["Baixo", "Alto"],
+        opcoesCondicionais: [
+          { opcao: "Baixo", formula: "{N} < 5" },
+          { opcao: "Alto", formula: "{N} >= 5" },
+        ],
+      },
+    ];
+    const { opcoesAutomaticas } = calcular(colunas, { "n::0": "1", "n::1": "9" });
+    expect(opcoesAutomaticas.get("classe::0")?.selecionadas).toEqual(["Baixo"]);
+    expect(opcoesAutomaticas.get("classe::1")?.selecionadas).toEqual(["Alto"]);
+  });
+
+  it("campo repetível sem fórmula não é calculado e o não-repetível segue igual", () => {
+    const colunas: ColunaCalculo[] = [
+      { id: "n", titulo: "N", tipo: "NUMERO", repetivel: true, campoId: "c" },
+    ];
+    const { calculados, opcoesAutomaticas } = calcular(colunas, { "n::0": "1" });
+    expect(calculados.size).toBe(0);
+    expect(opcoesAutomaticas.size).toBe(0);
+  });
+
+  describe("validação", () => {
+    const n = (titulo: string, campoId = "c"): ColunaValidavel => ({
+      titulo,
+      tipo: "NUMERO",
+      repetivel: true,
+      campoId,
+    });
+    const calc = (titulo: string, formula: string, campoId = "c"): ColunaValidavel => ({
+      titulo,
+      tipo: "CALCULADO",
+      formula,
+      repetivel: true,
+      campoId,
+    });
+
+    it("aceita referência a colunas do próprio campo", () => {
+      expect(validarFormulasDoExame([n("A"), calc("B", "{A} * 2")])).toBeNull();
+    });
+
+    it("barra referência a coluna de outro campo repetível", () => {
+      expect(
+        validarFormulasDoExame([n("A", "c1"), calc("B", "{A} * 2", "c2")]),
+      ).toMatch(/que não existe/);
+    });
+
+    it("barra fórmula do exame que cita coluna repetível, mesmo por variável", () => {
+      const fora: ColunaValidavel = {
+        titulo: "X",
+        tipo: "CALCULADO",
+        formula: "{V}",
+        repetivel: false,
+      };
+      expect(
+        validarFormulasDoExame([n("A"), fora], [{ nome: "V", formula: "{A}" }]),
+      ).toMatch(/que não existe/);
+    });
+
+    it("aceita variável que cita coluna repetível usada dentro do campo", () => {
+      expect(
+        validarFormulasDoExame([n("A"), calc("B", "{V}")], [{ nome: "V", formula: "{A}" }]),
+      ).toBeNull();
+    });
+
+    it("barra ciclo dentro do campo", () => {
+      expect(
+        validarFormulasDoExame([calc("A", "{B} + 1"), calc("B", "{A} + 1")]),
+      ).toMatch(/ciclo/);
+    });
+
+    it("barra nome repetido dentro de campo com fórmula", () => {
+      expect(
+        validarFormulasDoExame([n("A"), n("a"), calc("B", "{A} * 2")]),
+      ).toMatch(/neste campo/);
+    });
+
+    it("não barra nome repetido em campo repetível sem fórmula (exames já cadastrados)", () => {
+      expect(validarFormulasDoExame([n("A"), n("A")])).toBeNull();
+    });
+
+    it("aceita o mesmo nome em campos repetíveis diferentes", () => {
+      expect(
+        validarFormulasDoExame([
+          n("A", "c1"),
+          calc("B", "{A} * 2", "c1"),
+          n("A", "c2"),
+          calc("B", "{A} * 3", "c2"),
+        ]),
+      ).toBeNull();
+    });
+
+    it("barra coluna de campo com fórmula com o nome de uma variável", () => {
+      expect(
+        validarFormulasDoExame(
+          [n("A"), calc("B", "{A} * 2")],
+          [{ nome: "A", formula: "1" }],
+        ),
+      ).toMatch(/variável chamada/);
+    });
+
+    it("pontuação continua barrada em campo repetível", () => {
+      expect(
+        validarFormulasDoExame([
+          {
+            titulo: "P",
+            tipo: "MULTIPLA_ESCOLHA",
+            repetivel: true,
+            campoId: "c",
+            opcoes: ["A"],
+            pontuacoes: [{ opcao: "A", pontos: 1 }],
+          },
+        ]),
+      ).toMatch(/múltiplas entradas/);
     });
   });
 });

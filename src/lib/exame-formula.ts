@@ -10,9 +10,13 @@
  * em qualquer posição (antes ou depois) — a ordem dos campos não importa. O
  * cálculo resolve as dependências sob demanda (`calcularColunas`) e o cadastro
  * barra ciclos (A depende de B e B de A). Por isso as colunas
- * calculadas/numéricas precisam de nome único no exame (é a chave de
- * referência) e só podem existir em campos não-repetíveis (senão "qual linha"
- * vira ambíguo).
+ * calculadas/numéricas de campos não-repetíveis precisam de nome único no exame
+ * (é a chave de referência).
+ *
+ * Em campo repetível (múltiplas entradas) a fórmula vale por entrada: enxerga as
+ * colunas da mesma entrada (que têm precedência) e as colunas não-repetíveis do
+ * exame — ver `calcularLinhasRepetiveis`. Fora do próprio campo, uma coluna
+ * repetível não é referenciável (senão "qual linha" vira ambíguo).
  *
  * Uma opção de coluna MULTIPLA_ESCOLHA também pode ter uma condição (ex:
  * `{IMC} < 18.5`) que a marca sozinha, na mesma passagem — ver `opcoesCondicionais`
@@ -47,6 +51,8 @@ export type ColunaCalculo = {
   tipo: string;
   formula?: string | null;
   repetivel: boolean;
+  /** Agrupa as colunas de um campo repetível (escopo de `calcularLinhasRepetiveis`). */
+  campoId?: string;
   opcoes?: string[];
   multiplaSelecao?: boolean;
   opcoesCondicionais?: OpcaoCondicional[];
@@ -58,6 +64,8 @@ export type ColunaValidavel = {
   tipo: string;
   formula?: string | null;
   repetivel: boolean;
+  /** Agrupa as colunas de um campo repetível (escopo das referências). */
+  campoId?: string;
   opcoes?: string[];
   opcoesCondicionais?: OpcaoCondicional[];
   pontuacoes?: OpcaoPontuada[];
@@ -662,8 +670,80 @@ export function calcularColunas(
   opcoesAutomaticas: Map<string, ResultadoOpcoesAutomaticas>;
   /** `{Soma pontuações}`; `undefined` se nenhuma coluna de pontuação foi respondida. */
   somaPontuacoes: number | undefined;
+  /** Valores por título normalizado — o contexto de `calcularLinhasRepetiveis`. */
+  valoresDoExame: Map<string, number>;
 } {
-  const valoresPorTitulo = variaveisDoPaciente(paciente);
+  return calcularEscopo(colunas, valorBruto, variaveisDoPaciente(paciente), variaveis, false);
+}
+
+/** Chave de um resultado por entrada em `calcularLinhasRepetiveis`. */
+export function chaveLinha(colunaId: string, linha: string | number): string {
+  return `${colunaId}::${linha}`;
+}
+
+/**
+ * Calcula, entrada por entrada, as colunas CALCULADO e as opções automáticas de
+ * campos repetíveis. Cada entrada enxerga as colunas dela mesma e os valores do
+ * exame (`valoresDoExame`, de `calcularColunas`). Uma coluna da entrada tem
+ * precedência sobre uma do exame com o mesmo nome, mesmo vazia. Os resultados
+ * são indexados por `chaveLinha(colunaId, linha)`.
+ */
+export function calcularLinhasRepetiveis<L extends string | number>(
+  colunas: ColunaCalculo[],
+  linhasDoCampo: (campoId: string) => L[],
+  valorBruto: (colunaId: string, linha: L) => string | undefined,
+  valoresDoExame: Map<string, number>,
+  variaveis?: VariavelExame[],
+): {
+  calculados: Map<string, ResultadoFormula>;
+  opcoesAutomaticas: Map<string, ResultadoOpcoesAutomaticas>;
+} {
+  const colunasPorCampo = new Map<string, ColunaCalculo[]>();
+  for (const coluna of colunas) {
+    if (!coluna.repetivel || coluna.campoId === undefined) continue;
+    const doCampo = colunasPorCampo.get(coluna.campoId);
+    if (doCampo) doCampo.push(coluna);
+    else colunasPorCampo.set(coluna.campoId, [coluna]);
+  }
+
+  const calculados = new Map<string, ResultadoFormula>();
+  const opcoesAutomaticas = new Map<string, ResultadoOpcoesAutomaticas>();
+  for (const [campoId, doCampo] of colunasPorCampo) {
+    if (!doCampo.some((c) => c.tipo === "CALCULADO" || temOpcoesAutomaticas(c))) continue;
+    const daEntrada = doCampo.map((c) => ({ ...c, repetivel: false }));
+    for (const linha of linhasDoCampo(campoId)) {
+      const resultado = calcularEscopo(
+        daEntrada,
+        (colunaId) => valorBruto(colunaId, linha),
+        new Map(valoresDoExame),
+        variaveis,
+        true,
+      );
+      for (const [colunaId, valor] of resultado.calculados) {
+        calculados.set(chaveLinha(colunaId, linha), valor);
+      }
+      for (const [colunaId, valor] of resultado.opcoesAutomaticas) {
+        opcoesAutomaticas.set(chaveLinha(colunaId, linha), valor);
+      }
+    }
+  }
+  return { calculados, opcoesAutomaticas };
+}
+
+/** Motor de `calcularColunas`. Em `escopoDeLinha`, `colunas` são as de uma entrada
+ * e `valoresPorTitulo` já traz os valores do exame, inclusive `{Soma pontuações}`. */
+function calcularEscopo(
+  colunas: ColunaCalculo[],
+  valorBruto: (colunaId: string) => string | undefined,
+  valoresPorTitulo: Map<string, number>,
+  variaveis: VariavelExame[] | undefined,
+  escopoDeLinha: boolean,
+): {
+  calculados: Map<string, ResultadoFormula>;
+  opcoesAutomaticas: Map<string, ResultadoOpcoesAutomaticas>;
+  somaPontuacoes: number | undefined;
+  valoresDoExame: Map<string, number>;
+} {
   // Pontos de cada coluna de pontuação já respondida (id → pontos) e, por nome,
   // as colunas do exame (uma coluna chamada "Soma pontuações" tem precedência).
   const pontosPorColuna = new Map<string, number>();
@@ -682,6 +762,7 @@ export function calcularColunas(
   }
 
   function publicarSoma() {
+    if (escopoDeLinha) return;
     const soma = somaAtual();
     for (const chave of CHAVES_SOMA_PONTUACOES) {
       if (chavesDeColunas.has(chave)) continue;
@@ -700,6 +781,7 @@ export function calcularColunas(
     if (coluna.repetivel) continue;
     const chave = normalizarTitulo(coluna.titulo);
     if (!chave) continue;
+    if (escopoDeLinha && ehReferenciavel(coluna)) valoresPorTitulo.delete(chave);
     if (coluna.tipo === "NUMERO") {
       const bruto = valorBruto(coluna.id);
       const numero = bruto === undefined || bruto === "" ? NaN : Number(bruto);
@@ -806,7 +888,15 @@ export function calcularColunas(
     if (coluna.tipo === "CALCULADO" || temOpcoesAutomaticas(coluna)) resolver(coluna);
   }
 
-  return { calculados, opcoesAutomaticas, somaPontuacoes: somaAtual() };
+  // Sem coluna derivada ninguém publicou a soma, e as entradas ainda podem usá-la.
+  publicarSoma();
+
+  return {
+    calculados,
+    opcoesAutomaticas,
+    somaPontuacoes: somaAtual(),
+    valoresDoExame: valoresPorTitulo,
+  };
 }
 
 export function calcularColunasFormula(
@@ -850,6 +940,13 @@ function validarVariaveis(
       .filter((c) => ehReferenciavel(c) && !c.repetivel)
       .map((c) => normalizarTitulo(c.titulo)),
   );
+  // Só para existência: a variável pode citar coluna repetível, e quem a usa fora
+  // do campo é barrado ao validar a fórmula já expandida.
+  const nomesDeEntrada = new Set(
+    colunas
+      .filter((c) => ehReferenciavel(c) && c.repetivel)
+      .map((c) => normalizarTitulo(c.titulo)),
+  );
   const nomesPaciente = new Set([
     ...VARIAVEIS_PACIENTE.map(normalizarTitulo),
     ...CHAVES_SOMA_PONTUACOES,
@@ -882,7 +979,12 @@ function validarVariaveis(
     if (!formula.trim()) return erro(`A variável "${nome}" precisa de uma fórmula ou valor`, i);
     for (const ref of extrairReferencias(formula)) {
       const chave = normalizarTitulo(ref);
-      if (!mapa.has(chave) && !nomesColunas.has(chave) && !nomesPaciente.has(chave)) {
+      if (
+        !mapa.has(chave) &&
+        !nomesColunas.has(chave) &&
+        !nomesDeEntrada.has(chave) &&
+        !nomesPaciente.has(chave)
+      ) {
         return erro(`A variável "${nome}" referencia "${ref}", que não existe`, i);
       }
     }
@@ -917,9 +1019,9 @@ function validarVariaveis(
 
 /**
  * Valida a estrutura de fórmulas do exame inteiro (cadastro): fórmula
- * obrigatória, só em campo não-repetível, referências a colunas existentes
- * (em qualquer posição), sem ciclo entre calculadas, nomes de coluna
- * numérica/calculada únicos, sintaxe válida. `colunas` vem em ordem de
+ * obrigatória, referências a colunas existentes (em qualquer posição; coluna de
+ * campo repetível só dentro do próprio campo), sem ciclo entre calculadas, nomes
+ * de coluna numérica/calculada únicos, sintaxe válida. `colunas` vem em ordem de
  * documento (seção → campo → coluna) — só para mapear o erro à posição.
  * Devolve o primeiro erro encontrado (mensagem + posição), ou `null` se tudo ok.
  */
@@ -944,6 +1046,33 @@ export function validarFormulasDoExameDetalhado(
   }
   const nomesDeColunas = new Set<string>();
 
+  // Colunas referenciáveis de cada campo repetível: só valem dentro do campo.
+  const nomesDaEntrada = new Map<string | undefined, Set<string>>();
+  for (const c of colunas) {
+    const chave = normalizarTitulo(c.titulo);
+    if (!c.repetivel || !ehReferenciavel(c) || !chave) continue;
+    const nomes = nomesDaEntrada.get(c.campoId) ?? new Set<string>();
+    nomes.add(chave);
+    nomesDaEntrada.set(c.campoId, nomes);
+  }
+  function referenciaExiste(coluna: ColunaValidavel, nome: string): boolean {
+    const chave = normalizarTitulo(nome);
+    return (
+      disponiveis.has(chave) ||
+      (coluna.repetivel && !!nomesDaEntrada.get(coluna.campoId)?.has(chave))
+    );
+  }
+
+  // Campo repetível com fórmula: seus nomes viram chave de referência. Campo sem
+  // fórmula não é checado, para não barrar exames já cadastrados.
+  const camposComFormula = new Set(
+    colunas
+      .filter((c) => c.repetivel && (c.tipo === "CALCULADO" || temOpcoesAutomaticas(c)))
+      .map((c) => c.campoId),
+  );
+  const nomesVariaveis = new Set(variaveis.map((v) => normalizarTitulo(v.nome)));
+  const nomesVistosNoCampo = new Map<string | undefined, Set<string>>();
+
   for (let colunaIndex = 0; colunaIndex < colunas.length; colunaIndex++) {
     const coluna = colunas[colunaIndex];
     if (coluna.tipo === "CALCULADO") {
@@ -951,12 +1080,6 @@ export function validarFormulasDoExameDetalhado(
       if (!formula) {
         return {
           mensagem: `A coluna calculada "${coluna.titulo}" precisa de uma fórmula`,
-          colunaIndex,
-        };
-      }
-      if (coluna.repetivel) {
-        return {
-          mensagem: `A coluna calculada "${coluna.titulo}" não pode estar em um campo com múltiplas entradas`,
           colunaIndex,
         };
       }
@@ -976,15 +1099,15 @@ export function validarFormulasDoExameDetalhado(
             colunaIndex,
           };
         }
-        if (ehSomaPontuacoes(nome) && !disponiveis.has(normalizarTitulo(nome))) {
+        if (ehSomaPontuacoes(nome) && !referenciaExiste(coluna, nome)) {
           return {
             mensagem: `A fórmula da coluna "${coluna.titulo}" usa "${VARIAVEL_SOMA_PONTUACOES}", mas nenhuma coluna do exame está marcada como pontuação`,
             colunaIndex,
           };
         }
-        if (!disponiveis.has(normalizarTitulo(nome))) {
+        if (!referenciaExiste(coluna, nome)) {
           return {
-            mensagem: `A fórmula da coluna "${coluna.titulo}" referencia "${nome}", que não existe neste exame (colunas de campos com múltiplas entradas não podem ser referenciadas)`,
+            mensagem: `A fórmula da coluna "${coluna.titulo}" referencia "${nome}", que não existe neste exame (colunas de campos com múltiplas entradas só podem ser referenciadas dentro do próprio campo)`,
             colunaIndex,
           };
         }
@@ -1073,7 +1196,7 @@ export function validarFormulasDoExameDetalhado(
             };
           }
           if (ehSomaPontuacoes(nome)) {
-            if (!disponiveis.has(normalizarTitulo(nome))) {
+            if (!referenciaExiste(coluna, nome)) {
               return {
                 mensagem: `A condição da opção "${opcao}" da coluna "${coluna.titulo}" usa "${VARIAVEL_SOMA_PONTUACOES}", mas nenhuma coluna do exame está marcada como pontuação`,
                 colunaIndex,
@@ -1088,9 +1211,9 @@ export function validarFormulasDoExameDetalhado(
               };
             }
           }
-          if (!disponiveis.has(normalizarTitulo(nome))) {
+          if (!referenciaExiste(coluna, nome)) {
             return {
-              mensagem: `A condição da opção "${opcao}" da coluna "${coluna.titulo}" referencia "${nome}", que não existe neste exame (colunas de campos com múltiplas entradas não podem ser referenciadas)`,
+              mensagem: `A condição da opção "${opcao}" da coluna "${coluna.titulo}" referencia "${nome}", que não existe neste exame (colunas de campos com múltiplas entradas só podem ser referenciadas dentro do próprio campo)`,
               colunaIndex,
               opcaoIndex,
             };
@@ -1119,29 +1242,64 @@ export function validarFormulasDoExameDetalhado(
         nomesDeColunas.add(chave);
       }
     }
+
+    if (ehReferenciavel(coluna) && coluna.repetivel && camposComFormula.has(coluna.campoId)) {
+      const chave = normalizarTitulo(coluna.titulo);
+      if (chave) {
+        const vistos = nomesVistosNoCampo.get(coluna.campoId) ?? new Set<string>();
+        if (vistos.has(chave)) {
+          return {
+            mensagem: `Já existe uma coluna numérica chamada "${coluna.titulo}" neste campo — use nomes únicos para referenciá-las em fórmulas`,
+            colunaIndex,
+          };
+        }
+        vistos.add(chave);
+        nomesVistosNoCampo.set(coluna.campoId, vistos);
+        // A variável é expandida antes da coluna: a fórmula pegaria a variável.
+        if (nomesVariaveis.has(chave)) {
+          return {
+            mensagem: `Já existe uma variável chamada "${coluna.titulo}" — use outro nome nesta coluna`,
+            colunaIndex,
+          };
+        }
+      }
+    }
   }
 
-  return validarCiclosEntreCalculadas(colunas, variaveis);
+  const erroCiclo = validarCiclosEntreCalculadas(colunas, variaveis, (c) => !c.repetivel);
+  if (erroCiclo) return erroCiclo;
+  for (const campoId of camposComFormula) {
+    const erro = validarCiclosEntreCalculadas(
+      colunas,
+      variaveis,
+      (c) => c.repetivel && c.campoId === campoId,
+    );
+    if (erro) return erro;
+  }
+  return null;
 }
 
 /** Calculada que depende (direta ou indiretamente) dela mesma — o cálculo
- * sob demanda não teria por onde começar. */
+ * sob demanda não teria por onde começar. `doEscopo` separa as colunas do exame
+ * das de cada campo repetível: uma coluna do exame nunca depende de uma entrada,
+ * então um ciclo nunca cruza escopos. */
 function validarCiclosEntreCalculadas(
   colunas: ColunaValidavel[],
   variaveis: VariavelExame[],
+  doEscopo: (coluna: ColunaValidavel) => boolean,
 ): ErroValidacaoFormula | null {
   const indicePorChave = new Map<string, number>();
   colunas.forEach((c, i) => {
     const chave = normalizarTitulo(c.titulo);
     const derivada = c.tipo === "CALCULADO" || (ehPontuada(c) && temOpcoesAutomaticas(c));
-    if (derivada && !c.repetivel && chave && !indicePorChave.has(chave)) {
+    if (derivada && doEscopo(c) && chave && !indicePorChave.has(chave)) {
       indicePorChave.set(chave, i);
     }
   });
 
   const pontuadasAutomaticas: number[] = [];
   colunas.forEach((c, i) => {
-    if (ehPontuada(c) && temOpcoesAutomaticas(c) && !c.repetivel) pontuadasAutomaticas.push(i);
+    if (ehPontuada(c) && temOpcoesAutomaticas(c) && doEscopo(c)) pontuadasAutomaticas.push(i);
   });
 
   const estado = new Map<number, 1 | 2>();

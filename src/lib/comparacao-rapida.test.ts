@@ -388,6 +388,39 @@ describe("acrescentarValoresCalculados", () => {
     expect(series.find((s) => s.titulo === "IMC")?.pontos.map((p) => p.valor)).toEqual([20, 18]);
   });
 
+  it("calcula a coluna de campo repetível em cada entrada de cada execução", () => {
+    const exame = {
+      secoes: [
+        {
+          campos: [
+            {
+              repetivel: true,
+              colunas: [
+                { id: "carga", titulo: "Carga", tipo: "NUMERO" },
+                { id: "dobro", titulo: "Dobro", tipo: "CALCULADO", formula: "{Carga} * 2" },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const [a, b] = acrescentarValoresCalculados(exame, [
+      {
+        id: "a",
+        valores: [
+          { colunaId: "carga", linha: 0, valor: "10" },
+          { colunaId: "carga", linha: 1, valor: "20" },
+        ],
+      },
+      { id: "b", valores: [{ colunaId: "carga", linha: 0, valor: "" }] },
+    ]);
+    expect(a.valores.filter((v) => v.colunaId === "dobro")).toEqual([
+      { colunaId: "dobro", linha: 0, valor: "20" },
+      { colunaId: "dobro", linha: 1, valor: "40" },
+    ]);
+    expect(b.valores.filter((v) => v.colunaId === "dobro")).toEqual([]);
+  });
+
   it("exame sem coluna calculada devolve as execuções como vieram", () => {
     const execucoes = [{ id: "a", valores: [] }];
     expect(

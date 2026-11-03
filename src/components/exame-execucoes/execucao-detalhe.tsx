@@ -13,7 +13,9 @@ import {
 } from "@/lib/cor-opcao";
 import { cn } from "@/lib/utils";
 import {
-  calcularColunasFormula,
+  calcularColunas,
+  calcularLinhasRepetiveis,
+  chaveLinha,
   parseVariaveis,
   formatarNumeroFormula,
   type ResultadoFormula,
@@ -135,6 +137,7 @@ export function ExecucaoValores({
         tipo: coluna.tipo,
         formula: coluna.formula,
         repetivel: campo.repetivel,
+        campoId: campo.id,
         // MULTIPLA_ESCOLHA pontuada entra nas fórmulas pelo valor GRAVADO
         // (sem `opcoesCondicionais`: não reavalia as condições).
         opcoes: coluna.opcoes,
@@ -143,14 +146,33 @@ export function ExecucaoValores({
       })),
     ),
   );
-  const resultadosCalculados = calcularColunasFormula(
+  const variaveis = variaveisComTabelas(
+    parseVariaveis(execucao.exame.variaveis),
+    execucao.exame.tabelas,
+  );
+  const { calculados: calculadosDoExame, valoresDoExame } = calcularColunas(
     colunasEmOrdem,
     (colunaId) => valorPorChave.get(`${colunaId}::0`),
     {
       sexo: execucao.paciente.sexo,
       idade: execucao.paciente.idade,
     },
-    variaveisComTabelas(parseVariaveis(execucao.exame.variaveis), execucao.exame.tabelas),
+    variaveis,
+  );
+  const camposPorId = new Map(
+    execucao.exame.secoes.flatMap((secao) =>
+      secao.campos.map((campo) => [campo.id, campo] as const),
+    ),
+  );
+  const { calculados: calculadosPorLinha } = calcularLinhasRepetiveis(
+    colunasEmOrdem,
+    (campoId) => {
+      const campo = camposPorId.get(campoId);
+      return campo ? linhasDoCampo(campo) : [];
+    },
+    (colunaId, linha) => valorPorChave.get(chaveLinha(colunaId, linha)),
+    valoresDoExame,
+    variaveis,
   );
 
   function linhasDoCampo(campo: {
@@ -212,7 +234,11 @@ export function ExecucaoValores({
                               </p>
                               {coluna.tipo === "CALCULADO" ? (
                                 <ValorCalculado
-                                  resultado={resultadosCalculados.get(coluna.id)}
+                                  resultado={
+                                    campo.repetivel
+                                      ? calculadosPorLinha.get(chaveLinha(coluna.id, linha))
+                                      : calculadosDoExame.get(coluna.id)
+                                  }
                                 />
                               ) : (
                                 <ValorColuna

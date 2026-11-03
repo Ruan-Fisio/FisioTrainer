@@ -3,7 +3,12 @@
 // sincronização em tempo real (actions/exames.ts) e o merge (exame-merge.ts).
 
 import { coresPersistidasParaAlinhar } from "@/lib/cor-opcao";
-import { parseVariaveis, type VariavelExame } from "@/lib/exame-formula";
+import {
+  normalizarTitulo,
+  parseVariaveis,
+  renomearReferenciaFormula,
+  type VariavelExame,
+} from "@/lib/exame-formula";
 import {
   parsePontuacoes,
   pontuacoesPersistidasParaAlinhar,
@@ -47,6 +52,100 @@ export type CampoDraft = {
   colunas: ColunaDraft[];
 };
 export type SecaoDraft = { id?: string; nome: string; campos: CampoDraft[] };
+
+function ehColunaNumerica(coluna: ColunaDraft): boolean {
+  return (
+    coluna.tipo === "NUMERO" ||
+    coluna.tipo === "CALCULADO" ||
+    (coluna.tipo === "MULTIPLA_ESCOLHA" && coluna.usaPontuacao)
+  );
+}
+
+/** Nomes que a fórmula de uma coluna pode referenciar (ver src/lib/exame-formula.ts):
+ * colunas Número/Calculado/Pontuação de campos não-repetíveis de todo o exame
+ * (antes ou depois) e as do próprio campo, mesmo repetível — exceto a própria coluna. */
+export function colunasReferenciaveis(
+  secoes: SecaoDraft[],
+  secaoIndex: number,
+  campoIndex: number,
+  colunaIndex: number,
+): string[] {
+  const nomes = new Map<string, string>();
+  secoes.forEach((secao, si) =>
+    secao.campos.forEach((campo, ci) =>
+      campo.colunas.forEach((coluna, coi) => {
+        const mesmoCampo = si === secaoIndex && ci === campoIndex;
+        const propria = mesmoCampo && coi === colunaIndex;
+        if (
+          !propria &&
+          (!campo.repetivel || mesmoCampo) &&
+          ehColunaNumerica(coluna) &&
+          coluna.titulo.trim()
+        ) {
+          nomes.set(normalizarTitulo(coluna.titulo), coluna.titulo.trim());
+        }
+      }),
+    ),
+  );
+  return [...nomes.values()];
+}
+
+/**
+ * Renomeia `{antigo}` → `{novo}` em toda fórmula e condição das colunas. Com
+ * `origem` (a coluna renomeada, já com o título novo), respeita o escopo: coluna
+ * de campo repetível só é citada no próprio campo, e um campo repetível com
+ * coluna própria de mesmo nome não está citando a coluna renomeada.
+ */
+export function renomearReferenciaEmSecoes(
+  secoes: SecaoDraft[],
+  antigo: string,
+  novo: string,
+  origem?: { secaoIndex: number; campoIndex: number },
+): SecaoDraft[] {
+  const origemRepetivel =
+    origem && secoes[origem.secaoIndex]?.campos[origem.campoIndex]?.repetivel;
+  const chaveAntiga = normalizarTitulo(antigo);
+
+  return secoes.map((secao, si) => ({
+    ...secao,
+    campos: secao.campos.map((campo, ci) => {
+      const ehOrigem = origem?.secaoIndex === si && origem.campoIndex === ci;
+      if (origem && !ehOrigem) {
+        if (origemRepetivel) return campo;
+        const temProprio =
+          campo.repetivel &&
+          campo.colunas.some(
+            (c) => ehColunaNumerica(c) && normalizarTitulo(c.titulo) === chaveAntiga,
+          );
+        if (temProprio) return campo;
+      }
+      return {
+        ...campo,
+        colunas: campo.colunas.map((coluna) => {
+          if (coluna.tipo === "CALCULADO" && coluna.formula) {
+            return {
+              ...coluna,
+              formula: renomearReferenciaFormula(coluna.formula, antigo, novo),
+            };
+          }
+          if (
+            coluna.tipo === "MULTIPLA_ESCOLHA" &&
+            coluna.opcoesCondicionais.length > 0
+          ) {
+            return {
+              ...coluna,
+              opcoesCondicionais: coluna.opcoesCondicionais.map((c) => ({
+                ...c,
+                formula: renomearReferenciaFormula(c.formula, antigo, novo),
+              })),
+            };
+          }
+          return coluna;
+        }),
+      };
+    }),
+  }));
+}
 
 export type ExameDraft = {
   nome: string;

@@ -34,6 +34,8 @@ import {
   type ColunaDraft,
   type DirecaoIdealDraft,
   type ExameDraft,
+  colunasReferenciaveis,
+  renomearReferenciaEmSecoes,
   type SecaoDraft,
   type TipoColunaDraft,
 } from "@/lib/exame-draft";
@@ -49,7 +51,6 @@ import {
   ehSomaPontuacoes,
   extrairReferencias,
   normalizarTitulo,
-  renomearReferenciaFormula,
   VARIAVEL_SOMA_PONTUACOES,
   VARIAVEIS_PACIENTE,
   type VariavelExame,
@@ -82,71 +83,6 @@ const TIPO_COLUNA_LABELS: Record<TipoColuna, string> = {
   GONIOMETRIA: "Recovery em Goniometria",
   CALCULADO: "Calculado (fórmula)",
 };
-
-/** Nomes de colunas Número/Calculado/Pontuação de campos não-repetíveis de todo o exame
- * (antes ou depois), exceto a própria coluna — é o que uma fórmula pode
- * referenciar (ver src/lib/exame-formula.ts). */
-function colunasReferenciaveis(
-  secoes: SecaoDraft[],
-  secaoIndex: number,
-  campoIndex: number,
-  colunaIndex: number,
-): string[] {
-  const nomes: string[] = [];
-  secoes.forEach((secao, si) =>
-    secao.campos.forEach((campo, ci) =>
-      campo.colunas.forEach((coluna, coi) => {
-        const propria = si === secaoIndex && ci === campoIndex && coi === colunaIndex;
-        if (
-          !propria &&
-          !campo.repetivel &&
-          (coluna.tipo === "NUMERO" ||
-            coluna.tipo === "CALCULADO" ||
-            (coluna.tipo === "MULTIPLA_ESCOLHA" && coluna.usaPontuacao)) &&
-          coluna.titulo.trim()
-        ) {
-          nomes.push(coluna.titulo.trim());
-        }
-      }),
-    ),
-  );
-  return nomes;
-}
-
-/** Renomeia `{antigo}` → `{novo}` em toda fórmula e condição das colunas. */
-function renomearReferenciaEmSecoes(
-  secoes: SecaoDraft[],
-  antigo: string,
-  novo: string,
-): SecaoDraft[] {
-  return secoes.map((secao) => ({
-    ...secao,
-    campos: secao.campos.map((campo) => ({
-      ...campo,
-      colunas: campo.colunas.map((coluna) => {
-        if (coluna.tipo === "CALCULADO" && coluna.formula) {
-          return {
-            ...coluna,
-            formula: renomearReferenciaFormula(coluna.formula, antigo, novo),
-          };
-        }
-        if (
-          coluna.tipo === "MULTIPLA_ESCOLHA" &&
-          coluna.opcoesCondicionais.length > 0
-        ) {
-          return {
-            ...coluna,
-            opcoesCondicionais: coluna.opcoesCondicionais.map((c) => ({
-              ...c,
-              formula: renomearReferenciaFormula(c.formula, antigo, novo),
-            })),
-          };
-        }
-        return coluna;
-      }),
-    })),
-  }));
-}
 
 function FormulaEditor({
   value,
@@ -584,40 +520,22 @@ function SecaoCard({
               </Button>
             </div>
 
-            {(() => {
-              const temColunaCalculada = campo.colunas.some(
-                (c) => c.tipo === "CALCULADO",
-              );
-              return (
-                <label
-                  onClick={(e) => {
-                    e.preventDefault();
-                    if (temColunaCalculada) return;
-                    updateCampo(secaoIndex, campoIndex, {
-                      repetivel: !campo.repetivel,
-                    });
-                  }}
-                  className={cn(
-                    "flex min-h-8 items-center gap-2 text-xs text-muted-foreground select-none",
-                    temColunaCalculada
-                      ? "cursor-not-allowed opacity-60"
-                      : "cursor-pointer",
-                  )}
-                  title={
-                    temColunaCalculada
-                      ? "Campo com coluna calculada não pode ter múltiplas entradas"
-                      : undefined
-                  }
-                >
-                  <Checkbox
-                    checked={campo.repetivel}
-                    tabIndex={-1}
-                    className="pointer-events-none"
-                  />
-                  Permitir múltiplas entradas deste campo (ex: um por membro)
-                </label>
-              );
-            })()}
+            <label
+              onClick={(e) => {
+                e.preventDefault();
+                updateCampo(secaoIndex, campoIndex, {
+                  repetivel: !campo.repetivel,
+                });
+              }}
+              className="flex min-h-8 cursor-pointer items-center gap-2 text-xs text-muted-foreground select-none"
+            >
+              <Checkbox
+                checked={campo.repetivel}
+                tabIndex={-1}
+                className="pointer-events-none"
+              />
+              Permitir múltiplas entradas deste campo (ex: um por membro)
+            </label>
 
             {(campo.repetivel ||
               campo.colunas.some((c) => c.tipo === "GONIOMETRIA")) && (
@@ -703,16 +621,11 @@ function SecaoCard({
                           });
                         }}
                       >
-                        {Object.entries(TIPO_COLUNA_LABELS)
-                          .filter(
-                            ([value]) =>
-                              value !== "CALCULADO" || !campo.repetivel,
-                          )
-                          .map(([value, label]) => (
-                            <option key={value} value={value}>
-                              {label}
-                            </option>
-                          ))}
+                        {Object.entries(TIPO_COLUNA_LABELS).map(([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ))}
                       </select>
                       {(coluna.tipo === "NUMERO" ||
                         coluna.tipo === "TEXTO" ||
@@ -986,6 +899,9 @@ function SecaoCard({
                         <Sigma className="size-3.5 text-violet-600 dark:text-violet-400" />
                         Fórmula — referencie outras colunas numéricas clicando
                         nos botões abaixo
+                        {campo.repetivel
+                          ? " (calculada em cada entrada, com os valores dela)"
+                          : ""}
                       </Label>
                       <FormulaEditor
                         value={coluna.formula}
@@ -1507,6 +1423,7 @@ export function ExameForm({
     if (
       typeof patch.titulo === "string" &&
       tituloAnterior &&
+      !secoes[secaoIndex]?.campos[campoIndex]?.repetivel &&
       patch.titulo.trim() &&
       normalizarTitulo(patch.titulo) !== normalizarTitulo(tituloAnterior)
     ) {
@@ -1547,7 +1464,10 @@ export function ExameForm({
         patch.titulo.trim() &&
         normalizarTitulo(patch.titulo) !== normalizarTitulo(tituloAntigo)
       ) {
-        return renomearReferenciaEmSecoes(proximo, tituloAntigo, patch.titulo);
+        return renomearReferenciaEmSecoes(proximo, tituloAntigo, patch.titulo, {
+          secaoIndex,
+          campoIndex,
+        });
       }
 
       return proximo;
