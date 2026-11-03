@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useContext, useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -34,8 +34,11 @@ import {
   type ColunaDraft,
   type DirecaoIdealDraft,
   type ExameDraft,
+  alvosDeAgregacao,
   colunasReferenciaveis,
+  renomearColunaNasVariaveis,
   renomearReferenciaEmSecoes,
+  renomearSecaoNasFormulas,
   type SecaoDraft,
   type TipoColunaDraft,
 } from "@/lib/exame-draft";
@@ -51,11 +54,12 @@ import {
   ehSomaPontuacoes,
   extrairReferencias,
   normalizarTitulo,
+  parseAgregacao,
   VARIAVEL_SOMA_PONTUACOES,
   VARIAVEIS_PACIENTE,
   type VariavelExame,
 } from "@/lib/exame-formula";
-import { FormulaDialog } from "@/components/exames/formula-dialog";
+import { AlvosAgregacaoContext, FormulaDialog } from "@/components/exames/formula-dialog";
 import {
   TabelasReferenciaEditor,
   useVariaveisTabelas,
@@ -109,6 +113,7 @@ function FormulaEditor({
   const inputRef = useRef<HTMLInputElement>(null);
   const [modalAberto, setModalAberto] = useState(false);
   const variaveisTabelas = useVariaveisTabelas();
+  const alvosAgregacao = useContext(AlvosAgregacaoContext);
 
   function inserirNoCursor(texto: string) {
     const input = inputRef.current;
@@ -127,14 +132,21 @@ function FormulaEditor({
     });
   }
 
-  const referenciasInvalidas = extrairReferencias(value).filter(
-    (nome) =>
+  const referenciasInvalidas = extrairReferencias(value).filter((nome) => {
+    const agregacao = parseAgregacao(nome);
+    if (agregacao) {
+      const semEspacos = (texto: string) =>
+        normalizarTitulo(texto).replace(/\s*>\s*/g, ">");
+      return !alvosAgregacao.some((a) => semEspacos(a) === semEspacos(agregacao.alvo));
+    }
+    return (
       !colunasDisponiveis.some((c) => normalizarTitulo(c) === normalizarTitulo(nome)) &&
       !VARIAVEIS_PACIENTE.some((v) => normalizarTitulo(v) === normalizarTitulo(nome)) &&
       !ehSomaPontuacoes(nome) &&
       !variaveis.some((v) => normalizarTitulo(v.nome) === normalizarTitulo(nome)) &&
-      !variaveisTabelas.some((v) => normalizarTitulo(v.nome) === normalizarTitulo(nome)),
-  );
+      !variaveisTabelas.some((v) => normalizarTitulo(v.nome) === normalizarTitulo(nome))
+    );
+  });
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-violet-500/30 bg-violet-500/5 p-2">
@@ -1298,9 +1310,26 @@ export function ExameForm({
   }, [state]);
 
   function updateSecao(index: number, patch: Partial<SecaoDraft>) {
-    setSecoes((prev) =>
-      prev.map((secao, i) => (i === index ? { ...secao, ...patch } : secao)),
-    );
+    const atualizar = (lista: SecaoDraft[]) =>
+      lista.map((secao, i) => (i === index ? { ...secao, ...patch } : secao));
+
+    // As agregações `SOMA({Seção > Coluna})` acompanham a renomeação da seção.
+    const nomeAnterior = secoes[index]?.nome ?? "";
+    const nomeNovo = patch.nome ?? "";
+    if (
+      nomeNovo.trim() &&
+      nomeAnterior.trim() &&
+      normalizarTitulo(nomeNovo) !== normalizarTitulo(nomeAnterior)
+    ) {
+      setVariaveis(
+        renomearSecaoNasFormulas(atualizar(secoes), variaveis, nomeAnterior, nomeNovo).variaveis,
+      );
+      setSecoes((prev) =>
+        renomearSecaoNasFormulas(atualizar(prev), [], nomeAnterior, nomeNovo).secoes,
+      );
+      return;
+    }
+    setSecoes(atualizar);
   }
 
   function addSecao() {
@@ -1429,6 +1458,20 @@ export function ExameForm({
     ) {
       const novoTitulo = patch.titulo;
       setTabelas((prev) => renomearChaveTabelas(prev, tituloAnterior, novoTitulo));
+    }
+    if (
+      typeof patch.titulo === "string" &&
+      tituloAnterior &&
+      patch.titulo.trim() &&
+      normalizarTitulo(patch.titulo) !== normalizarTitulo(tituloAnterior)
+    ) {
+      setVariaveis(
+        renomearColunaNasVariaveis(secoes, variaveis, tituloAnterior, patch.titulo, {
+          secaoIndex,
+          campoIndex,
+          colunaIndex,
+        }),
+      );
     }
 
     setSecoes((prev) => {
@@ -1765,6 +1808,7 @@ export function ExameForm({
     );
   }
 
+  const alvosAgregacao = alvosDeAgregacao(secoes);
   const colunasNumericas = secoes.flatMap((secao) =>
     secao.campos
       .filter((campo) => !campo.repetivel)
@@ -1801,6 +1845,7 @@ export function ExameForm({
   };
 
   return (
+    <AlvosAgregacaoContext.Provider value={alvosAgregacao}>
     <VariaveisTabelasContext.Provider value={variaveisTabelas}>
     <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
     <form
@@ -1999,6 +2044,7 @@ export function ExameForm({
     </aside>
     </div>
     </VariaveisTabelasContext.Provider>
+    </AlvosAgregacaoContext.Provider>
   );
 }
 

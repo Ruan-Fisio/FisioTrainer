@@ -6,7 +6,10 @@ import { coresPersistidasParaAlinhar } from "@/lib/cor-opcao";
 import {
   normalizarTitulo,
   parseVariaveis,
+  renomearEmAgregacoes,
+  renomearForaDeAgregacoes,
   renomearReferenciaFormula,
+  renomearSecaoEmFormula,
   type VariavelExame,
 } from "@/lib/exame-formula";
 import {
@@ -90,11 +93,116 @@ export function colunasReferenciaveis(
   return [...nomes.values()];
 }
 
+/** O que `SOMA({...})` pode alcançar: `Seção > Coluna` de cada seção com nome e
+ * `Coluna` sozinha (exame inteiro), incluindo campos repetíveis. */
+export function alvosDeAgregacao(secoes: SecaoDraft[]): string[] {
+  const porSecao = new Map<string, string>();
+  const porColuna = new Map<string, string>();
+  for (const secao of secoes) {
+    for (const campo of secao.campos) {
+      for (const coluna of campo.colunas) {
+        const titulo = coluna.titulo.trim();
+        if (!titulo || !ehColunaNumerica(coluna)) continue;
+        porColuna.set(normalizarTitulo(titulo), titulo);
+        if (secao.nome.trim()) {
+          const alvo = `${secao.nome.trim()} > ${titulo}`;
+          porSecao.set(normalizarTitulo(alvo), alvo);
+        }
+      }
+    }
+  }
+  return [...porSecao.values(), ...porColuna.values()];
+}
+
+function aplicarNasFormulas(
+  coluna: ColunaDraft,
+  renomear: (formula: string) => string,
+): ColunaDraft {
+  if (coluna.tipo === "CALCULADO" && coluna.formula) {
+    return { ...coluna, formula: renomear(coluna.formula) };
+  }
+  if (coluna.tipo === "MULTIPLA_ESCOLHA" && coluna.opcoesCondicionais.length > 0) {
+    return {
+      ...coluna,
+      opcoesCondicionais: coluna.opcoesCondicionais.map((c) => ({
+        ...c,
+        formula: renomear(c.formula),
+      })),
+    };
+  }
+  return coluna;
+}
+
+/** Outra coluna numérica ainda usa o título? Então a agregação por título segue
+ * valendo para ela e não acompanha a renomeação. `secoes` já tem o título novo. */
+export function tituloAindaEmUso(secoes: SecaoDraft[], titulo: string): boolean {
+  const chave = normalizarTitulo(titulo);
+  return secoes.some((secao) =>
+    secao.campos.some((campo) =>
+      campo.colunas.some(
+        (c) => ehColunaNumerica(c) && normalizarTitulo(c.titulo) === chave,
+      ),
+    ),
+  );
+}
+
+/** Renomear coluna também alcança as variáveis, a não ser que outra coluna numérica
+ * tenha o título antigo (a variável pode estar falando dela). `secoes` é o estado
+ * de antes da renomeação. */
+export function renomearColunaNasVariaveis(
+  secoes: SecaoDraft[],
+  variaveis: VariavelExame[],
+  antigo: string,
+  novo: string,
+  origem: { secaoIndex: number; campoIndex: number; colunaIndex: number },
+): VariavelExame[] {
+  const chave = normalizarTitulo(antigo);
+  const emOutra = secoes.some((secao, si) =>
+    secao.campos.some((campo, ci) =>
+      campo.colunas.some(
+        (c, coi) =>
+          !(si === origem.secaoIndex && ci === origem.campoIndex && coi === origem.colunaIndex) &&
+          ehColunaNumerica(c) &&
+          normalizarTitulo(c.titulo) === chave,
+      ),
+    ),
+  );
+  if (emOutra) return variaveis;
+  return variaveis.map((v) => ({
+    ...v,
+    formula: renomearReferenciaFormula(v.formula, antigo, novo),
+  }));
+}
+
+/** Renomear seção: atualiza as agregações, nas colunas e nas variáveis. Outra seção
+ * com o nome antigo mantém a agregação valendo para ela. */
+export function renomearSecaoNasFormulas(
+  secoes: SecaoDraft[],
+  variaveis: VariavelExame[],
+  antigo: string,
+  novo: string,
+): { secoes: SecaoDraft[]; variaveis: VariavelExame[] } {
+  const chave = normalizarTitulo(antigo);
+  if (secoes.some((s) => normalizarTitulo(s.nome) === chave)) return { secoes, variaveis };
+  const renomear = (formula: string) => renomearSecaoEmFormula(formula, antigo, novo);
+  return {
+    secoes: secoes.map((secao) => ({
+      ...secao,
+      campos: secao.campos.map((campo) => ({
+        ...campo,
+        colunas: campo.colunas.map((coluna) => aplicarNasFormulas(coluna, renomear)),
+      })),
+    })),
+    variaveis: variaveis.map((v) => ({ ...v, formula: renomear(v.formula) })),
+  };
+}
+
 /**
  * Renomeia `{antigo}` → `{novo}` em toda fórmula e condição das colunas. Com
  * `origem` (a coluna renomeada, já com o título novo), respeita o escopo: coluna
  * de campo repetível só é citada no próprio campo, e um campo repetível com
- * coluna própria de mesmo nome não está citando a coluna renomeada.
+ * coluna própria de mesmo nome não está citando a coluna renomeada. As agregações
+ * alcançam a coluna de qualquer lugar, exceto se outra coluna ainda usa o título.
  */
 export function renomearReferenciaEmSecoes(
   secoes: SecaoDraft[],
@@ -105,43 +213,26 @@ export function renomearReferenciaEmSecoes(
   const origemRepetivel =
     origem && secoes[origem.secaoIndex]?.campos[origem.campoIndex]?.repetivel;
   const chaveAntiga = normalizarTitulo(antigo);
+  const agregacoes = !origem || !tituloAindaEmUso(secoes, antigo);
 
   return secoes.map((secao, si) => ({
     ...secao,
     campos: secao.campos.map((campo, ci) => {
       const ehOrigem = origem?.secaoIndex === si && origem.campoIndex === ci;
-      if (origem && !ehOrigem) {
-        if (origemRepetivel) return campo;
-        const temProprio =
-          campo.repetivel &&
-          campo.colunas.some(
-            (c) => ehColunaNumerica(c) && normalizarTitulo(c.titulo) === chaveAntiga,
-          );
-        if (temProprio) return campo;
-      }
+      const temProprio =
+        campo.repetivel &&
+        campo.colunas.some(
+          (c) => ehColunaNumerica(c) && normalizarTitulo(c.titulo) === chaveAntiga,
+        );
+      const diretas = !origem || ehOrigem || (!origemRepetivel && !temProprio);
+      const renomear = (formula: string) => {
+        if (diretas && agregacoes) return renomearReferenciaFormula(formula, antigo, novo);
+        if (diretas) return renomearForaDeAgregacoes(formula, antigo, novo);
+        return agregacoes ? renomearEmAgregacoes(formula, antigo, novo) : formula;
+      };
       return {
         ...campo,
-        colunas: campo.colunas.map((coluna) => {
-          if (coluna.tipo === "CALCULADO" && coluna.formula) {
-            return {
-              ...coluna,
-              formula: renomearReferenciaFormula(coluna.formula, antigo, novo),
-            };
-          }
-          if (
-            coluna.tipo === "MULTIPLA_ESCOLHA" &&
-            coluna.opcoesCondicionais.length > 0
-          ) {
-            return {
-              ...coluna,
-              opcoesCondicionais: coluna.opcoesCondicionais.map((c) => ({
-                ...c,
-                formula: renomearReferenciaFormula(c.formula, antigo, novo),
-              })),
-            };
-          }
-          return coluna;
-        }),
+        colunas: campo.colunas.map((coluna) => aplicarNasFormulas(coluna, renomear)),
       };
     }),
   }));

@@ -84,6 +84,8 @@ function linhasDoCampo(
 
 export type ExameParaCalculo = {
   secoes: {
+    /** Alvo de `SOMA({Seção > Coluna})`. */
+    nome?: string;
     campos: {
       repetivel: boolean;
       colunas: {
@@ -124,6 +126,7 @@ export function acrescentarValoresCalculados<
         formula: coluna.formula,
         repetivel: campo.repetivel,
         campoId: `${secaoIndex}-${campoIndex}`,
+        secao: secao.nome,
         opcoes: coluna.opcoes,
         multiplaSelecao: coluna.multiplaSelecao,
         pontuacoes: parsePontuacoes(coluna.pontuacoes),
@@ -141,20 +144,6 @@ export function acrescentarValoresCalculados<
         .filter((v) => v.linha === 0)
         .map((v) => [v.colunaId, v.valor]),
     );
-    const { calculados, valoresDoExame } = calcularColunas(
-      colunas,
-      (colunaId) => brutos.get(colunaId),
-      paciente,
-      variaveis,
-    );
-
-    const extras: ComparacaoRapidaValor[] = [];
-    for (const [colunaId, resultado] of calculados) {
-      if ("valor" in resultado) {
-        extras.push({ colunaId, linha: 0, valor: formatarNumeroFormula(resultado.valor) });
-      }
-    }
-
     const brutosPorLinha = new Map(
       execucao.valores.map((v) => [chaveLinha(v.colunaId, v.linha), v.valor]),
     );
@@ -169,10 +158,28 @@ export function acrescentarValoresCalculados<
     const linhasDoCampoRepetivel = (campoId: string) => [
       ...(linhasPorCampo.get(campoId) ?? [0]),
     ];
+    const valorDaLinha = (colunaId: string, linha: number) =>
+      brutosPorLinha.get(chaveLinha(colunaId, linha));
+
+    const { calculados, valoresDoExame } = calcularColunas(
+      colunas,
+      (colunaId) => brutos.get(colunaId),
+      paciente,
+      variaveis,
+      { linhasDoCampo: linhasDoCampoRepetivel, valor: valorDaLinha },
+    );
+
+    const extras: ComparacaoRapidaValor[] = [];
+    for (const [colunaId, resultado] of calculados) {
+      if ("valor" in resultado) {
+        extras.push({ colunaId, linha: 0, valor: formatarNumeroFormula(resultado.valor) });
+      }
+    }
+
     const porLinha = calcularLinhasRepetiveis(
       colunas,
       linhasDoCampoRepetivel,
-      (colunaId, linha) => brutosPorLinha.get(chaveLinha(colunaId, linha)),
+      valorDaLinha,
       valoresDoExame,
       variaveis,
     );

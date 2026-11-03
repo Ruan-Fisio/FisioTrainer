@@ -5,6 +5,8 @@
  * Lógica pura — a UI só renderiza a lista e aplica `aplicarSugestao`.
  */
 
+import { FUNCOES_AGREGACAO, type FuncaoAgregacao } from "@/lib/exame-formula";
+
 export type TipoSugestao = "coluna" | "variavel" | "paciente" | "funcao";
 
 export type Sugestao = {
@@ -73,6 +75,30 @@ export function aplicarSugestao(
     cursor: token.inicio + (sugestao.cursorNaInsercao ?? sugestao.insercao.length),
   };
 }
+
+/** `SOMA(`, `MEDIA(`... logo antes do token: ali o que cabe é um alvo de agregação. */
+export function dentroDeAgregacao(texto: string, inicioToken: number): boolean {
+  return /(?:^|[^\p{L}\p{N}_])(?:SOMA|M[EÉ]DIA|MIN|MAX|CONTAGEM)\s*\(\s*$/iu.test(
+    texto.slice(0, inicioToken),
+  );
+}
+
+const DETALHE_AGREGACAO: Record<FuncaoAgregacao, string> = {
+  SOMA: "soma os valores da coluna",
+  MEDIA: "média dos valores preenchidos",
+  MIN: "menor valor",
+  MAX: "maior valor",
+  CONTAGEM: "quantos valores estão preenchidos",
+};
+
+/** Abre com o cursor dentro das chaves, onde a lista passa a sugerir as colunas. */
+export const SUGESTOES_AGREGACAO: Sugestao[] = FUNCOES_AGREGACAO.map((funcao) => ({
+  tipo: "funcao",
+  rotulo: funcao,
+  insercao: `${funcao}({})`,
+  cursorNaInsercao: funcao.length + 2,
+  detalhe: DETALHE_AGREGACAO[funcao],
+}));
 
 export const SUGESTAO_SE: Sugestao = {
   tipo: "funcao",

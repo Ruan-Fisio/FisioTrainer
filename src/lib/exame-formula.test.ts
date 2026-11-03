@@ -6,6 +6,9 @@ import {
   calcularColunasFormula,
   calcularLinhasRepetiveis,
   chaveLinha,
+  renomearEmAgregacoes,
+  renomearForaDeAgregacoes,
+  renomearSecaoEmFormula,
   extrairReferencias,
   expandirVariaveis,
   formatarNumeroFormula,
@@ -1670,6 +1673,294 @@ describe("fórmulas em campo com múltiplas entradas", () => {
           },
         ]),
       ).toMatch(/múltiplas entradas/);
+    });
+  });
+});
+
+describe("agregações (SOMA, MEDIA, MIN, MAX, CONTAGEM)", () => {
+  const COLUNAS: ColunaCalculo[] = [
+    { id: "v1", titulo: "Valor", tipo: "NUMERO", repetivel: false, secao: "Medidas" },
+    { id: "v2", titulo: "Valor", tipo: "NUMERO", repetivel: true, campoId: "c", secao: "Medidas" },
+    { id: "v3", titulo: "Valor", tipo: "NUMERO", repetivel: false, secao: "Outra" },
+  ];
+
+  function resultado(
+    formula: string,
+    valores: Record<string, string>,
+    colunas: ColunaCalculo[] = COLUNAS,
+    variaveis?: VariavelExame[],
+  ) {
+    const alvo: ColunaCalculo = {
+      id: "r",
+      titulo: "Resultado",
+      tipo: "CALCULADO",
+      formula,
+      repetivel: false,
+      secao: "Totais",
+    };
+    return calcularColunas(
+      [...colunas, alvo],
+      (id) => valores[`${id}::0`],
+      null,
+      variaveis,
+      {
+        linhasDoCampo: () => [0, 1, 2],
+        valor: (id, linha) => valores[chaveLinha(id, linha)],
+      },
+    ).calculados.get("r");
+  }
+
+  const VALORES = {
+    "v1::0": "10",
+    "v2::0": "1",
+    "v2::1": "2",
+    "v2::2": "",
+    "v3::0": "100",
+  };
+
+  it("SOMA junta campos e entradas da seção, ignorando vazios e outras seções", () => {
+    expect(resultado("SOMA({Medidas > Valor})", VALORES)).toEqual({ valor: 13 });
+  });
+
+  it("sem seção, alcança o exame inteiro", () => {
+    expect(resultado("SOMA({Valor})", VALORES)).toEqual({ valor: 113 });
+  });
+
+  it("MEDIA, MIN, MAX e CONTAGEM ignoram os vazios", () => {
+    expect(resultado("MEDIA({Medidas > Valor})", VALORES)).toEqual({ valor: 4.3 });
+    expect(resultado("MÉDIA({Medidas > Valor})", VALORES)).toEqual({ valor: 4.3 });
+    expect(resultado("MIN({Medidas > Valor})", VALORES)).toEqual({ valor: 1 });
+    expect(resultado("MAX({Medidas > Valor})", VALORES)).toEqual({ valor: 10 });
+    expect(resultado("CONTAGEM({Medidas > Valor})", VALORES)).toEqual({ valor: 3 });
+  });
+
+  it("não diferencia caixa nem espaços e entra numa conta maior", () => {
+    expect(resultado("soma( {medidas>valor} ) * 2 + 1", VALORES)).toEqual({ valor: 27 });
+    expect(resultado("SE(SOMA({Medidas > Valor}) > 5; 1; 0)", VALORES)).toEqual({ valor: 1 });
+  });
+
+  it("nenhum valor: pede preenchimento, mas CONTAGEM responde 0", () => {
+    expect(resultado("SOMA({Medidas > Valor})", {})).toEqual({
+      erro: "Preencha SOMA(Medidas > Valor) para calcular",
+    });
+    expect(resultado("CONTAGEM({Medidas > Valor}) + 1", {})).toEqual({ valor: 1 });
+  });
+
+  it("funciona dentro de variável", () => {
+    expect(
+      resultado("{Total} / 2", VALORES, COLUNAS, [
+        { nome: "Total", formula: "SOMA({Medidas > Valor})" },
+      ]),
+    ).toEqual({ valor: 6.5 });
+  });
+
+  it("agrega coluna CALCULADO, de campo comum e de entradas", () => {
+    const colunas: ColunaCalculo[] = [
+      { id: "fator", titulo: "Fator", tipo: "NUMERO", repetivel: false, secao: "S" },
+      { id: "n", titulo: "N", tipo: "NUMERO", repetivel: true, campoId: "c", secao: "S" },
+      {
+        id: "dobro",
+        titulo: "Dobro",
+        tipo: "CALCULADO",
+        formula: "{N} * {Fator}",
+        repetivel: true,
+        campoId: "c",
+        secao: "S",
+      },
+      {
+        id: "extra",
+        titulo: "Dobro",
+        tipo: "CALCULADO",
+        formula: "{Fator} + 1",
+        repetivel: false,
+        secao: "S",
+      },
+    ];
+    expect(
+      resultado("SOMA({S > Dobro})", { "fator::0": "2", "n::0": "1", "n::1": "3" }, colunas),
+    ).toEqual({ valor: 11 });
+  });
+
+  it("agrega pontuação, manual e automática", () => {
+    const colunas: ColunaCalculo[] = [
+      {
+        id: "p",
+        titulo: "P",
+        tipo: "MULTIPLA_ESCOLHA",
+        repetivel: false,
+        secao: "S",
+        opcoes: ["A"],
+        pontuacoes: [{ opcao: "A", pontos: 5 }],
+      },
+      { id: "n", titulo: "N", tipo: "NUMERO", repetivel: false, secao: "S" },
+      {
+        id: "q",
+        titulo: "Q",
+        tipo: "MULTIPLA_ESCOLHA",
+        repetivel: false,
+        secao: "S",
+        opcoes: ["B"],
+        opcoesCondicionais: [{ opcao: "B", formula: "{N} > 0" }],
+        pontuacoes: [{ opcao: "B", pontos: 7 }],
+      },
+    ];
+    const valores = { "p::0": "A", "n::0": "1" };
+    expect(resultado("SOMA({S > P}) + SOMA({S > Q})", valores, colunas)).toEqual({ valor: 12 });
+  });
+
+  it("entrada pode usar a agregação do próprio campo (percentual do total)", () => {
+    const colunas: ColunaCalculo[] = [
+      { id: "v", titulo: "Valor", tipo: "NUMERO", repetivel: true, campoId: "c", secao: "S" },
+      {
+        id: "pct",
+        titulo: "Pct",
+        tipo: "CALCULADO",
+        formula: "{Valor} / SOMA({S > Valor}) * 100",
+        repetivel: true,
+        campoId: "c",
+        secao: "S",
+      },
+    ];
+    const valores: Record<string, string> = { "v::0": "1", "v::1": "3" };
+    const fonte = {
+      linhasDoCampo: () => [0, 1],
+      valor: (id: string, linha: number) => valores[chaveLinha(id, linha)],
+    };
+    const { valoresDoExame } = calcularColunas(colunas, () => undefined, null, undefined, fonte);
+    const { calculados } = calcularLinhasRepetiveis(
+      colunas,
+      fonte.linhasDoCampo,
+      fonte.valor,
+      valoresDoExame,
+    );
+    expect(calculados.get("pct::0")).toEqual({ valor: 25 });
+    expect(calculados.get("pct::1")).toEqual({ valor: 75 });
+  });
+
+  it("condição de opção automática aceita agregação", () => {
+    const colunas: ColunaCalculo[] = [
+      ...COLUNAS,
+      {
+        id: "classe",
+        titulo: "Classe",
+        tipo: "MULTIPLA_ESCOLHA",
+        repetivel: false,
+        opcoes: ["Alto", "Baixo"],
+        opcoesCondicionais: [
+          { opcao: "Alto", formula: "SOMA({Medidas > Valor}) > 5" },
+          { opcao: "Baixo", formula: "SOMA({Medidas > Valor}) <= 5" },
+        ],
+      },
+    ];
+    const { opcoesAutomaticas } = calcularColunas(
+      colunas,
+      (id) => (VALORES as Record<string, string>)[`${id}::0`],
+      null,
+      undefined,
+      {
+        linhasDoCampo: () => [0, 1],
+        valor: (id, linha) => (VALORES as Record<string, string>)[chaveLinha(id, linha)],
+      },
+    );
+    expect(opcoesAutomaticas.get("classe")?.selecionadas).toEqual(["Alto"]);
+  });
+
+  describe("validação", () => {
+    const num = (titulo: string, extra: Partial<ColunaValidavel> = {}): ColunaValidavel => ({
+      titulo,
+      tipo: "NUMERO",
+      repetivel: false,
+      secao: "Medidas",
+      ...extra,
+    });
+    const calc = (
+      titulo: string,
+      formula: string,
+      extra: Partial<ColunaValidavel> = {},
+    ): ColunaValidavel => ({
+      titulo,
+      tipo: "CALCULADO",
+      formula,
+      repetivel: false,
+      secao: "Totais",
+      ...extra,
+    });
+
+    it("aceita agregação de coluna repetível fora do campo", () => {
+      expect(
+        validarFormulasDoExame([
+          num("Valor", { repetivel: true, campoId: "c" }),
+          calc("Total", "SOMA({Medidas > Valor})"),
+        ]),
+      ).toBeNull();
+    });
+
+    it("barra seção ou coluna que não existe, com mensagem clara", () => {
+      expect(
+        validarFormulasDoExame([num("Valor"), calc("T", "SOMA({Outra > Valor})")]),
+      ).toMatch(/nenhuma coluna numérica/);
+      expect(validarFormulasDoExame([num("Valor"), calc("T", "SOMA({Nada})")])).toMatch(
+        /nenhuma coluna numérica/,
+      );
+    });
+
+    it("não agrega coluna que não é numérica", () => {
+      expect(
+        validarFormulasDoExame([
+          { titulo: "Obs", tipo: "TEXTO", repetivel: false, secao: "S" },
+          calc("T", "SOMA({Obs})"),
+        ]),
+      ).toMatch(/nenhuma coluna numérica/);
+    });
+
+    it("barra variável com agregação sem coluna", () => {
+      expect(
+        validarFormulasDoExame([num("Valor")], [{ nome: "V", formula: "SOMA({Nada})" }]),
+      ).toMatch(/nenhuma coluna numérica/);
+    });
+
+    it("barra coluna que se inclui na própria agregação (ciclo)", () => {
+      expect(
+        validarFormulasDoExame([
+          num("Valor", { secao: "S" }),
+          calc("Valor", "SOMA({S > Valor})", { secao: "S", repetivel: true, campoId: "c" }),
+        ]),
+      ).toMatch(/ciclo/);
+    });
+
+    it("barra ciclo que cruza exame e entradas", () => {
+      expect(
+        validarFormulasDoExame([
+          calc("A", "SOMA({B})"),
+          calc("B", "{A} * 2", { repetivel: true, campoId: "c" }),
+        ]),
+      ).toMatch(/ciclo/);
+    });
+
+    it("aceita condição e SE com agregação (sintaxe)", () => {
+      expect(
+        validarFormulasDoExame([
+          num("Valor"),
+          calc("T", "SE(SOMA({Medidas > Valor}) > 1; 2; 3)"),
+        ]),
+      ).toBeNull();
+    });
+  });
+
+  describe("renomear", () => {
+    it("renomeia coluna e seção dentro da agregação", () => {
+      expect(renomearReferenciaFormula("SOMA({S > Valor}) + {Valor}", "Valor", "Nota")).toBe(
+        "SOMA({S > Nota}) + {Nota}",
+      );
+      expect(renomearSecaoEmFormula("SOMA({S > Valor}) + {S}", "S", "Medidas")).toBe(
+        "SOMA({Medidas > Valor}) + {S}",
+      );
+    });
+
+    it("separa o que é agregação do que é referência direta", () => {
+      const formula = "SOMA({Valor}) + {Valor}";
+      expect(renomearEmAgregacoes(formula, "Valor", "Nota")).toBe("SOMA({Nota}) + {Valor}");
+      expect(renomearForaDeAgregacoes(formula, "Valor", "Nota")).toBe("SOMA({Valor}) + {Nota}");
     });
   });
 });

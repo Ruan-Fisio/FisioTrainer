@@ -421,6 +421,47 @@ describe("acrescentarValoresCalculados", () => {
     expect(b.valores.filter((v) => v.colunaId === "dobro")).toEqual([]);
   });
 
+  it("agregação soma as entradas de cada execução", () => {
+    const exame = {
+      secoes: [
+        {
+          nome: "Medidas",
+          campos: [
+            {
+              repetivel: true,
+              colunas: [{ id: "valor", titulo: "Valor", tipo: "NUMERO" }],
+            },
+            {
+              repetivel: false,
+              colunas: [
+                {
+                  id: "total",
+                  titulo: "Total",
+                  tipo: "CALCULADO",
+                  formula: "SOMA({Medidas > Valor})",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+    const [a] = acrescentarValoresCalculados(exame, [
+      {
+        id: "a",
+        valores: [
+          { colunaId: "valor", linha: 0, valor: "10" },
+          { colunaId: "valor", linha: 1, valor: "20" },
+        ],
+      },
+    ]);
+    expect(a.valores.find((v) => v.colunaId === "total")).toEqual({
+      colunaId: "total",
+      linha: 0,
+      valor: "30",
+    });
+  });
+
   it("exame sem coluna calculada devolve as execuções como vieram", () => {
     const execucoes = [{ id: "a", valores: [] }];
     expect(

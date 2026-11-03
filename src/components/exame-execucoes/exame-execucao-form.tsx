@@ -684,6 +684,7 @@ export function ExameExecucaoForm({
                 formula: coluna.formula,
                 repetivel: campo.repetivel,
                 campoId: campo.id,
+                secao: secao.nome,
                 opcoes: coluna.opcoes,
                 multiplaSelecao: coluna.multiplaSelecao,
                 opcoesCondicionais: parseOpcoesCondicionais(
@@ -704,16 +705,22 @@ export function ExameExecucaoForm({
       parseVariaveis(exame?.variaveis),
       exame?.tabelas,
     );
+    const fonteLinhas = {
+      linhasDoCampo: (campoId: string) => linhasPorCampo[campoId] ?? [LINHA_UNICA],
+      valor: (colunaId: string, linhaId: string) =>
+        valores[chaveValor(colunaId, linhaId)],
+    };
     const doExame = calcularColunas(
       colunasEmOrdem,
       (colunaId) => valores[chaveValor(colunaId, LINHA_UNICA)],
       paciente,
       variaveis,
+      fonteLinhas,
     );
     const porLinha = calcularLinhasRepetiveis(
       colunasEmOrdem,
-      (campoId) => linhasPorCampo[campoId] ?? [LINHA_UNICA],
-      (colunaId, linhaId) => valores[chaveValor(colunaId, linhaId)],
+      fonteLinhas.linhasDoCampo,
+      fonteLinhas.valor,
       doExame.valoresDoExame,
       variaveis,
     );

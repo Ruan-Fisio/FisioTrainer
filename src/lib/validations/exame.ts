@@ -168,6 +168,7 @@ export const exameSchema = z
       formula?: string;
       repetivel: boolean;
       campoId: string;
+      secao: string;
       opcoes: string[];
       opcoesCondicionais: { opcao: string; formula: string }[];
       pontuacoes: OpcaoPontuada[];
@@ -183,6 +184,7 @@ export const exameSchema = z
             formula: coluna.formula,
             repetivel: campo.repetivel,
             campoId: `${secaoIndex}-${campoIndex}`,
+            secao: secao.nome,
             opcoes: coluna.opcoes,
             opcoesCondicionais: coluna.opcoesCondicionais,
             // Coluna com `usaPontuacao` mas pontos faltando/inválidos: o

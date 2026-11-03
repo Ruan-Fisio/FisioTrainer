@@ -5,6 +5,8 @@ import {
   SUGESTAO_SE,
   tokenNoCursor,
   type Sugestao,
+  dentroDeAgregacao,
+  SUGESTOES_AGREGACAO,
 } from "./formula-autocomplete";
 
 const itens: Sugestao[] = [
@@ -58,5 +60,38 @@ describe("aplicarSugestao", () => {
       texto: "SE(; ; )",
       cursor: 3,
     });
+  });
+});
+
+describe("autocomplete de agregação", () => {
+  it("sugere as funções pelo começo do nome", () => {
+    expect(filtrarSugestoes("so", SUGESTOES_AGREGACAO).map((s) => s.rotulo)).toEqual(["SOMA"]);
+  });
+
+  it("deixa o cursor dentro das chaves, pronto para escolher a coluna", () => {
+    const soma = SUGESTOES_AGREGACAO[0];
+    const { texto, cursor } = aplicarSugestao("so", { inicio: 0, fim: 2, prefixo: "so" }, soma);
+    expect(texto).toBe("SOMA({})");
+    expect(texto.slice(0, cursor)).toBe("SOMA({");
+    const token = tokenNoCursor(texto, cursor)!;
+    expect(token.prefixo).toBe("");
+    expect(dentroDeAgregacao(texto, token.inicio)).toBe(true);
+  });
+
+  it("escolher o alvo substitui as chaves sem duplicar", () => {
+    const texto = "SOMA({})";
+    const token = tokenNoCursor(texto, 6)!;
+    const r = aplicarSugestao(texto, token, {
+      tipo: "coluna",
+      rotulo: "Medidas > Valor",
+      insercao: "{Medidas > Valor}",
+    });
+    expect(r.texto).toBe("SOMA({Medidas > Valor})");
+  });
+
+  it("referência comum não está em agregação", () => {
+    expect(dentroDeAgregacao("{Peso} + ", 9)).toBe(false);
+    expect(dentroDeAgregacao("MINHA(", 6)).toBe(false);
+    expect(dentroDeAgregacao("média(", 6)).toBe(true);
   });
 });

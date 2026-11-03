@@ -18,6 +18,12 @@
  * exame — ver `calcularLinhasRepetiveis`. Fora do próprio campo, uma coluna
  * repetível não é referenciável (senão "qual linha" vira ambíguo).
  *
+ * A exceção é a agregação, que resolve essa ambiguidade usando todas as entradas:
+ * `SOMA({Seção > Coluna})` (também MEDIA, MIN, MAX e CONTAGEM) junta as colunas
+ * com aquele título na seção, ou no exame inteiro em `SOMA({Coluna})`. Vira uma
+ * referência comum (`{SOMA(Seção > Coluna)}`, ver `canonizarAgregacoes`) cujo
+ * valor `calcularColunas` deixa pronto junto com o das colunas.
+ *
  * Uma opção de coluna MULTIPLA_ESCOLHA também pode ter uma condição (ex:
  * `{IMC} < 18.5`) que a marca sozinha, na mesma passagem — ver `opcoesCondicionais`
  * em `ColunaCalculo`/`ColunaValidavel` e `calcularColunas`.
@@ -53,6 +59,8 @@ export type ColunaCalculo = {
   repetivel: boolean;
   /** Agrupa as colunas de um campo repetível (escopo de `calcularLinhasRepetiveis`). */
   campoId?: string;
+  /** Nome da seção — o alvo de `SOMA({Seção > Coluna})`. */
+  secao?: string;
   opcoes?: string[];
   multiplaSelecao?: boolean;
   opcoesCondicionais?: OpcaoCondicional[];
@@ -66,6 +74,8 @@ export type ColunaValidavel = {
   repetivel: boolean;
   /** Agrupa as colunas de um campo repetível (escopo das referências). */
   campoId?: string;
+  /** Nome da seção — o alvo de `SOMA({Seção > Coluna})`. */
+  secao?: string;
   opcoes?: string[];
   opcoesCondicionais?: OpcaoCondicional[];
   pontuacoes?: OpcaoPontuada[];
@@ -78,6 +88,92 @@ function ehPontuada(coluna: { tipo: string; pontuacoes?: OpcaoPontuada[] }): boo
     coluna.pontuacoes !== undefined &&
     coluna.pontuacoes.length > 0
   );
+}
+
+export const FUNCOES_AGREGACAO = ["SOMA", "MEDIA", "MIN", "MAX", "CONTAGEM"] as const;
+export type FuncaoAgregacao = (typeof FUNCOES_AGREGACAO)[number];
+
+const AGREGACAO_NOME = "SOMA|M[EÉ]DIA|MIN|MAX|CONTAGEM";
+const AGREGACAO_REGEX = new RegExp(
+  `(?<![\\p{L}\\p{N}_])(${AGREGACAO_NOME})\\s*\\(\\s*\\{([^{}]+)\\}\\s*\\)`,
+  "giu",
+);
+const AGREGACAO_CANONICA_REGEX = new RegExp(`^(${AGREGACAO_NOME})\\((.+)\\)$`, "iu");
+
+function funcaoAgregacao(nome: string): FuncaoAgregacao {
+  return nome.toUpperCase().replace("É", "E") as FuncaoAgregacao;
+}
+
+/** `SOMA({Seção > Coluna})` → `{SOMA(Seção > Coluna)}`: uma referência como outra
+ * qualquer para o resto do motor (substituição, validação, prévia). */
+function canonizarAgregacoes(formula: string): string {
+  return formula.replace(
+    AGREGACAO_REGEX,
+    (_, funcao: string, alvo: string) => `{${funcaoAgregacao(funcao)}(${alvo.trim()})}`,
+  );
+}
+
+/** Lê uma referência já canônica: `SOMA(Seção > Coluna)` → função e alvo. */
+export function parseAgregacao(
+  nome: string,
+): { funcao: FuncaoAgregacao; alvo: string } | null {
+  const match = AGREGACAO_CANONICA_REGEX.exec(nome.trim());
+  return match ? { funcao: funcaoAgregacao(match[1]), alvo: match[2].trim() } : null;
+}
+
+/** Divide `Seção > Coluna` (no primeiro `>`); `null` se o alvo não cita seção. */
+function dividirAlvo(alvo: string): { secao: string; coluna: string } | null {
+  const pos = alvo.indexOf(">");
+  if (pos === -1) return null;
+  return { secao: alvo.slice(0, pos).trim(), coluna: alvo.slice(pos + 1).trim() };
+}
+
+/** Colunas numéricas que um alvo alcança. Um título que contenha `>` vale inteiro,
+ * antes de tentar ler o alvo como `Seção > Coluna`. */
+export function colunasDaAgregacao<
+  C extends { titulo: string; tipo: string; secao?: string; pontuacoes?: OpcaoPontuada[] },
+>(colunas: C[], alvo: string): C[] {
+  const numericas = colunas.filter(ehReferenciavel);
+  const chave = normalizarTitulo(alvo);
+  const peloTitulo = numericas.filter((c) => normalizarTitulo(c.titulo) === chave);
+  if (peloTitulo.length > 0) return peloTitulo;
+  const partes = dividirAlvo(alvo);
+  if (!partes) return [];
+  return numericas.filter(
+    (c) =>
+      normalizarTitulo(c.secao ?? "") === normalizarTitulo(partes.secao) &&
+      normalizarTitulo(c.titulo) === normalizarTitulo(partes.coluna),
+  );
+}
+
+/** Valores vazios já ficaram de fora. Sem nenhum valor: sem resultado ("Preencha..."),
+ * exceto CONTAGEM, em que zero é a resposta. */
+export function aplicarAgregacao(
+  funcao: FuncaoAgregacao,
+  numeros: number[],
+): number | undefined {
+  if (funcao === "CONTAGEM") return numeros.length;
+  if (numeros.length === 0) return undefined;
+  const soma = numeros.reduce((total, n) => total + n, 0);
+  switch (funcao) {
+    case "SOMA":
+      return soma;
+    case "MEDIA":
+      return soma / numeros.length;
+    case "MIN":
+      return Math.min(...numeros);
+    case "MAX":
+      return Math.max(...numeros);
+  }
+}
+
+function formulasDaColuna(coluna: {
+  tipo: string;
+  formula?: string | null;
+  opcoesCondicionais?: OpcaoCondicional[];
+}): string[] {
+  if (coluna.tipo === "CALCULADO") return [coluna.formula ?? ""];
+  return (coluna.opcoesCondicionais ?? []).map((c) => c.formula);
 }
 
 /** Coluna que uma fórmula pode citar (fora campo repetível, checado à parte). */
@@ -177,10 +273,10 @@ export function expandirVariaveis(formula: string, variaveis?: VariavelExame[]):
       const chave = normalizarTitulo(nome);
       const definicao = mapa.get(chave);
       if (definicao === undefined || pilha.includes(chave)) return token;
-      return `(${expandir(definicao, [...pilha, chave])})`;
+      return `(${expandir(canonizarAgregacoes(definicao), [...pilha, chave])})`;
     });
   }
-  return expandir(formula, []);
+  return expandir(canonizarAgregacoes(formula), []);
 }
 
 /** `ExameCampoColuna.opcoesCondicionais` vem do Prisma como `Json` (tipo
@@ -201,7 +297,7 @@ export function parseOpcoesCondicionais(valor: unknown): OpcaoCondicional[] {
 export function extrairReferencias(formula: string): string[] {
   const nomes: string[] = [];
   const vistos = new Set<string>();
-  for (const match of formula.matchAll(TOKEN_REGEX)) {
+  for (const match of canonizarAgregacoes(formula).matchAll(TOKEN_REGEX)) {
     const nome = match[1].trim();
     const chave = normalizarTitulo(nome);
     if (nome && !vistos.has(chave)) {
@@ -220,8 +316,59 @@ export function renomearReferenciaFormula(
 ): string {
   const antigo = normalizarTitulo(tituloAntigo);
   if (!antigo) return formula;
-  return formula.replace(TOKEN_REGEX, (match, nome: string) =>
-    normalizarTitulo(nome) === antigo ? `{${tituloNovo.trim()}}` : match,
+  const novo = tituloNovo.trim();
+  return formula.replace(TOKEN_REGEX, (match, nome: string) => {
+    if (normalizarTitulo(nome) === antigo) return `{${novo}}`;
+    const partes = dividirAlvo(nome);
+    return partes && normalizarTitulo(partes.coluna) === antigo
+      ? `{${partes.secao} > ${novo}}`
+      : match;
+  });
+}
+
+/** Renomeia só nas agregações: elas alcançam a coluna de qualquer lugar do exame. */
+export function renomearEmAgregacoes(
+  formula: string,
+  tituloAntigo: string,
+  tituloNovo: string,
+): string {
+  return formula.replace(AGREGACAO_REGEX, (chamada) =>
+    renomearReferenciaFormula(chamada, tituloAntigo, tituloNovo),
+  );
+}
+
+/** Renomeia só fora das agregações: as referências diretas, que têm escopo. */
+export function renomearForaDeAgregacoes(
+  formula: string,
+  tituloAntigo: string,
+  tituloNovo: string,
+): string {
+  let resultado = "";
+  let inicio = 0;
+  for (const match of formula.matchAll(AGREGACAO_REGEX)) {
+    resultado +=
+      renomearReferenciaFormula(formula.slice(inicio, match.index), tituloAntigo, tituloNovo) +
+      match[0];
+    inicio = match.index + match[0].length;
+  }
+  return resultado + renomearReferenciaFormula(formula.slice(inicio), tituloAntigo, tituloNovo);
+}
+
+/** Renomear uma seção atualiza o `Seção > Coluna` das agregações que a citam. */
+export function renomearSecaoEmFormula(
+  formula: string,
+  secaoAntiga: string,
+  secaoNova: string,
+): string {
+  const antiga = normalizarTitulo(secaoAntiga);
+  if (!antiga) return formula;
+  return formula.replace(AGREGACAO_REGEX, (chamada) =>
+    chamada.replace(TOKEN_REGEX, (match, nome: string) => {
+      const partes = dividirAlvo(nome);
+      return partes && normalizarTitulo(partes.secao) === antiga
+        ? `{${secaoNova.trim()} > ${partes.coluna}}`
+        : match;
+    }),
   );
 }
 
@@ -369,7 +516,7 @@ function avaliarExpressaoAritmetica(expressao: string): number {
 
 function validarSintaxe(formula: string): boolean {
   try {
-    avaliarExpressaoAritmetica(formula.replace(TOKEN_REGEX, "1"));
+    avaliarExpressaoAritmetica(canonizarAgregacoes(formula).replace(TOKEN_REGEX, "1"));
     return true;
   } catch {
     return false;
@@ -554,7 +701,7 @@ function avaliarCondicaoSubstituida(expressao: string): ResultadoCondicao {
 }
 
 function validarSintaxeCondicao(formula: string): boolean {
-  const substituida = formula.replace(TOKEN_REGEX, "1");
+  const substituida = canonizarAgregacoes(formula).replace(TOKEN_REGEX, "1");
   const resultado = avaliarCondicaoSubstituida(substituida);
   // Com `1` no lugar de cada referência, um `SE` de tabela de referência cai no
   // `1/0` final (nenhuma faixa bate) — não é erro de sintaxe, só valor não finito.
@@ -578,7 +725,7 @@ export function avaliarCondicaoOpcao(
     return { erro: `Preencha ${formatarLista(faltando)} para calcular` };
   }
 
-  let expressao = formula;
+  let expressao = canonizarAgregacoes(formula);
   for (const nome of referencias) {
     const valor = valoresPorTitulo.get(normalizarTitulo(nome))!;
     expressao = expressao.replace(
@@ -618,7 +765,7 @@ export function avaliarFormula(
     return { erro: `Preencha ${formatarLista(faltando)} para calcular` };
   }
 
-  let expressao = formula;
+  let expressao = canonizarAgregacoes(formula);
   for (const nome of referencias) {
     const valor = valoresPorTitulo.get(normalizarTitulo(nome))!;
     expressao = expressao.replace(
@@ -660,11 +807,12 @@ export function formatarNumeroFormula(valor: number): string {
  * condição bate vence; em múltipla, todas que baterem. Colunas de campo
  * repetível são ignoradas (nunca calculáveis nem referenciáveis).
  */
-export function calcularColunas(
+export function calcularColunas<L extends string | number = string | number>(
   colunas: ColunaCalculo[],
   valorBruto: (colunaId: string) => string | undefined,
   paciente?: DadosPacienteFormula | null,
   variaveis?: VariavelExame[],
+  linhas?: FonteLinhas<L>,
 ): {
   calculados: Map<string, ResultadoFormula>;
   opcoesAutomaticas: Map<string, ResultadoOpcoesAutomaticas>;
@@ -673,8 +821,21 @@ export function calcularColunas(
   /** Valores por título normalizado — o contexto de `calcularLinhasRepetiveis`. */
   valoresDoExame: Map<string, number>;
 } {
-  return calcularEscopo(colunas, valorBruto, variaveisDoPaciente(paciente), variaveis, false);
+  return calcularEscopo(
+    colunas,
+    valorBruto,
+    variaveisDoPaciente(paciente),
+    variaveis,
+    false,
+    linhas,
+  );
 }
+
+/** As entradas dos campos repetíveis: a agregação precisa de todas. */
+export type FonteLinhas<L extends string | number = string | number> = {
+  linhasDoCampo: (campoId: string) => L[];
+  valor: (colunaId: string, linha: L) => string | undefined;
+};
 
 /** Chave de um resultado por entrada em `calcularLinhasRepetiveis`. */
 export function chaveLinha(colunaId: string, linha: string | number): string {
@@ -732,12 +893,13 @@ export function calcularLinhasRepetiveis<L extends string | number>(
 
 /** Motor de `calcularColunas`. Em `escopoDeLinha`, `colunas` são as de uma entrada
  * e `valoresPorTitulo` já traz os valores do exame, inclusive `{Soma pontuações}`. */
-function calcularEscopo(
+function calcularEscopo<L extends string | number>(
   colunas: ColunaCalculo[],
   valorBruto: (colunaId: string) => string | undefined,
   valoresPorTitulo: Map<string, number>,
   variaveis: VariavelExame[] | undefined,
   escopoDeLinha: boolean,
+  linhas?: FonteLinhas<L>,
 ): {
   calculados: Map<string, ResultadoFormula>;
   opcoesAutomaticas: Map<string, ResultadoOpcoesAutomaticas>;
@@ -812,7 +974,13 @@ function calcularEscopo(
   const resolvidas = new Set<string>();
   const emAndamento = new Set<string>();
 
-  function resolverDependencias(formulas: string[], propria: ColunaCalculo) {
+  /** `locais`: nomes que são colunas da própria entrada (ao calcular um campo
+   * repetível para uma agregação), que não são dependências no exame. */
+  function resolverDependencias(
+    formulas: string[],
+    propria?: ColunaCalculo,
+    locais?: Set<string>,
+  ) {
     for (const formula of formulas) {
       // `{Soma pontuações}` depende de TODAS as colunas de pontuação automáticas.
       if (referenciaSomaPontuacoes(formula)) {
@@ -821,11 +989,84 @@ function calcularEscopo(
         }
       }
       for (const nome of extrairReferencias(formula)) {
+        resolverAgregacao(nome);
+        if (locais?.has(normalizarTitulo(nome))) continue;
         const dependencia = derivadasPorChave.get(normalizarTitulo(nome));
         if (dependencia && dependencia !== propria) resolver(dependencia);
       }
     }
     publicarSoma();
+  }
+
+  const agregacoesVistas = new Set<string>();
+  const camposEmAndamento = new Set<string>();
+
+  /** Deixa o valor da agregação em `valoresPorTitulo`. Numa entrada não faz nada:
+   * as agregações já chegam prontas em `valoresDoExame`. */
+  function resolverAgregacao(nome: string) {
+    const agregacao = parseAgregacao(nome);
+    const chave = normalizarTitulo(nome);
+    if (escopoDeLinha || !agregacao || agregacoesVistas.has(chave)) return;
+    agregacoesVistas.add(chave);
+
+    const numeros = colunasDaAgregacao(colunas, agregacao.alvo).flatMap((coluna) =>
+      coluna.repetivel ? valoresDasEntradas(coluna) : valorDaColuna(coluna),
+    );
+    const resultado = aplicarAgregacao(agregacao.funcao, numeros);
+    if (resultado !== undefined) valoresPorTitulo.set(chave, resultado);
+  }
+
+  function numeroDoBruto(bruto: string | undefined): number[] {
+    const numero = bruto === undefined || bruto === "" ? NaN : Number(bruto);
+    return Number.isFinite(numero) ? [numero] : [];
+  }
+
+  function valorDaColuna(coluna: ColunaCalculo): number[] {
+    if (coluna.tipo === "NUMERO") return numeroDoBruto(valorBruto(coluna.id));
+    if (coluna.tipo === "CALCULADO" || temOpcoesAutomaticas(coluna)) resolver(coluna);
+    if (coluna.tipo === "CALCULADO") {
+      const resultado = calculados.get(coluna.id);
+      return resultado && "valor" in resultado ? [resultado.valor] : [];
+    }
+    const pontos = pontosPorColuna.get(coluna.id);
+    return pontos === undefined ? [] : [pontos];
+  }
+
+  /** Entrada sem valor (ou com cálculo incompleto) fica de fora da agregação. */
+  function valoresDasEntradas(coluna: ColunaCalculo): number[] {
+    if (!linhas || coluna.campoId === undefined) return [];
+    const entradas = linhas.linhasDoCampo(coluna.campoId);
+    if (coluna.tipo === "NUMERO") {
+      return entradas.flatMap((linha) => numeroDoBruto(linhas.valor(coluna.id, linha)));
+    }
+    const calculadosDoCampo = calcularCampo(coluna.campoId);
+    return entradas.flatMap((linha) => {
+      const resultado = calculadosDoCampo.get(chaveLinha(coluna.id, linha));
+      return resultado && "valor" in resultado ? [resultado.valor] : [];
+    });
+  }
+
+  function calcularCampo(campoId: string): Map<string, ResultadoFormula> {
+    if (!linhas || camposEmAndamento.has(campoId)) return new Map();
+    camposEmAndamento.add(campoId);
+    const doCampo = colunas.filter((c) => c.repetivel && c.campoId === campoId);
+    const locais = new Set(
+      doCampo.filter(ehReferenciavel).map((c) => normalizarTitulo(c.titulo)),
+    );
+    resolverDependencias(
+      doCampo.flatMap(formulasDaColuna).map((f) => expandirVariaveis(f, variaveis)),
+      undefined,
+      locais,
+    );
+    const { calculados: doCampoCalculados } = calcularLinhasRepetiveis(
+      doCampo,
+      linhas.linhasDoCampo,
+      linhas.valor,
+      valoresPorTitulo,
+      variaveis,
+    );
+    camposEmAndamento.delete(campoId);
+    return doCampoCalculados;
   }
 
   function resolver(coluna: ColunaCalculo) {
@@ -888,6 +1129,15 @@ function calcularEscopo(
     if (coluna.tipo === "CALCULADO" || temOpcoesAutomaticas(coluna)) resolver(coluna);
   }
 
+  // Agregações citadas por fórmulas de campo repetível: as entradas só leem o valor.
+  for (const coluna of colunas) {
+    for (const formula of formulasDaColuna(coluna)) {
+      for (const nome of extrairReferencias(expandirVariaveis(formula, variaveis))) {
+        resolverAgregacao(nome);
+      }
+    }
+  }
+
   // Sem coluna derivada ninguém publicou a soma, e as entradas ainda podem usá-la.
   publicarSoma();
 
@@ -899,13 +1149,14 @@ function calcularEscopo(
   };
 }
 
-export function calcularColunasFormula(
+export function calcularColunasFormula<L extends string | number = string | number>(
   colunas: ColunaCalculo[],
   valorBruto: (colunaId: string) => string | undefined,
   paciente?: DadosPacienteFormula | null,
   variaveis?: VariavelExame[],
+  linhas?: FonteLinhas<L>,
 ): Map<string, ResultadoFormula> {
-  return calcularColunas(colunas, valorBruto, paciente, variaveis).calculados;
+  return calcularColunas(colunas, valorBruto, paciente, variaveis, linhas).calculados;
 }
 
 /** Erro de `validarFormulasDoExame` com a posição exata da coluna (índice em
@@ -922,6 +1173,9 @@ export type ErroValidacaoFormula = {
   opcaoCampo?: "opcoesCondicionais" | "pontuacoes";
   variavelIndex?: number;
 };
+
+const MSG_AGREGACAO_SEM_COLUNA =
+  "nenhuma coluna numérica foi encontrada (confira os nomes: SOMA({Seção > Coluna}) ou SOMA({Coluna}))";
 
 /** Valida as variáveis do exame: nome único e sem conflito (colunas numéricas,
  * Idade/Sexo), fórmula preenchida, referências existentes, sem ciclo e com
@@ -979,6 +1233,13 @@ function validarVariaveis(
     if (!formula.trim()) return erro(`A variável "${nome}" precisa de uma fórmula ou valor`, i);
     for (const ref of extrairReferencias(formula)) {
       const chave = normalizarTitulo(ref);
+      const agregacao = parseAgregacao(ref);
+      if (agregacao) {
+        if (colunasDaAgregacao(colunas, agregacao.alvo).length === 0) {
+          return erro(`A variável "${nome}" usa ${ref}, mas ${MSG_AGREGACAO_SEM_COLUNA}`, i);
+        }
+        continue;
+      }
       if (
         !mapa.has(chave) &&
         !nomesColunas.has(chave) &&
@@ -1056,6 +1317,8 @@ export function validarFormulasDoExameDetalhado(
     nomesDaEntrada.set(c.campoId, nomes);
   }
   function referenciaExiste(coluna: ColunaValidavel, nome: string): boolean {
+    const agregacao = parseAgregacao(nome);
+    if (agregacao) return colunasDaAgregacao(colunas, agregacao.alvo).length > 0;
     const chave = normalizarTitulo(nome);
     return (
       disponiveis.has(chave) ||
@@ -1102,6 +1365,12 @@ export function validarFormulasDoExameDetalhado(
         if (ehSomaPontuacoes(nome) && !referenciaExiste(coluna, nome)) {
           return {
             mensagem: `A fórmula da coluna "${coluna.titulo}" usa "${VARIAVEL_SOMA_PONTUACOES}", mas nenhuma coluna do exame está marcada como pontuação`,
+            colunaIndex,
+          };
+        }
+        if (parseAgregacao(nome) && !referenciaExiste(coluna, nome)) {
+          return {
+            mensagem: `A fórmula da coluna "${coluna.titulo}" usa ${nome}, mas ${MSG_AGREGACAO_SEM_COLUNA}`,
             colunaIndex,
           };
         }
@@ -1211,6 +1480,13 @@ export function validarFormulasDoExameDetalhado(
               };
             }
           }
+          if (parseAgregacao(nome) && !referenciaExiste(coluna, nome)) {
+            return {
+              mensagem: `A condição da opção "${opcao}" da coluna "${coluna.titulo}" usa ${nome}, mas ${MSG_AGREGACAO_SEM_COLUNA}`,
+              colunaIndex,
+              opcaoIndex,
+            };
+          }
           if (!referenciaExiste(coluna, nome)) {
             return {
               mensagem: `A condição da opção "${opcao}" da coluna "${coluna.titulo}" referencia "${nome}", que não existe neste exame (colunas de campos com múltiplas entradas só podem ser referenciadas dentro do próprio campo)`,
@@ -1266,41 +1542,57 @@ export function validarFormulasDoExameDetalhado(
     }
   }
 
-  const erroCiclo = validarCiclosEntreCalculadas(colunas, variaveis, (c) => !c.repetivel);
-  if (erroCiclo) return erroCiclo;
-  for (const campoId of camposComFormula) {
-    const erro = validarCiclosEntreCalculadas(
-      colunas,
-      variaveis,
-      (c) => c.repetivel && c.campoId === campoId,
-    );
-    if (erro) return erro;
-  }
-  return null;
+  return validarCiclosEntreCalculadas(colunas, variaveis);
 }
 
 /** Calculada que depende (direta ou indiretamente) dela mesma — o cálculo
- * sob demanda não teria por onde começar. `doEscopo` separa as colunas do exame
- * das de cada campo repetível: uma coluna do exame nunca depende de uma entrada,
- * então um ciclo nunca cruza escopos. */
+ * sob demanda não teria por onde começar. Uma agregação cruza escopos (coluna do
+ * exame → entradas de um campo), por isso o grafo é um só. */
 function validarCiclosEntreCalculadas(
   colunas: ColunaValidavel[],
   variaveis: VariavelExame[],
-  doEscopo: (coluna: ColunaValidavel) => boolean,
 ): ErroValidacaoFormula | null {
-  const indicePorChave = new Map<string, number>();
+  const ehDerivada = (c: ColunaValidavel) =>
+    c.tipo === "CALCULADO" || (ehPontuada(c) && temOpcoesAutomaticas(c));
+
+  const indiceDe = new Map(colunas.map((c, i) => [c, i]));
+  const derivadasDoExame = new Map<string, number>();
+  const derivadasDoCampo = new Map<string, number>();
+  const referenciaveisDoCampo = new Set<string>();
+  const chaveNoCampo = (campoId: string | undefined, chave: string) => `${campoId}::${chave}`;
+  const pontuadasAutomaticas: number[] = [];
+
   colunas.forEach((c, i) => {
     const chave = normalizarTitulo(c.titulo);
-    const derivada = c.tipo === "CALCULADO" || (ehPontuada(c) && temOpcoesAutomaticas(c));
-    if (derivada && doEscopo(c) && chave && !indicePorChave.has(chave)) {
-      indicePorChave.set(chave, i);
+    if (!chave) return;
+    if (c.repetivel) {
+      if (ehReferenciavel(c)) referenciaveisDoCampo.add(chaveNoCampo(c.campoId, chave));
+      if (ehDerivada(c) && !derivadasDoCampo.has(chaveNoCampo(c.campoId, chave))) {
+        derivadasDoCampo.set(chaveNoCampo(c.campoId, chave), i);
+      }
+    } else if (ehDerivada(c) && !derivadasDoExame.has(chave)) {
+      derivadasDoExame.set(chave, i);
     }
+    if (ehPontuada(c) && temOpcoesAutomaticas(c) && !c.repetivel) pontuadasAutomaticas.push(i);
   });
 
-  const pontuadasAutomaticas: number[] = [];
-  colunas.forEach((c, i) => {
-    if (ehPontuada(c) && temOpcoesAutomaticas(c) && doEscopo(c)) pontuadasAutomaticas.push(i);
-  });
+  function destinos(coluna: ColunaValidavel, nome: string): number[] {
+    if (ehSomaPontuacoes(nome)) return pontuadasAutomaticas;
+    const agregacao = parseAgregacao(nome);
+    if (agregacao) {
+      return colunasDaAgregacao(colunas, agregacao.alvo)
+        .filter(ehDerivada)
+        .map((c) => indiceDe.get(c)!);
+    }
+    const chave = normalizarTitulo(nome);
+    const noCampo = chaveNoCampo(coluna.campoId, chave);
+    if (coluna.repetivel && referenciaveisDoCampo.has(noCampo)) {
+      const destino = derivadasDoCampo.get(noCampo);
+      return destino === undefined ? [] : [destino];
+    }
+    const destino = derivadasDoExame.get(chave);
+    return destino === undefined ? [] : [destino];
+  }
 
   const estado = new Map<number, 1 | 2>();
   function temCiclo(indice: number): boolean {
@@ -1308,32 +1600,25 @@ function validarCiclosEntreCalculadas(
     if (estado.get(indice) === 1) return true;
     estado.set(indice, 1);
     const coluna = colunas[indice];
-    const formulas =
-      coluna.tipo === "CALCULADO"
-        ? [coluna.formula ?? ""]
-        : (coluna.opcoesCondicionais ?? []).map((c) => c.formula);
-    for (const formulaBruta of formulas) {
+    for (const formulaBruta of formulasDaColuna(coluna)) {
       const formula = expandirVariaveis(formulaBruta, variaveis);
       for (const nome of extrairReferencias(formula)) {
-        // `{Soma pontuações}` depende de todas as colunas de pontuação automáticas.
-        if (ehSomaPontuacoes(nome)) {
-          for (const destino of pontuadasAutomaticas) {
-            if (destino !== indice && temCiclo(destino)) return true;
-          }
-          continue;
+        for (const destino of destinos(coluna, nome)) {
+          // `{Soma pontuações}` não conta a própria coluna (barrado à parte).
+          if (ehSomaPontuacoes(nome) && destino === indice) continue;
+          if (temCiclo(destino)) return true;
         }
-        const destino = indicePorChave.get(normalizarTitulo(nome));
-        if (destino !== undefined && temCiclo(destino)) return true;
       }
     }
     estado.set(indice, 2);
     return false;
   }
 
-  for (const indice of indicePorChave.values()) {
-    if (temCiclo(indice)) {
+  for (let indice = 0; indice < colunas.length; indice++) {
+    const coluna = colunas[indice];
+    if (ehDerivada(coluna) && normalizarTitulo(coluna.titulo) && temCiclo(indice)) {
       return {
-        mensagem: `A coluna "${colunas[indice].titulo}" depende dela mesma por meio de outras colunas calculadas ou automáticas (ciclo)`,
+        mensagem: `A coluna "${coluna.titulo}" depende dela mesma por meio de outras colunas calculadas ou automáticas (ciclo)`,
         colunaIndex: indice,
       };
     }

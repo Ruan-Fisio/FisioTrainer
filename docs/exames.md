@@ -26,10 +26,18 @@ Coluna de exame do tipo `CALCULADO` nunca é preenchida pela clínica: o valor �
 
 - **Campo com múltiplas entradas (`repetivel`)** — a fórmula vale **por entrada** (decisão: resolve o "qual linha"). `CALCULADO` e opção automática enxergam as colunas da **mesma entrada** + colunas de campos não-repetíveis + paciente, variáveis, tabelas e `{Soma pontuações}`. `calcularLinhasRepetiveis` (`exame-formula.ts`) recebe `valoresDoExame` de `calcularColunas` e devolve resultados por `chaveLinha(colunaId, linha)`; **todo ponto que mostra CALCULADO precisa chamar os dois** (form de execução, detalhe, `acrescentarValoresCalculados`).
   - Coluna da entrada tem **precedência** sobre coluna do exame com o mesmo nome, **mesmo vazia** ("Preencha X", nunca cai no valor do exame).
-  - Coluna repetível **não** é referenciável de fora do próprio campo (outro campo ou coluna do exame), nem por variável usada lá: a checagem roda na fórmula já expandida. Agregar entradas (soma/média) não existe.
+  - Coluna repetível **não** é referenciável diretamente de fora do próprio campo (outro campo ou coluna do exame), nem por variável usada lá: a checagem roda na fórmula já expandida. Para juntar as entradas, use agregação (abaixo).
   - Validação: campo repetível **com fórmula** exige nome único dentro do campo e não pode ter coluna com o nome de uma variável (a variável é expandida antes e ganharia). Campo sem fórmula não é checado, para não travar o autosave de exames antigos. Ciclo é checado campo a campo. Pontuação continua barrada em campo repetível.
   - Renomear (`renomearReferenciaEmSecoes`, `exame-draft.ts`): coluna repetível só propaga no próprio campo; coluna do exame não propaga para campo repetível que tenha coluna própria com aquele nome.
   - Comparação Rápida e relatório comparativo mostram o resultado de cada entrada. E2E: `e2e/tests/exame-calculado-repetivel.spec.ts`.
+
+- **Agregações `SOMA`, `MEDIA` (ou `MÉDIA`), `MIN`, `MAX`, `CONTAGEM`** (pedido do usuário: somar a coluna "Valor" de uma seção): `SOMA({Seção > Coluna})` junta todas as colunas numéricas com aquele título na seção (vários campos e todas as entradas); `SOMA({Coluna})` alcança o exame inteiro. Funcionam em variáveis, `CALCULADO` e condições, em qualquer campo.
+  - **Implementação**: `canonizarAgregacoes` reescreve para a referência `{SOMA(Seção > Coluna)}`, então substituição, validação e prévia tratam como qualquer outro `{Nome}`. `calcularColunas` deixa o valor em `valoresDoExame` (`resolverAgregacao`), e a entrada só lê. **Precisa do 5º parâmetro `FonteLinhas`** (entradas dos campos repetíveis): todo ponto que calcula (form, detalhe, `acrescentarValoresCalculados`) passa, e também o `secao` de cada coluna.
+  - **Valores**: entrada vazia ou cálculo incompleto ficam de fora. Sem nenhum valor: "Preencha SOMA(...) para calcular"; `CONTAGEM` responde 0. Agrega `NUMERO`, `CALCULADO` e `MULTIPLA_ESCOLHA` pontuada.
+  - **Seção é por nome**: seções homônimas entram juntas. Título com `>` vale inteiro antes de ler `Seção > Coluna`.
+  - **Ciclo**: `validarCiclosEntreCalculadas` usa um grafo único, porque a agregação cruza exame e entradas (coluna dentro da própria agregação é barrada). Uma entrada pode usar a agregação de **outra** coluna do próprio campo (ex. percentual do total).
+  - **Renomear**: coluna e seção propagam para agregações em qualquer lugar e para variáveis (`renomearColunaNasVariaveis`, `renomearSecaoNasFormulas`). Se outra coluna ou seção ainda usa o nome antigo, a agregação fica como está.
+  - **Editor**: `formula-dialog.tsx` tem o bloco "Somar ou resumir uma coluna" (cálculo + coluna, "Inserir na fórmula" ou "Usar o cálculo acima" na variável) e o autocomplete sugere `SOMA` etc. e depois os alvos (`alvosDeAgregacao`, via `AlvosAgregacaoContext`). E2E: `e2e/tests/exame-agregacao.spec.ts`.
 
 ## Opções automáticas de MULTIPLA_ESCOLHA — condição por opção, tudo ou nada por coluna
 

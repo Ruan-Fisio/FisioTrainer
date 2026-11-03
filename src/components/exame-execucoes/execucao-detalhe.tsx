@@ -138,6 +138,7 @@ export function ExecucaoValores({
         formula: coluna.formula,
         repetivel: campo.repetivel,
         campoId: campo.id,
+        secao: secao.nome,
         // MULTIPLA_ESCOLHA pontuada entra nas fórmulas pelo valor GRAVADO
         // (sem `opcoesCondicionais`: não reavalia as condições).
         opcoes: coluna.opcoes,
@@ -150,6 +151,19 @@ export function ExecucaoValores({
     parseVariaveis(execucao.exame.variaveis),
     execucao.exame.tabelas,
   );
+  const camposPorId = new Map(
+    execucao.exame.secoes.flatMap((secao) =>
+      secao.campos.map((campo) => [campo.id, campo] as const),
+    ),
+  );
+  const fonteLinhas = {
+    linhasDoCampo: (campoId: string) => {
+      const campo = camposPorId.get(campoId);
+      return campo ? linhasDoCampo(campo) : [];
+    },
+    valor: (colunaId: string, linha: number) =>
+      valorPorChave.get(chaveLinha(colunaId, linha)),
+  };
   const { calculados: calculadosDoExame, valoresDoExame } = calcularColunas(
     colunasEmOrdem,
     (colunaId) => valorPorChave.get(`${colunaId}::0`),
@@ -158,19 +172,12 @@ export function ExecucaoValores({
       idade: execucao.paciente.idade,
     },
     variaveis,
-  );
-  const camposPorId = new Map(
-    execucao.exame.secoes.flatMap((secao) =>
-      secao.campos.map((campo) => [campo.id, campo] as const),
-    ),
+    fonteLinhas,
   );
   const { calculados: calculadosPorLinha } = calcularLinhasRepetiveis(
     colunasEmOrdem,
-    (campoId) => {
-      const campo = camposPorId.get(campoId);
-      return campo ? linhasDoCampo(campo) : [];
-    },
-    (colunaId, linha) => valorPorChave.get(chaveLinha(colunaId, linha)),
+    fonteLinhas.linhasDoCampo,
+    fonteLinhas.valor,
     valoresDoExame,
     variaveis,
   );

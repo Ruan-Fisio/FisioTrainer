@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useId, useMemo, useRef, useState } from "react";
 import { Plus, Sigma, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,21 +20,36 @@ import {
   expandirVariaveis,
   extrairReferencias,
   formatarNumeroFormula,
+  FUNCOES_AGREGACAO,
   normalizarTitulo,
   renomearReferenciaFormula,
   VARIAVEL_SOMA_PONTUACOES,
   VARIAVEIS_PACIENTE,
+  type FuncaoAgregacao,
   type VariavelExame,
 } from "@/lib/exame-formula";
 import {
   aplicarSugestao,
+  dentroDeAgregacao,
   filtrarSugestoes,
   SUGESTAO_SE,
+  SUGESTOES_AGREGACAO,
   tokenNoCursor,
   type Sugestao,
   type TipoSugestao,
 } from "@/lib/formula-autocomplete";
 import { useVariaveisTabelas } from "@/components/exames/tabelas-referencia-editor";
+
+/** O que `SOMA({...})` pode alcançar no exame (`alvosDeAgregacao`). */
+export const AlvosAgregacaoContext = createContext<string[]>([]);
+
+const ROTULO_FUNCAO: Record<FuncaoAgregacao, string> = {
+  SOMA: "Soma",
+  MEDIA: "Média",
+  MIN: "Menor valor",
+  MAX: "Maior valor",
+  CONTAGEM: "Quantidade preenchida",
+};
 
 const ROTULO_TIPO: Record<TipoSugestao, string> = {
   coluna: "coluna",
@@ -87,6 +102,13 @@ export function FormulaDialog({
 }) {
   const idBase = useId();
   const variaveisTabelas = useVariaveisTabelas();
+  const alvosAgregacao = useContext(AlvosAgregacaoContext);
+  const [funcaoAgregacao, setFuncaoAgregacao] = useState<FuncaoAgregacao>("SOMA");
+  const [alvoEscolhido, setAlvoEscolhido] = useState("");
+  const alvoAgregacao = alvosAgregacao.includes(alvoEscolhido)
+    ? alvoEscolhido
+    : (alvosAgregacao[0] ?? "");
+  const expressaoAgregacao = `${funcaoAgregacao}({${alvoAgregacao}})`;
   // Variáveis do usuário + saídas das tabelas: o que uma fórmula pode citar e expandir.
   const variaveisTodas = useMemo(
     () => [...variaveis, ...variaveisTabelas],
@@ -135,8 +157,19 @@ export function FormulaDialog({
         detalhe: "soma dos pontos de todas as colunas de pontuação",
       },
       SUGESTAO_SE,
+      ...SUGESTOES_AGREGACAO,
     ],
     [colunasDisponiveis, variaveis, variaveisTabelas],
+  );
+  const sugestoesDeAlvo = useMemo<Sugestao[]>(
+    () =>
+      alvosAgregacao.map((alvo) => ({
+        tipo: "coluna",
+        rotulo: alvo,
+        insercao: `{${alvo}}`,
+        detalhe: alvo.includes(">") ? "coluna nesta seção" : "coluna no exame inteiro",
+      })),
+    [alvosAgregacao],
   );
 
   const token = useMemo(
@@ -146,8 +179,12 @@ export function FormulaDialog({
     [texto, cursor, forcado],
   );
   const sugestoes = useMemo(
-    () => (token && !fechado ? filtrarSugestoes(token.prefixo, todasSugestoes) : []),
-    [token, fechado, todasSugestoes],
+    () => {
+      if (!token || fechado) return [];
+      const itens = dentroDeAgregacao(texto, token.inicio) ? sugestoesDeAlvo : todasSugestoes;
+      return filtrarSugestoes(token.prefixo, itens);
+    },
+    [token, fechado, texto, todasSugestoes, sugestoesDeAlvo],
   );
   const indiceAtivo = Math.min(indice, Math.max(sugestoes.length - 1, 0));
   const listaAberta = sugestoes.length > 0;
@@ -528,9 +565,69 @@ export function FormulaDialog({
               <h3 className="text-sm font-semibold">Variáveis do exame</h3>
               <p className="text-xs text-muted-foreground">
                 Nomes reutilizáveis nas fórmulas deste exame: uma constante (ex. 0.9) ou
-                uma sub-fórmula (ex. {"{Tríceps} + {Subescapular}"}). São salvas junto
-                com o exame.
+                uma sub-fórmula (ex. {"{Tríceps} + {Subescapular}"} ou{" "}
+                {"SOMA({Medidas > Valor})"}). São salvas junto com o exame.
               </p>
+            </div>
+            <div className="flex flex-col gap-2 rounded-xl border border-violet-500/30 bg-violet-500/5 p-3">
+              <h4 className="text-xs font-semibold">Somar ou resumir uma coluna</h4>
+              <div className="grid gap-2 sm:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+                <div className="flex min-w-0 flex-col gap-1">
+                  <Label htmlFor={`${idBase}-agregacao-funcao`} className="text-xs">
+                    Cálculo
+                  </Label>
+                  <select
+                    id={`${idBase}-agregacao-funcao`}
+                    className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                    value={funcaoAgregacao}
+                    onChange={(e) => setFuncaoAgregacao(e.target.value as FuncaoAgregacao)}
+                  >
+                    {FUNCOES_AGREGACAO.map((funcao) => (
+                      <option key={funcao} value={funcao}>
+                        {ROTULO_FUNCAO[funcao]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex min-w-0 flex-col gap-1">
+                  <Label htmlFor={`${idBase}-agregacao-alvo`} className="text-xs">
+                    Coluna (Seção {">"} Coluna, ou o exame inteiro)
+                  </Label>
+                  <select
+                    id={`${idBase}-agregacao-alvo`}
+                    className="h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+                    value={alvoAgregacao}
+                    disabled={alvosAgregacao.length === 0}
+                    onChange={(e) => setAlvoEscolhido(e.target.value)}
+                  >
+                    {alvosAgregacao.length === 0 && (
+                      <option value="">Nenhuma coluna numérica ainda</option>
+                    )}
+                    {alvosAgregacao.map((alvo) => (
+                      <option key={alvo} value={alvo}>
+                        {alvo}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <p className="break-words font-mono text-[11px] text-muted-foreground">
+                {expressaoAgregacao}
+              </p>
+              <p className="text-[11px] text-muted-foreground">
+                Valores vazios ficam de fora. Use o botão abaixo ou &quot;Usar o cálculo
+                acima&quot; em uma variável.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 self-end px-2 text-xs"
+                disabled={alvosAgregacao.length === 0}
+                onClick={() => inserir(expressaoAgregacao)}
+              >
+                Inserir na fórmula
+              </Button>
             </div>
             {variaveis.length === 0 && (
               <p className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
@@ -580,6 +677,22 @@ export function FormulaDialog({
                       placeholder="Ex: 0.9  ou  {Tríceps} + {Subescapular}"
                       onChange={(e) => atualizarVariavel(index, { formula: e.target.value })}
                     />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 self-start px-2 text-xs"
+                      disabled={alvosAgregacao.length === 0}
+                      title={expressaoAgregacao}
+                      onClick={() =>
+                        atualizarVariavel(index, {
+                          formula: `${variavel.formula}${expressaoAgregacao}`,
+                        })
+                      }
+                    >
+                      <Sigma className="size-3.5" />
+                      Usar o cálculo acima
+                    </Button>
                   </div>
                   <div className="flex items-center justify-between gap-2">
                     <span className="min-w-0 truncate text-xs text-muted-foreground">

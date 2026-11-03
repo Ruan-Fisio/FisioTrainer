@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+  alvosDeAgregacao,
   colunasReferenciaveis,
+  renomearColunaNasVariaveis,
   renomearReferenciaEmSecoes,
+  renomearSecaoNasFormulas,
   type ColunaDraft,
   type SecaoDraft,
 } from "./exame-draft";
@@ -99,5 +102,78 @@ describe("renomearReferenciaEmSecoes", () => {
     const r = renomearReferenciaEmSecoes(secoes(), "Reps", "R");
     expect(formula(r, 1, 1)).toBe("{R} * {Peso}");
     expect(formula(r, 2, 2)).toBe("{R} * {Carga}");
+  });
+});
+
+describe("agregações no rascunho", () => {
+  function comAgregacao(formula = "SOMA({S > Reps})"): SecaoDraft[] {
+    const lista = secoes();
+    lista[0].campos[0].colunas[2] = coluna("Geral", "CALCULADO", formula);
+    return lista;
+  }
+
+  it("lista os alvos por seção e por coluna, incluindo campo repetível", () => {
+    expect(alvosDeAgregacao(secoes())).toEqual([
+      "S > Peso",
+      "S > Carga",
+      "S > Geral",
+      "S > Reps",
+      "S > Volume",
+      "S > Total",
+      "Peso",
+      "Carga",
+      "Geral",
+      "Reps",
+      "Volume",
+      "Total",
+    ]);
+  });
+
+  it("agregação acompanha a coluna de campo repetível fora do campo", () => {
+    const lista = comAgregacao("SOMA({S > Volume})");
+    lista[0].campos[1].colunas[1] = coluna("Vol", "CALCULADO", "{Reps} * {Peso}");
+    const r = renomearReferenciaEmSecoes(lista, "Volume", "Vol", { secaoIndex: 0, campoIndex: 1 });
+    expect(formula(r, 0, 2)).toBe("SOMA({S > Vol})");
+  });
+
+  it("agregação não acompanha se outra coluna ainda tem o título antigo", () => {
+    const lista = comAgregacao();
+    lista[0].campos[1].colunas[0] = coluna("Repetições", "NUMERO");
+    const r = renomearReferenciaEmSecoes(lista, "Reps", "Repetições", {
+      secaoIndex: 0,
+      campoIndex: 1,
+    });
+    expect(formula(r, 0, 2)).toBe("SOMA({S > Reps})");
+    expect(formula(r, 1, 1)).toBe("{Repetições} * {Peso}");
+  });
+
+  it("renomear seção atualiza colunas e variáveis", () => {
+    const lista = comAgregacao();
+    lista[0].nome = "Medidas";
+    const r = renomearSecaoNasFormulas(
+      lista,
+      [{ nome: "V", formula: "MEDIA({S > Reps})" }],
+      "S",
+      "Medidas",
+    );
+    expect(formula(r.secoes, 0, 2)).toBe("SOMA({Medidas > Reps})");
+    expect(r.variaveis[0].formula).toBe("MEDIA({Medidas > Reps})");
+  });
+
+  it("renomear seção não mexe se outra seção mantém o nome antigo", () => {
+    const lista = [...comAgregacao(), { ...secoes()[0] }];
+    lista[0] = { ...lista[0], nome: "Medidas" };
+    const r = renomearSecaoNasFormulas(lista, [], "S", "Medidas");
+    expect(formula(r.secoes, 0, 2)).toBe("SOMA({S > Reps})");
+  });
+
+  it("renomear coluna alcança variáveis, salvo se outra coluna tem o título", () => {
+    const variaveis = [{ nome: "V", formula: "SOMA({S > Peso}) + {Reps}" }];
+    const origemPeso = { secaoIndex: 0, campoIndex: 0, colunaIndex: 0 };
+    expect(
+      renomearColunaNasVariaveis(secoes(), variaveis, "Peso", "Massa", origemPeso)[0].formula,
+    ).toBe("SOMA({S > Massa}) + {Reps}");
+    const origemReps = { secaoIndex: 0, campoIndex: 1, colunaIndex: 0 };
+    expect(renomearColunaNasVariaveis(secoes(), variaveis, "Reps", "R", origemReps)).toBe(variaveis);
   });
 });
