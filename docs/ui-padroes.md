@@ -47,6 +47,7 @@ Todo input, select e textarea de formulário precisa ter um `<Label>` associado 
 
 - **Label visível é o padrão**, mesmo para campos curtos lado a lado num grid (ex. séries/repetições/carga/descanso de um exercício de treino) — nesse caso usar `<Label className="text-xs">` acima do campo, não `sr-only`.
 - `<Label className="sr-only">` só é aceitável quando o campo já é identificável de forma inequívoca por outro elemento visível ao lado (ex. um ícone de busca com única função óbvia) — na dúvida, deixar o label visível.
+- **Roda do mouse nunca altera campo numérico**: `NumberInputWheelGuard` (no layout raiz) cobre todo `input type="number"` da aplicação, sem precisar de nada por campo.
 
 ## Responsividade (obrigatório em toda tela)
 
