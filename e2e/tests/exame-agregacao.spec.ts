@@ -26,7 +26,7 @@ test.describe("agregação (SOMA, MEDIA...) em variáveis e fórmulas", () => {
 
     // A variável é criada no modal, usando o seletor de cálculo.
     await page
-      .getByRole("button", { name: "Abrir editor com autocomplete, variáveis e prévia" })
+      .getByRole("button", { name: "Abrir editor" })
       .last()
       .click();
     const modal = page.getByRole("dialog");

@@ -70,6 +70,12 @@ Uma coluna `MULTIPLA_ESCOLHA` pode "funcionar como pontuação" (checkbox no cad
 - **Execução** (`exame-execucao-form.tsx`): "(N pts)" ao lado de cada opção. **A pontuação final/subtotal não é exibida** (decisão do usuário: ela existe para alimentar fórmulas; quem quiser ver o total cria um `CALCULADO` com `{Soma pontuações}`). **Detalhe** (`execucao-detalhe.tsx`, clínica e portal): usa o valor **gravado** da coluna (não reavalia as condições) para alimentar fórmulas.
 - Fora de escopo: Comparação Rápida e relatório comparativo não mostram a pontuação.
 
+## Cadastro do exame — reordenar e fórmula compacta
+
+- **Reordenar**: seções e colunas (dentro do campo) mudam de ordem arrastando pela alça, com mouse, toque ou teclado (`ListaReordenavel` em `src/components/ui/lista-reordenavel.tsx`, sobre `@dnd-kit`). Os itens não se deslocam durante o arraste, porque uma seção expandida pode ser muito alta: uma etiqueta segue o ponteiro e uma linha marca o destino. Em mobile, onde só uma seção aparece por vez, a ordem é mudada na lista de seções acima do cartão.
+- **Chave de renderização estável**: seção, campo e coluna usam `chaveItem` como `key`, não o id cru. O autosave troca id local por id do banco (`mapaIds`), e sem a chave estável (`registrarChavesEstaveis`, `src/lib/reordenar.ts`) o item remontaria, tirando o foco de quem digita e interrompendo um arraste. Não voltar para `key` por índice: o estado local (ex. modal de fórmula aberto) ficaria no item errado depois de mover.
+- **Fórmula compacta**: coluna `CALCULADO` e condição de opção automática mostram só uma linha com a fórmula e o botão "Abrir editor". Botões de coluna, operadores, funções, variáveis e prévia ficam apenas em `FormulaDialog`; o aviso de referência inexistente continua fora do modal. Decisão do usuário, para o cadastro de exames grandes continuar legível.
+
 ## Versões do exame
 
 - Editar exame **com** avaliações cria uma nova versão (`criarNovaVersaoExame`) e arquiva a anterior (`versaoAtual: false`); sem avaliações, edita no lugar.

@@ -190,6 +190,17 @@ describe("mesclarExame — campos simples, seções e colunas", () => {
     expect(r.secoes[1].campos[0].colunas[0].titulo).toBe("A2");
   });
 
+  it("coluna arrastada dentro do campo mantém a minha ordem e a edição do outro", () => {
+    const base = exame({ secoes: [secao("s1", [coluna("a"), coluna("b"), coluna("c")])] });
+    const minha = exame({ secoes: [secao("s1", [coluna("c"), coluna("a"), coluna("b")])] });
+    const deles = exame({
+      secoes: [secao("s1", [coluna("a", { titulo: "A2" }), coluna("b"), coluna("c")])],
+    });
+    const colunas = mesclarExame(base, minha, deles).secoes[0].campos[0].colunas;
+    expect(colunas.map((c) => c.id)).toEqual(["c", "a", "b"]);
+    expect(colunas[1].titulo).toBe("A2");
+  });
+
   it("sem mudanças minhas, o resultado é exatamente o deles", () => {
     const base = exame();
     const deles = exame({ nome: "X", tabelas: [tabela("t", "T")] });

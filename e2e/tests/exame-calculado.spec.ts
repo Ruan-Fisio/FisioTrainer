@@ -30,17 +30,17 @@ test.describe("coluna calculada (fórmula) — cadastro e execução", () => {
     await titulosColuna.last().fill("IMC");
     await tiposColuna.last().selectOption("CALCULADO");
 
-    // Autocomplete por clique: os botões com o nome das colunas anteriores aparecem.
     const formula = page
       .getByPlaceholder("Ex: {Peso} / ({Altura} * {Altura})")
       .last();
     await expect(formula).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Peso", exact: true }).last(),
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Altura", exact: true }).last(),
-    ).toBeVisible();
+
+    // Os botões com o nome das colunas ficam no modal do editor.
+    await page.getByRole("button", { name: "Abrir editor" }).last().click();
+    const modal = page.getByRole("dialog");
+    await expect(modal.getByRole("button", { name: "Peso", exact: true })).toBeVisible();
+    await expect(modal.getByRole("button", { name: "Altura", exact: true })).toBeVisible();
+    await modal.getByRole("button", { name: "Cancelar" }).click();
     await formula.fill("{Peso}/({Altura}*{Altura})");
 
     await page.getByRole("button", { name: "Criar exame" }).click();

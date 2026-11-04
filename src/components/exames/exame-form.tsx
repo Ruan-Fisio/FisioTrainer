@@ -1,12 +1,11 @@
 "use client";
 
-import { useContext, useActionState, useEffect, useRef, useState } from "react";
+import { useContext, useActionState, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Plus,
   Trash2,
-  GripVertical,
   Copy,
   ChevronDown,
   ChevronLeft,
@@ -27,6 +26,13 @@ import {
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
 import { FormActions } from "@/components/ui/form-actions";
+import { ItemReordenavel, ListaReordenavel } from "@/components/ui/lista-reordenavel";
+import {
+  indiceAposMover,
+  moverItem,
+  registrarChavesEstaveis,
+  remapearIndicesAposMover,
+} from "@/lib/reordenar";
 import type { ExameActionState } from "@/actions/exames";
 import {
   novoIdLocal,
@@ -55,11 +61,9 @@ import {
   extrairReferencias,
   normalizarTitulo,
   parseAgregacao,
-  VARIAVEL_SOMA_PONTUACOES,
   VARIAVEIS_PACIENTE,
   type VariavelExame,
 } from "@/lib/exame-formula";
-import { SUGESTAO_ABS } from "@/lib/formula-autocomplete";
 import { AlvosAgregacaoContext, FormulaDialog } from "@/components/exames/formula-dialog";
 import {
   TabelasReferenciaEditor,
@@ -89,12 +93,17 @@ const TIPO_COLUNA_LABELS: Record<TipoColuna, string> = {
   CALCULADO: "Calculado (fórmula)",
 };
 
+/**
+ * Fórmula/condição em uma linha, para o cadastro continuar legível. Referências,
+ * operadores, funções, variáveis e prévia ficam no modal.
+ */
 function FormulaEditor({
   value,
   onChange,
   colunasDisponiveis,
   incluirComparadores = false,
   placeholder,
+  rotulo,
   titulo,
   variaveis,
   onVariaveisChange,
@@ -105,33 +114,16 @@ function FormulaEditor({
   colunasDisponiveis: string[];
   incluirComparadores?: boolean;
   placeholder?: string;
+  rotulo: string;
   /** Contexto mostrado no cabeçalho do modal (coluna/opção sendo editada). */
   titulo: string;
   variaveis: VariavelExame[];
   onVariaveisChange: (variaveis: VariavelExame[]) => void;
   onRenomearVariavel: (antigo: string, novo: string) => void;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
   const [modalAberto, setModalAberto] = useState(false);
   const variaveisTabelas = useVariaveisTabelas();
   const alvosAgregacao = useContext(AlvosAgregacaoContext);
-
-  function inserirNoCursor(texto: string, cursorNoTexto = texto.length) {
-    const input = inputRef.current;
-    if (!input) {
-      onChange(value + texto);
-      return;
-    }
-    const inicio = input.selectionStart ?? value.length;
-    const fim = input.selectionEnd ?? value.length;
-    const novoValor = value.slice(0, inicio) + texto + value.slice(fim);
-    onChange(novoValor);
-    requestAnimationFrame(() => {
-      input.focus();
-      const posicao = inicio + cursorNoTexto;
-      input.setSelectionRange(posicao, posicao);
-    });
-  }
 
   const referenciasInvalidas = extrairReferencias(value).filter((nome) => {
     const agregacao = parseAgregacao(nome);
@@ -150,159 +142,39 @@ function FormulaEditor({
   });
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-violet-500/30 bg-violet-500/5 p-2">
-      <input
-        ref={inputRef}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={
-          placeholder ??
-          (incluirComparadores
-            ? "Ex: {IMC} < 18.5"
-            : "Ex: {Peso} / ({Altura} * {Altura})")
-        }
-        className={selectClassName() + " font-mono"}
-      />
-      <div className="flex flex-wrap items-center gap-1.5">
-        {variaveis
-          .filter((v) => v.nome.trim())
-          .map((v) => (
-            <Button
-              key={`var-${v.nome}`}
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-7 border-violet-500/40 px-2 text-xs"
-              title={v.formula}
-              onClick={() => inserirNoCursor(`{${v.nome.trim()}}`)}
-            >
-              {v.nome.trim()} (variável)
-            </Button>
-          ))}
-        {VARIAVEIS_PACIENTE.map((nome) => (
-          <Button
-            key={nome}
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-7 border-violet-500/40 px-2 text-xs"
-            title={
-              nome === "Sexo"
-                ? "Sexo do paciente: Masculino = 1, Feminino = 0"
-                : "Idade do paciente em anos"
+    <div className="flex flex-col gap-1.5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+        {/* Input aninhado no Label: o form é renderizado em duplicata (ver "Pontos"). */}
+        <Label className="flex min-w-0 flex-1 flex-col items-stretch gap-1 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <Sigma className="size-3.5 shrink-0 text-violet-600 dark:text-violet-400" />
+            {rotulo}
+          </span>
+          <input
+            value={value}
+            title={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={
+              placeholder ??
+              (incluirComparadores
+                ? "Ex: {IMC} < 18.5"
+                : "Ex: {Peso} / ({Altura} * {Altura})")
             }
-            onClick={() => inserirNoCursor(`{${nome}}`)}
-          >
-            {nome} (paciente)
-          </Button>
-        ))}
+            className={selectClassName() + " font-mono"}
+          />
+        </Label>
         <Button
           type="button"
-          variant="outline"
+          variant="secondary"
           size="sm"
-          className="h-7 border-violet-500/40 px-2 text-xs"
-          title="Soma dos pontos de todas as colunas marcadas como pontuação"
-          onClick={() => inserirNoCursor(`{${VARIAVEL_SOMA_PONTUACOES}}`)}
+          className="shrink-0"
+          title="Colunas, operadores, funções, variáveis e prévia do cálculo"
+          onClick={() => setModalAberto(true)}
         >
-          {VARIAVEL_SOMA_PONTUACOES} (exame)
+          <Sigma className="size-3.5" />
+          Abrir editor
         </Button>
-        {colunasDisponiveis.length > 0 &&
-          colunasDisponiveis.map((nome) => (
-            <Button
-              key={nome}
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-7 px-2 text-xs"
-              onClick={() => inserirNoCursor(`{${nome}}`)}
-            >
-              {nome}
-            </Button>
-          ))}
-        <span className="mx-1 h-4 w-px bg-border" />
-        {(["+", "-", "×", "÷", "^", "(", ")"] as const).map((op) => (
-          <Button
-            key={op}
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 px-0 text-xs"
-            onClick={() =>
-              inserirNoCursor(op === "×" ? "*" : op === "÷" ? "/" : op)
-            }
-          >
-            {op}
-          </Button>
-        ))}
-        <>
-            <span className="mx-1 h-4 w-px bg-border" />
-            {(["<", "<=", ">", ">=", "==", "!="] as const).map((op) => (
-              <Button
-                key={op}
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 px-1.5 text-xs"
-                onClick={() => inserirNoCursor(` ${op} `)}
-              >
-                {op}
-              </Button>
-            ))}
-            <span className="mx-1 h-4 w-px bg-border" />
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 px-1.5 text-xs font-mono"
-              title="E — a condição só vale se as duas partes forem verdadeiras (ex: faixa mínima e máxima)"
-              onClick={() => inserirNoCursor(" && ")}
-            >
-              &&
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 px-1.5 text-xs font-mono"
-              title="Intervalo (limites inclusivos) — ex: {IMC} entre 18.5 e 24.9"
-              onClick={() => inserirNoCursor(" entre A e B")}
-            >
-              entre
-            </Button>
-            {!incluirComparadores && (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="h-7 px-2 text-xs font-mono"
-                title="SE(condição; valor se verdadeiro; valor se falso) — ex: SE({Sexo} == 1; cálculo masculino; cálculo feminino)"
-                onClick={() => inserirNoCursor("SE(condição; se verdadeiro; se falso)")}
-              >
-                SE
-              </Button>
-            )}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-7 px-2 text-xs font-mono"
-              title={SUGESTAO_ABS.detalhe}
-              onClick={() => inserirNoCursor(SUGESTAO_ABS.insercao, SUGESTAO_ABS.cursorNaInsercao)}
-            >
-              ABS
-            </Button>
-          </>
       </div>
-      <Button
-        type="button"
-        variant="secondary"
-        size="sm"
-        className="h-7 self-start px-2 text-xs"
-        onClick={() => setModalAberto(true)}
-      >
-        <Sigma className="size-3.5" />
-        Abrir editor com autocomplete, variáveis e prévia
-      </Button>
       {modalAberto && (
         <FormulaDialog
           titulo={titulo}
@@ -399,11 +271,16 @@ type SecaoCardProps = {
   permitirRetrair: boolean;
   retraida: boolean;
   onToggleRetraida: () => void;
-  arrastavel: boolean;
-  onDragStart?: () => void;
-  onDragEnd?: () => void;
-  onDragOver?: (e: React.DragEvent) => void;
-  onDrop?: () => void;
+  /** Alça para reordenar a seção (ausente quando a seção é mostrada sozinha). */
+  alcaArraste?: React.ReactNode;
+  /** Chave estável do item, que não muda quando o id local vira id do banco. */
+  chaveItem: (id: string | undefined, indice: number) => string;
+  moverColuna: (
+    secaoIndex: number,
+    campoIndex: number,
+    origem: number,
+    destino: number,
+  ) => void;
   updateSecao: (index: number, patch: Partial<SecaoDraft>) => void;
   duplicarSecao: (index: number) => void;
   removeSecao: (index: number) => void;
@@ -475,11 +352,9 @@ function SecaoCard({
   permitirRetrair,
   retraida,
   onToggleRetraida,
-  arrastavel,
-  onDragStart,
-  onDragEnd,
-  onDragOver,
-  onDrop,
+  alcaArraste,
+  chaveItem,
+  moverColuna,
   updateSecao,
   duplicarSecao,
   removeSecao,
@@ -502,7 +377,7 @@ function SecaoCard({
   const conteudoCampos = (
     <CardContent className="flex flex-col gap-3 pt-4">
       {secao.campos.map((campo, campoIndex) => (
-        <Card key={campoIndex} className="bg-muted/30">
+        <Card key={chaveItem(campo.id, campoIndex)} className="bg-muted/30">
           <CardContent className="flex flex-col gap-3 p-4">
             <div className="flex items-start gap-2">
               <div className="flex-1">
@@ -598,25 +473,42 @@ function SecaoCard({
                 </Button>
               </div>
 
+              <ListaReordenavel
+                ids={campo.colunas.map((coluna, i) => chaveItem(coluna.id, i))}
+                onMover={(origem, destino) =>
+                  moverColuna(secaoIndex, campoIndex, origem, destino)
+                }
+                rotuloDe={(id) =>
+                  campo.colunas.find((coluna, i) => chaveItem(coluna.id, i) === id)
+                    ?.titulo.trim() || "Coluna sem título"
+                }
+              >
               {campo.colunas.map((coluna, colunaIndex) => (
+                <ItemReordenavel
+                  key={chaveItem(coluna.id, colunaIndex)}
+                  id={chaveItem(coluna.id, colunaIndex)}
+                  rotuloAlca={`Arrastar para reordenar a coluna ${coluna.titulo.trim() || colunaIndex + 1}`}
+                >
+                {(alcaColuna) => (
                 <div
-                  key={colunaIndex}
                   id={`exame-coluna-${secaoIndex}-${campoIndex}-${colunaIndex}`}
                   className="flex scroll-mt-24 flex-col gap-2 rounded-lg border border-input bg-background p-2 transition-shadow"
                 >
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                    <GripVertical className="hidden size-3.5 shrink-0 text-muted-foreground sm:block" />
-                    <Input
-                      className="min-w-0 sm:flex-1"
-                      value={coluna.titulo}
-                      onChange={(e) =>
-                        updateColuna(secaoIndex, campoIndex, colunaIndex, {
-                          titulo: e.target.value,
-                        })
-                      }
-                      placeholder="Ex: Nome do membro"
-                      required
-                    />
+                    <div className="flex min-w-0 items-center gap-1 sm:flex-1">
+                      {alcaColuna}
+                      <Input
+                        className="min-w-0 flex-1"
+                        value={coluna.titulo}
+                        onChange={(e) =>
+                          updateColuna(secaoIndex, campoIndex, colunaIndex, {
+                            titulo: e.target.value,
+                          })
+                        }
+                        placeholder="Ex: Nome do membro"
+                        required
+                      />
+                    </div>
                     <div className="flex items-center gap-2">
                       <select
                         className={
@@ -892,6 +784,7 @@ function SecaoCard({
                                 colunaIndex,
                               )}
                               incluirComparadores
+                              rotulo="Condição para marcar esta opção"
                               titulo={`Condição da opção "${opcao || `Opção ${opcaoIndex + 1}`}" — coluna "${coluna.titulo || "sem título"}"`}
                               variaveis={variaveis}
                               onVariaveisChange={onVariaveisChange}
@@ -918,14 +811,6 @@ function SecaoCard({
 
                   {coluna.tipo === "CALCULADO" && (
                     <div className="flex flex-col gap-2 pl-0 sm:pl-6">
-                      <Label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <Sigma className="size-3.5 text-violet-600 dark:text-violet-400" />
-                        Fórmula — referencie outras colunas numéricas clicando
-                        nos botões abaixo
-                        {campo.repetivel
-                          ? " (calculada em cada entrada, com os valores dela)"
-                          : ""}
-                      </Label>
                       <FormulaEditor
                         value={coluna.formula}
                         onChange={(formula) =>
@@ -939,6 +824,11 @@ function SecaoCard({
                           campoIndex,
                           colunaIndex,
                         )}
+                        rotulo={
+                          campo.repetivel
+                            ? "Fórmula (calculada em cada entrada, com os valores dela)"
+                            : "Fórmula"
+                        }
                         titulo={`Coluna calculada "${coluna.titulo || "sem título"}"`}
                         variaveis={variaveis}
                         onVariaveisChange={onVariaveisChange}
@@ -988,7 +878,10 @@ function SecaoCard({
                     </div>
                   )}
                 </div>
+                )}
+                </ItemReordenavel>
               ))}
+              </ListaReordenavel>
             </div>
           </CardContent>
         </Card>
@@ -1075,26 +968,13 @@ function SecaoCard({
     </Card>
   );
 
-  if (!arrastavel) {
+  if (!alcaArraste) {
     return card;
   }
 
   return (
-    <div
-      className="flex items-start gap-2"
-      onDragOver={onDragOver}
-      onDrop={onDrop}
-    >
-      <button
-        type="button"
-        draggable
-        onDragStart={onDragStart}
-        onDragEnd={onDragEnd}
-        className="mt-6 cursor-grab text-muted-foreground active:cursor-grabbing"
-        aria-label="Arrastar para reordenar seção"
-      >
-        <GripVertical className="size-4" />
-      </button>
+    <div className="flex items-start gap-1">
+      <div className="mt-5">{alcaArraste}</div>
       {card}
     </div>
   );
@@ -1227,7 +1107,7 @@ export function ExameForm({
           : [],
       ),
   );
-  const [secaoArrastada, setSecaoArrastada] = useState<number | null>(null);
+  const [chavesEstaveis, setChavesEstaveis] = useState<Record<string, string>>({});
   const [passoAtual, setPassoAtual] = useState(0);
 
   const draftAtual: ExameDraft = {
@@ -1258,6 +1138,13 @@ export function ExameForm({
       return mescladas.length > 0 ? mescladas : m;
     });
     setPassoAtual((p) => Math.min(p, Math.max(0, deles.secoes.length - 1)));
+    if (Object.keys(mapaIds).length > 0) {
+      setChavesEstaveis((chaves) => registrarChavesEstaveis(chaves, mapaIds));
+    }
+  }
+
+  function chaveItem(id: string | undefined, indice: number) {
+    return id ? (chavesEstaveis[id] ?? id) : `sem-id-${indice}`;
   }
 
   const tempoReal = useEdicaoTempoReal({
@@ -1375,22 +1262,32 @@ export function ExameForm({
     setPassoAtual(index + 1);
   }
 
-  function moverSecaoPara(origem: number, destino: number) {
-    setSecoes((prev) => {
-      if (
-        origem === destino ||
-        origem < 0 ||
-        destino < 0 ||
-        origem >= prev.length ||
-        destino >= prev.length
-      ) {
-        return prev;
-      }
-      const copia = [...prev];
-      const [removida] = copia.splice(origem, 1);
-      copia.splice(destino, 0, removida);
-      return copia;
-    });
+  function moverSecao(origem: number, destino: number) {
+    setSecoes((prev) => moverItem(prev, origem, destino));
+    setSecoesRetraidas((prev) => remapearIndicesAposMover(prev, origem, destino));
+    setPassoAtual((p) => indiceAposMover(p, origem, destino));
+  }
+
+  function moverColuna(
+    secaoIndex: number,
+    campoIndex: number,
+    origem: number,
+    destino: number,
+  ) {
+    setSecoes((prev) =>
+      prev.map((secao, si) =>
+        si !== secaoIndex
+          ? secao
+          : {
+              ...secao,
+              campos: secao.campos.map((campo, ci) =>
+                ci !== campoIndex
+                  ? campo
+                  : { ...campo, colunas: moverItem(campo.colunas, origem, destino) },
+              ),
+            },
+      ),
+    );
   }
 
   function updateCampo(
@@ -1833,7 +1730,13 @@ export function ExameForm({
   const passoClamped = Math.min(passoAtual, secoes.length - 1);
   const secaoAtualMobile = secoes[passoClamped];
 
+  const idsSecoes = secoes.map((secao, i) => chaveItem(secao.id, i));
+  const nomeDaSecao = (id: string) =>
+    secoes[idsSecoes.indexOf(id)]?.nome.trim() || "Seção sem nome";
+
   const secaoCardHandlers = {
+    chaveItem,
+    moverColuna,
     variaveis,
     onVariaveisChange: setVariaveis,
     onRenomearVariavel: renomearVariavelNasColunas,
@@ -1962,6 +1865,39 @@ export function ExameForm({
           </p>
         )}
 
+        {secoes.length > 1 && (
+          <div className="flex flex-col gap-1.5">
+            <ListaReordenavel ids={idsSecoes} onMover={moverSecao} rotuloDe={nomeDaSecao}>
+              {secoes.map((secao, secaoIndex) => (
+                <ItemReordenavel
+                  key={idsSecoes[secaoIndex]}
+                  id={idsSecoes[secaoIndex]}
+                  rotuloAlca={`Arrastar para reordenar a seção ${secao.nome.trim() || secaoIndex + 1}`}
+                >
+                  {(alca) => (
+                    <div
+                      className={cn(
+                        "flex items-center gap-1 rounded-lg border bg-card pr-2",
+                        secaoIndex === passoClamped && "border-primary",
+                      )}
+                    >
+                      {alca}
+                      <button
+                        type="button"
+                        className="min-h-8 min-w-0 flex-1 truncate text-left text-sm"
+                        aria-current={secaoIndex === passoClamped ? "step" : undefined}
+                        onClick={() => setPassoAtual(secaoIndex)}
+                      >
+                        {secaoIndex + 1}. {secao.nome.trim() || "Seção sem nome"}
+                      </button>
+                    </div>
+                  )}
+                </ItemReordenavel>
+              ))}
+            </ListaReordenavel>
+          </div>
+        )}
+
         {secaoAtualMobile && (
           <SecaoCard
             secoes={secoes}
@@ -1971,7 +1907,6 @@ export function ExameForm({
             permitirRetrair={false}
             retraida={false}
             onToggleRetraida={() => {}}
-            arrastavel={false}
             {...secaoCardHandlers}
           />
         )}
@@ -2012,29 +1947,29 @@ export function ExameForm({
           </Button>
         </div>
 
-        {secoes.map((secao, secaoIndex) => (
-          <SecaoCard
-            key={secaoIndex}
-            secoes={secoes}
-            secao={secao}
-            secaoIndex={secaoIndex}
-            totalSecoes={secoes.length}
-            permitirRetrair
-            retraida={secoesRetraidas.has(secaoIndex)}
-            onToggleRetraida={() => toggleSecaoRetraida(secaoIndex)}
-            arrastavel
-            onDragStart={() => setSecaoArrastada(secaoIndex)}
-            onDragEnd={() => setSecaoArrastada(null)}
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={() => {
-              if (secaoArrastada !== null) {
-                moverSecaoPara(secaoArrastada, secaoIndex);
-              }
-              setSecaoArrastada(null);
-            }}
-            {...secaoCardHandlers}
-          />
-        ))}
+        <ListaReordenavel ids={idsSecoes} onMover={moverSecao} rotuloDe={nomeDaSecao}>
+          {secoes.map((secao, secaoIndex) => (
+            <ItemReordenavel
+              key={idsSecoes[secaoIndex]}
+              id={idsSecoes[secaoIndex]}
+              rotuloAlca={`Arrastar para reordenar a seção ${secao.nome.trim() || secaoIndex + 1}`}
+            >
+              {(alca) => (
+                <SecaoCard
+                  secoes={secoes}
+                  secao={secao}
+                  secaoIndex={secaoIndex}
+                  totalSecoes={secoes.length}
+                  permitirRetrair
+                  retraida={secoesRetraidas.has(secaoIndex)}
+                  onToggleRetraida={() => toggleSecaoRetraida(secaoIndex)}
+                  alcaArraste={alca}
+                  {...secaoCardHandlers}
+                />
+              )}
+            </ItemReordenavel>
+          ))}
+        </ListaReordenavel>
       </div>
 
       {state.error && (
