@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { User, Stethoscope } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { PACIENTE_ATIVO } from "@/lib/paciente-exclusao";
 import { EvolucoesTable } from "@/components/evolucoes/evolucoes-table";
 import { TableSkeleton } from "@/components/skeletons/table-skeleton";
 import { MultiSelectFilter } from "@/components/filters/multi-select-filter";
@@ -36,6 +37,7 @@ export default async function EvolucoesPage({ searchParams }: PageProps) {
 
   const [pacientes, profissionais] = await Promise.all([
     prisma.paciente.findMany({
+      where: PACIENTE_ATIVO,
       orderBy: { nome: "asc" },
       select: { id: true, nome: true },
     }),

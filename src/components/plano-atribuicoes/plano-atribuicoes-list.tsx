@@ -2,6 +2,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CollapsibleSection } from "@/components/collapsible-section";
 import { PlanoAtribuicaoRowActions } from "@/components/plano-atribuicoes/plano-atribuicao-row-actions";
+import {
+  ContratoDoPlano,
+  type PacienteDoContrato,
+} from "@/components/contratos/contrato-do-plano";
 import { formatarData, formatarMoeda } from "@/lib/format";
 import {
   formaPagamentoPlanoLabels,
@@ -21,10 +25,12 @@ function AtribuicaoCard({
   atribuicao,
   pacienteId,
   showActions,
+  pacienteContrato,
 }: {
   atribuicao: Atribuicao;
   pacienteId: string;
   showActions: boolean;
+  pacienteContrato?: PacienteDoContrato;
 }) {
   const pagas = atribuicao.cobrancas.filter((m) => m.status === "PAGO").length;
 
@@ -61,6 +67,14 @@ function AtribuicaoCard({
             )}
           </div>
         </div>
+        <ContratoDoPlano
+          contrato={atribuicao.contratos[0] ?? null}
+          planoAtribuicaoId={atribuicao.id}
+          planoNome={atribuicao.planoNome}
+          planoAtivo={atribuicao.status === "ATIVO"}
+          pacienteId={pacienteId}
+          paciente={pacienteContrato}
+        />
       </CardContent>
     </Card>
   );
@@ -70,10 +84,13 @@ export function PlanoAtribuicoesList({
   atribuicoes,
   pacienteId,
   showActions = true,
+  pacienteContrato,
 }: {
   atribuicoes: Atribuicao[];
   pacienteId: string;
   showActions?: boolean;
+  /** Dados para as ações da clínica. Sem isso (portal), mostra só o link para o paciente. */
+  pacienteContrato?: PacienteDoContrato;
 }) {
   const ativas = atribuicoes.filter((a) => a.status === "ATIVO");
   const historico = atribuicoes.filter((a) => a.status !== "ATIVO");
@@ -87,6 +104,7 @@ export function PlanoAtribuicoesList({
             atribuicao={atribuicao}
             pacienteId={pacienteId}
             showActions={showActions}
+            pacienteContrato={pacienteContrato}
           />
         ))
       ) : (
@@ -106,6 +124,7 @@ export function PlanoAtribuicoesList({
                 atribuicao={atribuicao}
                 pacienteId={pacienteId}
                 showActions={false}
+                pacienteContrato={pacienteContrato}
               />
             ))}
           </div>

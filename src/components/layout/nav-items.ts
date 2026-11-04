@@ -15,6 +15,7 @@ import {
   Settings,
   Stethoscope,
   ClipboardCheck,
+  FileSignature,
 } from "lucide-react";
 
 export type NavLeaf = {
@@ -31,6 +32,7 @@ export const navItems: NavItem[] = [
   { title: "Fila de Curadoria", href: "/curadoria", icon: ClipboardCheck },
   { title: "Pacientes", href: "/pacientes", icon: UserRound },
   { title: "Planos", href: "/planos", icon: Wallet },
+  { title: "Contratos", href: "/contratos", icon: FileSignature },
   { title: "Serviços", href: "/servicos", icon: Stethoscope },
   { title: "Cobranças", href: "/cobrancas", icon: Receipt },
   { title: "Agenda", href: "/agenda", icon: CalendarClock },

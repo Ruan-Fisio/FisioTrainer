@@ -13,6 +13,14 @@ Aba "Financeiro" do dashboard = `AnaliseFinanceira` (`src/components/dashboard/a
 - Seções: KPIs (recebido no mês, a receber no mês, em atraso, ticket médio 12m, recebido 12m) · área "Receita por mês" (12m) · donut "De onde vem o dinheiro" (split do mês) · barra empilhada "Evolução por modalidade" (6m) · "A receber nos próximos meses" (6m, **só cobranças PENDENTE já lançadas e ainda não vencidas**, agrupadas por mês do vencimento — sem projeção de renovação) · rankings "Planos/Pacientes que mais faturam" (recebido 12m) · "Cobranças em atraso".
 - `getResumoFinanceiro` foi **substituído** por `getAnaliseFinanceira`. `KpiGrid` foi extraído para `src/components/dashboard/kpi-grid.tsx` (aceita `hint` e `tone: "danger"`).
 
+## Dashboard — aba Despesas e receita x despesas
+
+Aba "Despesas" do dashboard (`src/components/despesas/despesas-tab.tsx`): gestão dos gastos da clínica (conta de luz, equipamento comprado etc.), para controle fiscal. KPIs do mês, categorias, contas atrasadas de outros meses e listagem com filtros na URL (`?mes=YYYY-MM&categorias=&status=&q=&page=`). Formulários em `/dashboard/despesas/nova` e `/dashboard/despesas/[id]`.
+
+- **Lógica pura em `src/lib/despesas.ts`** + `despesas.test.ts`; validação em `src/lib/validations/despesa.ts`. Actions (`src/actions/despesas.ts`) exigem sessão.
+- **Duas datas**: `data` (compra/vencimento, gravada ao meio-dia de Brasília) define o mês da despesa e é a base da aba Despesas; `pagoEm` define quando o dinheiro saiu e é a base do comparativo. Por isso uma conta de outubro paga em novembro aparece em outubro na aba Despesas e em novembro em "Receita x despesas" — é intencional.
+- **Na aba Financeiro** (`receita-despesas.tsx`, dados de `compararReceitaDespesa`): regime de caixa, igual à receita. `Saldo` = recebido − despesas pagas. `Saldo previsto` = saldo + a receber não vencido − pendências com data até o fim do mês, inclusive atrasadas de meses anteriores. Cobranças atrasadas ficam de fora do previsto (podem não entrar), contas atrasadas ficam dentro (ainda precisam sair).
+
 ## Compartilhar acesso — portal público do paciente
 
 Botão **"Compartilhar acesso"** no header do paciente (`compartilhar-acesso-dialog.tsx`) gera um link **sem login** onde o paciente vê avaliações, evoluções, treinos, planos e financeiro e agenda pelos planos ativos.
@@ -29,7 +37,7 @@ Botão **"Compartilhar acesso"** no header do paciente (`compartilhar-acesso-dia
 - Aba **Anexos** do portal (`AnexosLoader` em `compartilhado/paciente/[token]/page.tsx`): o paciente envia exames, laudos e fotos (qualquer tipo até 15 MB, exceto executáveis/scripts) e vê/exclui **só o que ele mesmo enviou** (`PacienteAnexo.origem = PACIENTE`). Os anexos que a clínica coloca no Histórico clínico **não** aparecem no portal. Sem aprovação prévia: o arquivo aparece direto na clínica, com a marca "Enviado pelo paciente".
 - As actions públicas (`src/actions/portal-anexos.ts`) recebem o **token** (`.bind(null, token)`) e derivam o paciente dele com `buscarPacienteIdPorToken` (`src/lib/acesso-compartilhado.ts`, sem `notFound()`) — **nunca** aceitar `pacienteId` do client em escrita pública. Link revogado/expirado → "Link inválido ou expirado."
 - Mesmo componente e mesma regra dos dois lados: `AnexosPaciente` (`src/components/pacientes/anexos-paciente.tsx`, upload imediato, agrupado por dia) + `src/lib/paciente-anexos.ts` (ticket de upload, registro, exclusão, listagem). Clínica: botão **Histórico clínico** → seção "Exames e anexos" (`src/actions/paciente-anexos.ts`, exige sessão).
-- R2: `tmp/pacientes/{id}/…` → `pacientes/{id}/anexos/{uuid}.ext`; limite de 50 anexos por paciente; `deletePaciente` apaga o prefixo do paciente.
+- R2: `tmp/pacientes/{id}/…` → `pacientes/{id}/anexos/{uuid}.ext`; limite de 50 anexos por paciente; excluir o paciente não apaga os arquivos (exclusão lógica, ver `docs/ops.md`).
 
 ### Desmarcar pelo portal (regra das 2h — só o paciente)
 

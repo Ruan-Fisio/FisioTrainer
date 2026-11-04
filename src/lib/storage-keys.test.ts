@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  chaveContratoPdf,
   chaveDoPaciente,
   chaveTmpDoPaciente,
   ehImagem,
@@ -155,5 +156,11 @@ describe("chave temporária", () => {
     expect(
       montarChaveTmp({ pacienteId: "p1", uuid: "u", nome: "arquivo" }),
     ).toBe("tmp/pacientes/p1/u.bin");
+  });
+});
+
+describe("chaveContratoPdf", () => {
+  it("fica no prefixo do paciente", () => {
+    expect(chaveContratoPdf("p1", "c1", "e1")).toBe("pacientes/p1/contratos/c1-e1.pdf");
   });
 });

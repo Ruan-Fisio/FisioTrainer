@@ -92,8 +92,20 @@ async function AgendamentosTabLoader({ pacienteId }: { pacienteId: string }) {
 }
 
 async function PlanosLoader({ pacienteId }: { pacienteId: string }) {
-  const atribuicoes = await listPlanoAtribuicoesByPaciente(pacienteId);
-  return <PlanoAtribuicoesList atribuicoes={atribuicoes} pacienteId={pacienteId} />;
+  const [atribuicoes, paciente] = await Promise.all([
+    listPlanoAtribuicoesByPaciente(pacienteId),
+    prisma.paciente.findUnique({
+      where: { id: pacienteId },
+      select: { nome: true, contato: true, cpf: true },
+    }),
+  ]);
+  return (
+    <PlanoAtribuicoesList
+      atribuicoes={atribuicoes}
+      pacienteId={pacienteId}
+      pacienteContrato={paciente ?? undefined}
+    />
+  );
 }
 
 async function FinanceiroLoader({

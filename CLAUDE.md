@@ -24,8 +24,9 @@ Este `CLAUDE.md` é só um **índice + regras críticas** (mantê-lo em ~100 lin
 | Exames: MULTIPLA_ESCOLHA, CALCULADO, opções automáticas, Exame Sombra | `docs/exames.md` |
 | Agenda (só leitura), salas, sala por plano, serviços avulsos, modalidades do usuário, funcionamento/feriados | `docs/agenda-salas-servicos.md` |
 | Agendamento assistido, grade recorrente, planos, parcelamento, renovação | `docs/agendamento-planos.md` |
-| Dashboard (compromissos, financeiro), portal público (`/compartilhado`), desmarcar, créditos de remarcação | `docs/dashboard-portal.md` |
+| Dashboard (compromissos, financeiro, despesas), portal público (`/compartilhado`), desmarcar, créditos de remarcação | `docs/dashboard-portal.md` |
 | Pré-cadastro público (`/pre-cadastro`) e Fila de Curadoria (`/curadoria`) | `docs/pre-cadastro.md` |
+| Contratos, modelo editável e assinatura eletrônica (`/contratos`, `/compartilhado/contrato`) | `docs/contratos.md` |
 | Fuso horário / datas (LEIA antes de tocar em qualquer `Date`) | `docs/fuso-horario.md` |
 | Auditoria (`/logs`), backup antes de operação destrutiva, seed | `docs/ops.md` |
 
@@ -58,6 +59,7 @@ Este `CLAUDE.md` é só um **índice + regras críticas** (mantê-lo em ~100 lin
 - Edição de modelo de exame é **em tempo real** (autosave 10s + merge de três vias, sem botão Salvar): mudou o formato do exame → atualizar `exame-draft.ts` e `exame-merge.ts` (ver `docs/exames.md`).
 - Exames: nunca `split(",")`/`join(",")` em MULTIPLA_ESCOLHA (usar `src/lib/multipla-escolha.ts`); CALCULADO nunca é gravado, sempre recalculado (`src/lib/exame-formula.ts`).
 - Plano: nota fiscal sempre inclusa; mensal nunca parcela (exceto estendido em plano híbrido); trimestral até 3x.
+- Paciente nunca é apagado: exclusão é lógica (`excluidoEm`). Listagem geral nova filtra com `PACIENTE_ATIVO` (ver `docs/ops.md`).
 - Portal público: navegação lista → detalhe; seleção dentro de aba usa `useState`, nunca query param; o paciente **nunca** vê saldo de créditos de remarcação.
 - Cache local de client (mês/aba) que depende de dado mutável em outro lugar precisa ser invalidado quando a prop do server muda — `router.refresh()` sozinho não basta.
 

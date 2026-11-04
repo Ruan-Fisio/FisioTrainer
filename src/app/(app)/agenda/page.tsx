@@ -11,6 +11,7 @@ import {
   User,
 } from "lucide-react";
 import { prisma } from "@/lib/prisma";
+import { PACIENTE_ATIVO } from "@/lib/paciente-exclusao";
 import { AgendaTabs } from "@/components/agendamentos/agenda-tabs";
 import { AgendamentosTable } from "@/components/agendamentos/agendamentos-table";
 import { CalendarioNav } from "@/components/agendamentos/calendario/calendario-nav";
@@ -126,6 +127,7 @@ export default async function AgendaPage({ searchParams }: PageProps) {
 
   const [pacientes, profissionais, salas, servicos] = await Promise.all([
     prisma.paciente.findMany({
+      where: PACIENTE_ATIVO,
       orderBy: { nome: "asc" },
       select: { id: true, nome: true },
     }),

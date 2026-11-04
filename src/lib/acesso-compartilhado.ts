@@ -9,9 +9,14 @@ import { prisma } from "@/lib/prisma";
 export async function buscarPacienteIdPorToken(token: string) {
   const acesso = await prisma.acessoCompartilhadoPaciente.findUnique({
     where: { token },
-    select: { pacienteId: true, ativo: true, expiraEm: true },
+    select: {
+      pacienteId: true,
+      ativo: true,
+      expiraEm: true,
+      paciente: { select: { excluidoEm: true } },
+    },
   });
-  if (!acesso || !acesso.ativo) return null;
+  if (!acesso || !acesso.ativo || acesso.paciente.excluidoEm) return null;
   if (acesso.expiraEm && acesso.expiraEm.getTime() < Date.now()) return null;
   return acesso.pacienteId;
 }
@@ -30,7 +35,7 @@ export async function resolverPacientePorToken(token: string) {
     include: { paciente: true },
   });
 
-  if (!acesso || !acesso.ativo) notFound();
+  if (!acesso || !acesso.ativo || acesso.paciente.excluidoEm) notFound();
   if (acesso.expiraEm && acesso.expiraEm.getTime() < Date.now()) notFound();
 
   return { pacienteId: acesso.pacienteId, paciente: acesso.paciente };

@@ -57,6 +57,14 @@ export function prefixoPaciente(pacienteId: string) {
 }
 
 /**
+ * PDF assinado, dentro do prefixo do paciente. `envio` é único por tentativa: num envio
+ * duplicado, o perdedor nunca sobrescreve o arquivo cujo hash ficou registrado.
+ */
+export function chaveContratoPdf(pacienteId: string, contratoId: string, envio: string) {
+  return `${prefixoPaciente(pacienteId)}contratos/${contratoId}-${envio}.pdf`;
+}
+
+/**
  * Área temporária: o upload acontece assim que a pessoa escolhe o arquivo,
  * antes de o exame ser salvo. Fica fora de `pacientes/` para uma regra de
  * expiração do bucket (prefixo `tmp/`) limpar o que for abandonado.

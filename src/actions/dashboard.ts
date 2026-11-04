@@ -7,12 +7,14 @@ import {
   fimDoMes,
   inicioDoDia,
 } from "@/lib/datas-brasilia";
+import { compararReceitaDespesa } from "@/lib/despesas";
 import {
   analisarFinanceiro,
   sequenciaMeses,
   type CobrancaLinha,
 } from "@/lib/financeiro";
 import { whereFiltrosComuns, type FiltrosAgendamentoComuns } from "@/lib/agendamento-filtros";
+import { PACIENTE_ATIVO } from "@/lib/paciente-exclusao";
 
 export type PeriodoProximos = "dia" | "semana" | "mes";
 
@@ -38,9 +40,9 @@ export async function getContagensAgenda(filters: FiltrosAgendamentoComuns = {})
 
 export async function getDashboardStats() {
   const [pacientes, avaliacoes, evolucoes] = await Promise.all([
-    prisma.paciente.count(),
-    prisma.exameExecucao.count({ where: { tipo: "AVALIACAO" } }),
-    prisma.evolucao.count(),
+    prisma.paciente.count({ where: PACIENTE_ATIVO }),
+    prisma.exameExecucao.count({ where: { tipo: "AVALIACAO", paciente: PACIENTE_ATIVO } }),
+    prisma.evolucao.count({ where: { paciente: PACIENTE_ATIVO } }),
   ]);
 
   return { pacientes, avaliacoes, evolucoes };
@@ -94,27 +96,39 @@ export async function getAnaliseFinanceira() {
     `${sequenciaMeses(agora, 12, "passado")[0]}-01T00:00:00.000-03:00`,
   );
 
-  const cobrancas = await prisma.cobranca.findMany({
-    where: {
-      OR: [
-        { status: "PAGO", pagoEm: { gte: inicioJanela } },
-        { status: "PENDENTE" },
-      ],
-    },
-    select: {
-      id: true,
-      valor: true,
-      status: true,
-      pagoEm: true,
-      vencimento: true,
-      planoNome: true,
-      pacienteId: true,
-      paciente: { select: { nome: true } },
-      planoAtribuicao: { select: { plano: { select: { tipos: true } } } },
-      servicoId: true,
-      taxaProfissional: true,
-    },
-  });
+  const [cobrancas, despesas] = await Promise.all([
+    prisma.cobranca.findMany({
+      where: {
+        // O que já foi recebido continua na receita; o que falta receber de excluído, não.
+        OR: [
+          { status: "PAGO", pagoEm: { gte: inicioJanela } },
+          { status: "PENDENTE", paciente: PACIENTE_ATIVO },
+        ],
+      },
+      select: {
+        id: true,
+        valor: true,
+        status: true,
+        pagoEm: true,
+        vencimento: true,
+        planoNome: true,
+        pacienteId: true,
+        paciente: { select: { nome: true } },
+        planoAtribuicao: { select: { plano: { select: { tipos: true } } } },
+        servicoId: true,
+        taxaProfissional: true,
+      },
+    }),
+    prisma.despesa.findMany({
+      where: {
+        OR: [
+          { status: "PAGO", pagoEm: { gte: inicioJanela } },
+          { status: "PENDENTE" },
+        ],
+      },
+      select: { categoria: true, valor: true, data: true, status: true, pagoEm: true },
+    }),
+  ]);
 
   const linhas: CobrancaLinha[] = cobrancas.map((c) => ({
     valor: Number(c.valor),
@@ -141,5 +155,13 @@ export async function getAnaliseFinanceira() {
       valor: Number(c.valor),
     }));
 
-  return { ...analisarFinanceiro(linhas, agora), atrasadas };
+  const analise = analisarFinanceiro(linhas, agora);
+  const comparativo = compararReceitaDespesa(
+    analise.receitaPorMes,
+    analise.kpis.aReceberMes,
+    despesas.map((d) => ({ ...d, valor: Number(d.valor) })),
+    agora,
+  );
+
+  return { ...analise, atrasadas, comparativo };
 }

@@ -1,5 +1,6 @@
 "use server";
 
+import { PACIENTE_ATIVO } from "@/lib/paciente-exclusao";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { cobrancaSchema } from "@/lib/validations/cobranca";
@@ -26,7 +27,7 @@ export async function getCobrancasByPaciente(pacienteId: string) {
 /** Todas as cobranças pendentes (de qualquer paciente), para a tela de Cobranças. */
 export async function listCobrancasPendentes() {
   const cobrancas = await prisma.cobranca.findMany({
-    where: { status: "PENDENTE" },
+    where: { status: "PENDENTE", paciente: PACIENTE_ATIVO },
     orderBy: { vencimento: "asc" },
     include: { paciente: { select: { id: true, nome: true, contato: true } } },
   });

@@ -30,6 +30,7 @@ model User {
   agendamentos       Agendamento[]
   gradesRecorrentes  GradeRecorrenteAtendimento[] @relation("GradeRecorrenteProfissional")
   servicos           UsuarioServico[]
+  contratoModelos    ContratoModelo[]
   createdAt          DateTime   @default(now())
   updatedAt          DateTime   @updatedAt
 }
@@ -212,8 +213,13 @@ model Paciente {
   acessosCompartilhados AcessoCompartilhadoPaciente[]
   preCadastro           PreCadastro?
   anexos                PacienteAnexo[]
+  contratos             Contrato[]
+  /// Exclusão lógica: preenchido = excluído. Paciente nunca é apagado de verdade.
+  excluidoEm            DateTime?       @db.Timestamptz(3)
   createdAt             DateTime        @default(now())
   updatedAt             DateTime        @updatedAt
+
+  @@index([excluidoEm])
 }
 
 enum StatusPreCadastro {
@@ -433,10 +439,62 @@ model PlanoAtribuicao {
   agendamentos   Agendamento[]
   creditosRemarcacaoUsados CreditoRemarcacao[]
   gradeRecorrente GradeRecorrenteAtendimento[]
+  contratos      Contrato[]
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt
 
   @@index([pacienteId])
+}
+
+enum StatusContrato {
+  PENDENTE
+  ASSINADO
+  SUBSTITUIDO
+  CANCELADO
+}
+
+/// Modelo editável do contrato. Só acrescenta linhas: a de maior `versao` é a vigente.
+/// `contratada` é o usuário cujos dados fiscais identificam a clínica no contrato.
+model ContratoModelo {
+  id           String   @id @default(cuid())
+  versao       Int      @unique
+  conteudo     String
+  contratadaId String?
+  contratada   User?    @relation(fields: [contratadaId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+}
+
+/// Contrato de um plano atribuído. Enquanto PENDENTE o texto é renderizado na hora, com
+/// os dados atuais; só a assinatura congela `conteudo` e as evidências abaixo.
+/// Ver docs/contratos.md.
+model Contrato {
+  id                String          @id @default(cuid())
+  numero            Int             @unique @default(autoincrement())
+  token             String          @unique
+  pacienteId        String
+  paciente          Paciente        @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  planoAtribuicaoId String
+  planoAtribuicao   PlanoAtribuicao @relation(fields: [planoAtribuicaoId], references: [id], onDelete: Cascade)
+  status            StatusContrato  @default(PENDENTE)
+  tentativasCpf     Int             @default(0)
+  bloqueadoAte      DateTime? @db.Timestamptz(3)
+  conteudo          String?
+  conteudoHash      String?
+  modeloVersao      Int?
+  dadosPlanoHash    String?
+  assinadoEm        DateTime? @db.Timestamptz(3)
+  assinanteNome     String?
+  assinanteCpf      String?
+  assinanteIp       String?
+  assinanteUserAgent String?
+  pdfChave          String?
+  pdfHash           String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@index([pacienteId])
+  @@index([planoAtribuicaoId])
+  @@index([status])
 }
 
 /// Modelo semanal de atendimento de um plano atribuído: cada linha = 1 (dia da semana +
@@ -658,6 +716,49 @@ model ConfiguracaoTaxa {
   percentual Decimal  @db.Decimal(5, 2)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
+}
+
+enum CategoriaDespesa {
+  ALUGUEL
+  ENERGIA
+  AGUA
+  INTERNET_TELEFONE
+  EQUIPAMENTO
+  MATERIAL
+  MANUTENCAO
+  IMPOSTOS
+  SALARIOS
+  SERVICOS_TERCEIROS
+  MARKETING
+  OUTROS
+}
+
+enum StatusDespesa {
+  PENDENTE
+  PAGO
+}
+
+/// Gasto da clínica (conta de luz, equipamento comprado etc.). `data` é a data da
+/// compra/vencimento e define o mês da despesa; `pagoEm` define o mês em que o dinheiro
+/// saiu, usado no comparativo receita x despesas (ver docs/dashboard-portal.md).
+model Despesa {
+  id              String           @id @default(cuid())
+  descricao       String
+  categoria       CategoriaDespesa
+  valor           Decimal          @db.Decimal(10, 2)
+  data            DateTime         @db.Timestamptz(3)
+  status          StatusDespesa    @default(PENDENTE)
+  pagoEm          DateTime?        @db.Timestamptz(3)
+  fornecedor      String?
+  numeroDocumento String?
+  observacao      String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([data])
+  @@index([status])
+  @@index([pagoEm])
+  @@index([categoria])
 }
 
 enum TipoExecucaoExame {

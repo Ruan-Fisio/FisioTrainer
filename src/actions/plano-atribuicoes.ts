@@ -27,12 +27,22 @@ import {
   validarLinhasGrade,
 } from "@/actions/grade-recorrente";
 import type { GradeRecorrenteLinha } from "@/lib/validations/grade-recorrente";
+import { sincronizarContratoDoPlano } from "@/lib/contratos";
+import { PACIENTE_ATIVO } from "@/lib/paciente-exclusao";
 
 export async function listPlanoAtribuicoesByPaciente(pacienteId: string) {
   const atribuicoes = await prisma.planoAtribuicao.findMany({
     where: { pacienteId },
     orderBy: { createdAt: "desc" },
-    include: { cobrancas: { orderBy: { vencimento: "asc" } } },
+    include: {
+      cobrancas: { orderBy: { vencimento: "asc" } },
+      contratos: {
+        where: { status: { in: ["PENDENTE", "ASSINADO"] } },
+        orderBy: { numero: "desc" },
+        take: 1,
+        select: { id: true, numero: true, token: true, status: true, assinadoEm: true },
+      },
+    },
   });
 
   return atribuicoes.map((a) => ({
@@ -217,6 +227,7 @@ export async function createPlanoAtribuicao(
   });
 
   await aplicarGradeRecorrente(atribuicao.id, gradeLinhas);
+  await sincronizarContratoDoPlano(atribuicao.id);
 
   revalidatePath(`/pacientes/${pacienteId}`);
   revalidatePath("/dashboard");
@@ -326,6 +337,7 @@ export async function updatePlanoAtribuicao(
   });
 
   await aplicarGradeRecorrente(id, gradeLinhas);
+  await sincronizarContratoDoPlano(id);
 
   revalidatePath(`/pacientes/${pacienteId}`);
   revalidatePath("/dashboard");
@@ -356,6 +368,11 @@ export async function cancelarPlanoAtribuicao(id: string, pacienteId: string) {
       where: { id },
       data: { status: "CANCELADO" },
     });
+    // O assinado continua valendo como registro; só o que nem foi assinado deixa de existir.
+    await tx.contrato.updateMany({
+      where: { planoAtribuicaoId: id, status: "PENDENTE" },
+      data: { status: "CANCELADO" },
+    });
   });
 
   revalidatePath(`/pacientes/${pacienteId}`);
@@ -374,7 +391,7 @@ export async function cancelarPlanoAtribuicao(id: string, pacienteId: string) {
  */
 export async function listPlanosRenovaveis() {
   const atribuicoes = await prisma.planoAtribuicao.findMany({
-    where: { status: "ATIVO" },
+    where: { status: "ATIVO", paciente: PACIENTE_ATIVO },
     orderBy: { dataInicio: "asc" },
     include: {
       paciente: { select: { id: true, nome: true } },
@@ -486,7 +503,7 @@ export async function renovarPlanoAtribuicao(
     vencimentos.length,
   );
 
-  await prisma.$transaction(async (tx) => {
+  const novaId = await prisma.$transaction(async (tx) => {
     await tx.planoAtribuicao.update({
       where: { id: antiga.id },
       data: { status: "CONCLUIDO" },
@@ -525,7 +542,10 @@ export async function renovarPlanoAtribuicao(
         notaFiscal,
       ),
     });
+    return nova.id;
   });
+
+  await sincronizarContratoDoPlano(novaId);
 
   revalidatePath("/planos");
   revalidatePath(`/pacientes/${antiga.pacienteId}`);

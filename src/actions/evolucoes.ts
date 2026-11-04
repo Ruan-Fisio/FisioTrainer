@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { PACIENTE_ATIVO } from "@/lib/paciente-exclusao";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { evolucaoSchema } from "@/lib/validations/evolucao";
@@ -22,6 +23,7 @@ export async function listEvolucoes(
   if (filters.ate) dataFilter.lte = new Date(`${filters.ate}T23:59:59`);
 
   const where = {
+    paciente: PACIENTE_ATIVO,
     ...(filters.pacienteIds && filters.pacienteIds.length > 0
       ? { pacienteId: { in: filters.pacienteIds } }
       : {}),

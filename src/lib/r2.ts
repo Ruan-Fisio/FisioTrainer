@@ -87,6 +87,26 @@ export function presignGet(
   );
 }
 
+/** Grava bytes gerados no servidor (ex. PDF de contrato assinado). */
+export async function putObject(chave: string, corpo: Uint8Array, mime: string) {
+  await r2().send(
+    new PutObjectCommand({
+      Bucket: r2Bucket(),
+      Key: chave,
+      Body: corpo,
+      ContentType: mime,
+    }),
+  );
+}
+
+export async function getObjectBytes(chave: string) {
+  const res = await r2().send(
+    new GetObjectCommand({ Bucket: r2Bucket(), Key: chave }),
+  );
+  if (!res.Body) throw new Error(`Objeto vazio no R2: ${chave}`);
+  return res.Body.transformToByteArray();
+}
+
 /** Metadados reais do objeto (não confia no que o navegador declarou). */
 export async function headObject(chave: string) {
   const res = await r2().send(

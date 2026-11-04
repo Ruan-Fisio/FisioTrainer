@@ -60,9 +60,10 @@ export function PacienteRowActions({ id, nome }: { id: string; nome: string }) {
           <DialogHeader>
             <DialogTitle>Excluir paciente</DialogTitle>
             <DialogDescription>
-              Tem certeza que deseja excluir <strong>{nome}</strong>? Todas as
-              avaliações e retornos associados também serão excluídos. Esta
-              ação não pode ser desfeita.
+              Tem certeza que deseja excluir <strong>{nome}</strong>? O paciente
+              sai das listas e da agenda, e os agendamentos futuros e o link do
+              portal são cancelados. Os dados continuam guardados e o cadastro
+              pode ser restaurado em Pacientes → Excluídos.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

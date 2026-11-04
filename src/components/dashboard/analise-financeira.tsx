@@ -36,6 +36,8 @@ import {
   type ChartConfig,
 } from "@/components/ui/chart";
 import { KpiGrid, type Kpi } from "@/components/dashboard/kpi-grid";
+import { ReceitaDespesas } from "@/components/dashboard/receita-despesas";
+import type { ComparativoReceitaDespesa } from "@/lib/despesas";
 import {
   CATEGORIAS_RECEITA,
   COR_CATEGORIA_RECEITA,
@@ -58,9 +60,10 @@ const eixoMoeda = (v: number) => (v ? moedaCompacta.format(v) : "");
 type Props = {
   analise: AnaliseFinanceira;
   atrasadas: CobrancaAtrasada[];
+  comparativo: ComparativoReceitaDespesa;
 };
 
-export function AnaliseFinanceira({ analise, atrasadas }: Props) {
+export function AnaliseFinanceira({ analise, atrasadas, comparativo }: Props) {
   const { kpis } = analise;
 
   const cards: Kpi[] = [
@@ -104,6 +107,8 @@ export function AnaliseFinanceira({ analise, atrasadas }: Props) {
   return (
     <div className="flex flex-col gap-6">
       <KpiGrid kpis={cards} className="lg:grid-cols-3 xl:grid-cols-5" />
+
+      <ReceitaDespesas comparativo={comparativo} />
 
       <ReceitaPorMesCard analise={analise} eixoMoeda={eixoMoeda} />
 

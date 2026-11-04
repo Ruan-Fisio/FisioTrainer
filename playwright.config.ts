@@ -58,6 +58,8 @@ export default defineConfig({
       // absoluto gerado pelo app (ex. "Compartilhar acesso" do paciente) manda o teste
       // pro seu `npm run dev` de verdade em vez do servidor E2E isolado.
       NEXT_PUBLIC_APP_URL: baseURL,
+      // PDFs de contrato assinado vão para uma pasta local, nunca para o bucket real.
+      CONTRATOS_STORAGE_DIR: "test-results/contratos",
     },
   },
 });

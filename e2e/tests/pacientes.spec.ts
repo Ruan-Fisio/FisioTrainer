@@ -44,6 +44,14 @@ test.describe("pacientes", () => {
     await expect(page.getByText("Paciente excluído com sucesso.")).toBeVisible();
     await buscar(page, "q", nomeEditado);
     await expect(page.getByText("Nenhum paciente encontrado.")).toBeVisible();
+
+    // Exclusão é lógica: continua em "Excluídos" e pode ser restaurado.
+    await page.getByRole("button", { name: "Excluídos" }).click();
+    await expect(page.getByRole("cell", { name: nomeEditado, exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Restaurar" }).click();
+    await expect(page.getByText("Paciente restaurado.")).toBeVisible();
+    await page.getByRole("button", { name: "Excluídos" }).click();
+    await expect(page.getByRole("cell", { name: nomeEditado, exact: true })).toBeVisible();
   });
 
   test("exige o nome pra criar", async ({ page }) => {

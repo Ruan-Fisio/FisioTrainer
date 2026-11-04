@@ -40,6 +40,8 @@ export const MODULO_LABEL: Record<string, string> = {
   PlanoSala: "Sala do plano",
   Sala: "Sala",
   PlanoAtribuicao: "Atribuição de plano",
+  Contrato: "Contrato",
+  ContratoModelo: "Modelo de contrato",
   Agendamento: "Agendamento",
   CreditoRemarcacao: "Crédito de remarcação",
   GradeRecorrenteAtendimento: "Grade de atendimento recorrente",
@@ -54,6 +56,7 @@ export const MODULO_LABEL: Record<string, string> = {
   SalaServico: "Sala do serviço",
   UsuarioServico: "Profissional do serviço",
   ConfiguracaoTaxa: "Taxa financeira",
+  Despesa: "Despesa",
 };
 
 export const ACAO_LABEL: Record<string, string> = {

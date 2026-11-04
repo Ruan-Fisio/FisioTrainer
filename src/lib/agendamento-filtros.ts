@@ -1,4 +1,5 @@
 import type { ModalidadeAgendamento, TipoPlano } from "@/generated/prisma/enums";
+import { AGENDAMENTO_VISIVEL } from "@/lib/paciente-exclusao";
 
 export type FiltrosAgendamentoComuns = {
   profissionalIds?: string[];
@@ -14,9 +15,11 @@ export type FiltrosAgendamentoComuns = {
  * pelas actions de `/agenda` (`listAgendamentos`/`listAgendamentosPorIntervalo`) quanto
  * pelo card "Meus compromissos" do dashboard (`getProximosAgendamentos`/`getContagensAgenda`).
  * Puro (sem Prisma), só monta o objeto — cada action decide o `include`/demais campos do `where`.
+ * Sempre esconde os agendamentos de pacientes excluídos.
  */
 export function whereFiltrosComuns(filters: FiltrosAgendamentoComuns) {
   return {
+    ...AGENDAMENTO_VISIVEL,
     ...(filters.profissionalIds && filters.profissionalIds.length > 0
       ? { profissionalId: { in: filters.profissionalIds } }
       : {}),

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { prisma } from "@/lib/prisma";
+import { PACIENTE_ATIVO } from "@/lib/paciente-exclusao";
 import { Card, CardContent } from "@/components/ui/card";
 import { TreinoCompartilhadoView } from "@/app/compartilhado/treinos/[pacienteId]/treino-compartilhado-view";
 
@@ -11,8 +12,8 @@ export default async function TreinosCompartilhadoPage({
 }) {
   const { pacienteId } = await params;
 
-  const paciente = await prisma.paciente.findUnique({
-    where: { id: pacienteId },
+  const paciente = await prisma.paciente.findFirst({
+    where: { id: pacienteId, ...PACIENTE_ATIVO },
     select: { id: true, nome: true },
   });
 
