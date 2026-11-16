@@ -13,6 +13,7 @@ import {
   Calendar,
   ClipboardList,
   Dumbbell,
+  FileText,
   Package,
   Paperclip,
   Stethoscope,
@@ -20,6 +21,8 @@ import {
 } from "lucide-react";
 import { resolverPacientePorToken } from "@/lib/acesso-compartilhado";
 import { listarAnexosComUrls } from "@/lib/paciente-anexos";
+import { listarDocumentosDoPaciente } from "@/lib/documentos-paciente";
+import { DocumentosPublicos } from "@/components/compartilhado/documentos-publicos";
 import { AnexosPaciente } from "@/components/pacientes/anexos-paciente";
 import {
   confirmarAnexoPortal,
@@ -33,6 +36,16 @@ import { getCobrancasByPaciente } from "@/actions/cobrancas";
 import { getConsumoPlanoPaciente } from "@/actions/agendamentos";
 import { materializarGradesPaciente } from "@/actions/grade-recorrente";
 import { anoMesBrasilia } from "@/lib/datas-brasilia";
+import { comAcessoPortal } from "@/lib/sessao";
+import { AcoesPortalProvider } from "@/components/compartilhado/acoes-portal";
+import {
+  portalCriarAgendamentoAssistido,
+  portalDesmarcarAgendamento,
+  portalGetConsumoPlanoPaciente,
+  portalGetDadosAgendamentoAssistido,
+  portalGetDisponibilidadeHorarios,
+  portalGetDisponibilidadeMesAssistido,
+} from "@/actions/portal-agendamentos";
 
 async function AvaliacoesLoader({
   pacienteId,
@@ -41,7 +54,7 @@ async function AvaliacoesLoader({
   pacienteId: string;
   token: string;
 }) {
-  const avaliacoes = await getAvaliacoesByPaciente(pacienteId);
+  const avaliacoes = await comAcessoPortal(pacienteId, () => getAvaliacoesByPaciente(pacienteId));
   return <AvaliacoesPublicas token={token} avaliacoes={avaliacoes} />;
 }
 
@@ -74,8 +87,14 @@ async function AnexosLoader({
   );
 }
 
+/** Todo documento emitido pela clínica aparece no portal (decisão da clínica). */
+async function DocumentosLoader({ pacienteId, token }: { pacienteId: string; token: string }) {
+  const documentos = await listarDocumentosDoPaciente(pacienteId);
+  return <DocumentosPublicos token={token} documentos={documentos} />;
+}
+
 async function EvolucoesLoader({ pacienteId }: { pacienteId: string }) {
-  const evolucoes = await getEvolucoesByPaciente(pacienteId);
+  const evolucoes = await comAcessoPortal(pacienteId, () => getEvolucoesByPaciente(pacienteId));
   return <EvolucoesPublicas evolucoes={evolucoes} />;
 }
 
@@ -131,7 +150,9 @@ async function TreinosLoader({ pacienteId }: { pacienteId: string }) {
 }
 
 async function PlanosLoader({ pacienteId }: { pacienteId: string }) {
-  const atribuicoes = await listPlanoAtribuicoesByPaciente(pacienteId);
+  const atribuicoes = await comAcessoPortal(pacienteId, () =>
+    listPlanoAtribuicoesByPaciente(pacienteId),
+  );
   return (
     <PlanoAtribuicoesList
       atribuicoes={atribuicoes}
@@ -148,10 +169,9 @@ async function FinanceiroLoader({
   pacienteId: string;
   token: string;
 }) {
-  const [atribuicoes, cobrancas] = await Promise.all([
-    listPlanoAtribuicoesByPaciente(pacienteId),
-    getCobrancasByPaciente(pacienteId),
-  ]);
+  const [atribuicoes, cobrancas] = await comAcessoPortal(pacienteId, () =>
+    Promise.all([listPlanoAtribuicoesByPaciente(pacienteId), getCobrancasByPaciente(pacienteId)]),
+  );
   return (
     <PlanosFinanceiroPublico
       token={token}
@@ -161,22 +181,38 @@ async function FinanceiroLoader({
   );
 }
 
-async function AgendamentosLoader({ pacienteId }: { pacienteId: string }) {
+async function AgendamentosLoader({ pacienteId, token }: { pacienteId: string; token: string }) {
   const { ano, mes } = anoMesBrasilia();
-  await materializarGradesPaciente(pacienteId);
+  const consumo = await comAcessoPortal(pacienteId, async () => {
+    await materializarGradesPaciente(pacienteId);
+    return getConsumoPlanoPaciente(pacienteId, ano, mes);
+  });
   // Portal do paciente nunca vê os créditos de remarcação — zerar antes de enviar ao client.
-  const resumo = (await getConsumoPlanoPaciente(pacienteId, ano, mes)).map((plano) => ({
+  const resumo = consumo.map((plano) => ({
     ...plano,
     creditos: { max: 0, usados: 0, disponiveis: 0 },
   }));
+  // O navegador chama estas actions (trocar mês, agendar, desmarcar): versões presas ao
+  // token, que derivam o paciente do link no servidor.
   return (
-    <PacienteAgendamentosTab
-      pacienteId={pacienteId}
-      resumoInicial={resumo}
-      anoInicial={ano}
-      mesInicial={mes}
-      somenteLeitura
-    />
+    <AcoesPortalProvider
+      acoes={{
+        getConsumoPlanoPaciente: portalGetConsumoPlanoPaciente.bind(null, token),
+        desmarcarAgendamentoPeloPaciente: portalDesmarcarAgendamento.bind(null, token),
+        getDadosAgendamentoAssistido: portalGetDadosAgendamentoAssistido.bind(null, token),
+        getDisponibilidadeMesAssistido: portalGetDisponibilidadeMesAssistido.bind(null, token),
+        getDisponibilidadeHorarios: portalGetDisponibilidadeHorarios.bind(null, token),
+        criarAgendamentoAssistido: portalCriarAgendamentoAssistido.bind(null, token),
+      }}
+    >
+      <PacienteAgendamentosTab
+        pacienteId={pacienteId}
+        resumoInicial={resumo}
+        anoInicial={ano}
+        mesInicial={mes}
+        somenteLeitura
+      />
+    </AcoesPortalProvider>
   );
 }
 
@@ -193,7 +229,7 @@ export default async function PortalPacientePage({
       <div className="text-center">
         <h1 className="text-2xl font-semibold">{paciente.nome}</h1>
         <p className="text-sm text-muted-foreground">
-          Acompanhe suas avaliações, evoluções, treinos, planos e financeiro, e envie seus exames.
+          Acompanhe suas avaliações, evoluções, documentos, treinos, planos e financeiro, e envie seus exames.
         </p>
       </div>
 
@@ -231,6 +267,16 @@ export default async function PortalPacientePage({
             ),
           },
           {
+            value: "documentos",
+            label: "Documentos",
+            icon: <FileText />,
+            content: (
+              <Suspense fallback={<TableSkeleton />}>
+                <DocumentosLoader pacienteId={pacienteId} token={token} />
+              </Suspense>
+            ),
+          },
+          {
             value: "treinos",
             label: "Treinos",
             icon: <Dumbbell />,
@@ -256,7 +302,7 @@ export default async function PortalPacientePage({
             icon: <Calendar />,
             content: (
               <Suspense fallback={<TableSkeleton />}>
-                <AgendamentosLoader pacienteId={pacienteId} />
+                <AgendamentosLoader pacienteId={pacienteId} token={token} />
               </Suspense>
             ),
           },

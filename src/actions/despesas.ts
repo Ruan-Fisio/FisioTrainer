@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { auth } from "@/lib/auth";
 import { inicioDoDia } from "@/lib/datas-brasilia";
 import {
   intervaloDoMes,
@@ -11,6 +10,7 @@ import {
 import { mesReferencia } from "@/lib/financeiro";
 import { prisma } from "@/lib/prisma";
 import { despesaSchema } from "@/lib/validations/despesa";
+import { exigirSessao } from "@/lib/sessao";
 
 const POR_PAGINA = 20;
 
@@ -20,11 +20,6 @@ export type DespesaActionState = {
   /** Mês da despesa salva, para voltar à listagem já nele. */
   mes?: string;
 };
-
-async function exigirSessao() {
-  const session = await auth();
-  if (!session?.user) throw new Error("Não autorizado.");
-}
 
 export async function listDespesas(filters: FiltrosDespesas, page = 1) {
   await exigirSessao();

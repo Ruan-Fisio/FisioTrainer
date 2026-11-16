@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { horarioAtendimentoSchema } from "@/lib/validations/horario-atendimento";
 import { MODALIDADES_COM_HORARIO_FIXO } from "@/lib/salas";
+import { exigirSessao } from "@/lib/sessao";
 
 export async function listHorariosAtendimentoAgrupados() {
+  await exigirSessao();
   const horarios = await prisma.horarioAtendimento.findMany({
     where: { modalidade: { in: MODALIDADES_COM_HORARIO_FIXO } },
     orderBy: [{ modalidade: "asc" }, { ordem: "asc" }],
@@ -23,6 +25,7 @@ export async function createHorarioAtendimento(
   _prevState: HorarioAtendimentoActionState,
   formData: FormData,
 ): Promise<HorarioAtendimentoActionState> {
+  await exigirSessao();
   const parsed = horarioAtendimentoSchema.safeParse({
     modalidade: formData.get("modalidade"),
     horario: formData.get("horario"),
@@ -59,11 +62,13 @@ export async function createHorarioAtendimento(
 }
 
 export async function alternarAtivoHorarioAtendimento(id: string, ativo: boolean) {
+  await exigirSessao();
   await prisma.horarioAtendimento.update({ where: { id }, data: { ativo } });
   revalidatePath("/configuracoes");
 }
 
 export async function deleteHorarioAtendimento(id: string) {
+  await exigirSessao();
   await prisma.horarioAtendimento.delete({ where: { id } });
   revalidatePath("/configuracoes");
 }

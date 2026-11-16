@@ -39,13 +39,13 @@ import {
 } from "@/components/agendamentos/agendamento-labels";
 import { tipoPlanoLabels } from "@/lib/validations/plano";
 import { formatarDataHoraExtenso } from "@/lib/format";
+import { useAcoesAgendamento } from "@/components/compartilhado/acoes-portal";
 import { AgendamentoAssistidoDialog } from "@/components/pacientes/agendamento-assistido-dialog";
 import { AgendamentoServicoDialog } from "@/components/pacientes/agendamento-servico-dialog";
 import { GradeRecorrenteDialog } from "@/components/pacientes/grade-recorrente-dialog";
 import { RemarcarDialog } from "@/components/agendamentos/remarcar-dialog";
 import {
   atualizarStatusAgendamento,
-  desmarcarAgendamentoPeloPaciente,
   getConsumoPlanoPaciente,
   listAgendamentosServicoPaciente,
 } from "@/actions/agendamentos";
@@ -116,6 +116,8 @@ export function PacienteAgendamentosTab({
     servicos: AgendamentosServico;
   } | null>(null);
   const [carregando, startTransition] = useTransition();
+  // No portal, versões presas ao token (ver `AcoesPortalProvider`).
+  const acoes = useAcoesAgendamento();
 
   const [statusOverride, setStatusOverride] = useState<Record<string, StatusMarcado>>({});
   const [marcando, startMarcando] = useTransition();
@@ -164,14 +166,14 @@ export function PacienteAgendamentosTab({
       const ano = mesRef.getFullYear();
       const mes = mesRef.getMonth() + 1;
       const [dados, servicosDoMes] = somenteLeitura
-        ? [await getConsumoPlanoPaciente(pacienteId, ano, mes), []]
+        ? [await acoes.getConsumoPlanoPaciente(pacienteId, ano, mes), []]
         : await Promise.all([
             getConsumoPlanoPaciente(pacienteId, ano, mes),
             listAgendamentosServicoPaciente(pacienteId, ano, mes),
           ]);
       setOutroMes({ chave: chaveMes, dados, servicos: servicosDoMes });
     });
-  }, [ehMesInicial, outroMes, chaveMes, mesRef, pacienteId, somenteLeitura]);
+  }, [ehMesInicial, outroMes, chaveMes, mesRef, pacienteId, somenteLeitura, acoes]);
 
   function marcar(agId: string, status: "COMPARECEU" | "FALTOU" | "AGENDADO") {
     setStatusOverride((prev) => ({ ...prev, [agId]: status }));
@@ -722,6 +724,7 @@ function DesmarcarSlotButton({
   const [erro, setErro] = useState<string>();
   const [motivo, setMotivo] = useState("");
   const [pending, startPending] = useTransition();
+  const { desmarcarAgendamentoPeloPaciente } = useAcoesAgendamento();
   const dentroDoPrazo = pacientePodeDesmarcar(new Date(dataInicio));
   const motivoValido = motivo.trim().length >= 3;
 

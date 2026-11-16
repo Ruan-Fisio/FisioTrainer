@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   criarTicketUpload,
@@ -10,13 +9,7 @@ import {
   registrarAnexo,
   type AnexoPacienteItem,
 } from "@/lib/paciente-anexos";
-
-/** Anexos do histórico clínico, lado da clínica (exige sessão). */
-
-async function exigirSessao() {
-  const session = await auth();
-  if (!session?.user) throw new Error("Não autorizado.");
-}
+import { exigirSessao } from "@/lib/sessao";
 
 export type AnexoPaciente = AnexoPacienteItem;
 

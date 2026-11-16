@@ -1,8 +1,10 @@
 "use server";
 
 import { randomUUID } from "node:crypto";
+import { Prisma } from "@/generated/prisma/client";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { anotacoesSchema, lerAnotacoes, type Anotacoes } from "@/lib/anotacoes-imagem";
 import { deleteObject, presignGet, presignPut } from "@/lib/r2";
 import {
   chaveTmpDoPaciente,
@@ -11,11 +13,7 @@ import {
   montarChaveTmp,
   validarArquivo,
 } from "@/lib/storage-keys";
-
-async function exigirSessao() {
-  const session = await auth();
-  if (!session?.user) throw new Error("Não autorizado.");
-}
+import { exigirSessao } from "@/lib/sessao";
 
 export type ImagemExame = {
   id: string;
@@ -111,6 +109,8 @@ export type ImagemSerie = {
   rotulo: string;
   tipo: "AVALIACAO" | "RETORNO";
   data: Date;
+  /** Desenhos salvos sobre a imagem (null = sem anotações). */
+  anotacoes: Anotacoes | null;
 };
 
 export type SerieImagens = {
@@ -194,6 +194,7 @@ export async function listarSeriesImagensPaciente(
       rotulo: rotulos.get(i.colunaId) ?? "Imagem",
       tipo: i.execucao.tipo,
       data: i.execucao.data,
+      anotacoes: lerAnotacoes(i.anotacoes),
     });
   });
   for (const s of series) {
@@ -202,4 +203,33 @@ export async function listarSeriesImagensPaciente(
   return series
     .filter((s) => s.imagens.length > 0)
     .sort((a, b) => b.avaliacaoData.getTime() - a.avaliacaoData.getTime());
+}
+
+/** Salva (ou limpa, com `null`) as anotações desenhadas sobre uma imagem. */
+export async function salvarAnotacoesImagem(
+  imagemId: string,
+  anotacoes: Anotacoes | null,
+): Promise<{ error: string } | { ok: true }> {
+  await exigirSessao();
+
+  let valor: Anotacoes | null = null;
+  if (anotacoes && anotacoes.formas.length > 0) {
+    const r = anotacoesSchema.safeParse(anotacoes);
+    if (!r.success) return { error: "Anotações inválidas." };
+    valor = r.data;
+  }
+
+  const imagem = await prisma.exameExecucaoImagem.findUnique({
+    where: { id: imagemId },
+    select: { execucao: { select: { pacienteId: true } } },
+  });
+  if (!imagem) return { error: "Imagem não encontrada." };
+
+  await prisma.exameExecucaoImagem.update({
+    where: { id: imagemId },
+    // Json? aceita null apenas via Prisma.DbNull
+    data: { anotacoes: valor ?? Prisma.DbNull },
+  });
+  revalidatePath(`/pacientes/${imagem.execucao.pacienteId}`);
+  return { ok: true };
 }

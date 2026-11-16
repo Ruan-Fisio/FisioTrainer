@@ -27,6 +27,7 @@ Este `CLAUDE.md` é só um **índice + regras críticas** (mantê-lo em ~100 lin
 | Dashboard (compromissos, financeiro, despesas), portal público (`/compartilhado`), desmarcar, créditos de remarcação | `docs/dashboard-portal.md` |
 | Pré-cadastro público (`/pre-cadastro`) e Fila de Curadoria (`/curadoria`) | `docs/pre-cadastro.md` |
 | Contratos, modelo editável e assinatura eletrônica (`/contratos`, `/compartilhado/contrato`) | `docs/contratos.md` |
+| Documentos do paciente (encaminhamentos, exames, atestados — modelos PDF preenchíveis, também no portal) | `docs/documentos.md` |
 | Fuso horário / datas (LEIA antes de tocar em qualquer `Date`) | `docs/fuso-horario.md` |
 | Auditoria (`/logs`), backup antes de operação destrutiva, seed | `docs/ops.md` |
 

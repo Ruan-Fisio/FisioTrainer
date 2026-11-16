@@ -3,10 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { categoriaSchema } from "@/lib/validations/categoria";
+import { exigirSessao } from "@/lib/sessao";
 
 const PAGE_SIZE = 10;
 
 export async function listCategorias(filters: { q?: string }, page: number) {
+  await exigirSessao();
   const where = filters.q
     ? { name: { contains: filters.q, mode: "insensitive" as const } }
     : {};
@@ -31,6 +33,7 @@ export async function listCategorias(filters: { q?: string }, page: number) {
 }
 
 export async function listAllCategorias() {
+  await exigirSessao();
   return prisma.categoria.findMany({
     orderBy: { name: "asc" },
     select: { id: true, name: true },
@@ -46,6 +49,7 @@ export async function createCategoria(
   _prevState: CategoriaActionState,
   formData: FormData,
 ): Promise<CategoriaActionState> {
+  await exigirSessao();
   const parsed = categoriaSchema.safeParse({ name: formData.get("name") });
 
   if (!parsed.success) {
@@ -71,6 +75,7 @@ export async function updateCategoria(
   _prevState: CategoriaActionState,
   formData: FormData,
 ): Promise<CategoriaActionState> {
+  await exigirSessao();
   const parsed = categoriaSchema.safeParse({ name: formData.get("name") });
 
   if (!parsed.success) {
@@ -92,6 +97,7 @@ export async function updateCategoria(
 }
 
 export async function deleteCategoria(id: string) {
+  await exigirSessao();
   const categoria = await prisma.categoria.findUnique({
     where: { id },
     include: { _count: { select: { exercicios: true } } },

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { salaSchema } from "@/lib/validations/sala";
+import { exigirSessao } from "@/lib/sessao";
 
 export type SalaActionState = { error?: string; success?: boolean };
 
@@ -12,6 +13,7 @@ function revalidar() {
 }
 
 export async function listSalas() {
+  await exigirSessao();
   return prisma.sala.findMany({ orderBy: [{ ordem: "asc" }, { nome: "asc" }] });
 }
 
@@ -27,6 +29,7 @@ export async function createSala(
   _prev: SalaActionState,
   formData: FormData,
 ): Promise<SalaActionState> {
+  await exigirSessao();
   const parsed = parse(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
@@ -49,6 +52,7 @@ export async function updateSala(
   _prev: SalaActionState,
   formData: FormData,
 ): Promise<SalaActionState> {
+  await exigirSessao();
   const parsed = parse(formData);
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };
@@ -65,6 +69,7 @@ export async function updateSala(
 }
 
 export async function deleteSala(id: string) {
+  await exigirSessao();
   const emUso = await prisma.planoSala.findFirst({
     where: { salaId: id },
     select: { plano: { select: { nome: true } } },

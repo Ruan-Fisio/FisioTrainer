@@ -13,6 +13,7 @@ import {
 } from "@/lib/exame-edicao-concorrente";
 import { comporMapas, mapaDeOrigem } from "@/lib/exame-merge";
 import { exameSchema } from "@/lib/validations/exame";
+import { exigirSessao } from "@/lib/sessao";
 
 const PAGE_SIZE = 10;
 
@@ -20,6 +21,7 @@ export async function listExames(
   filters: { q?: string; tipo?: "FISIOTERAPIA" | "EDUCACAO_FISICA" },
   page: number,
 ) {
+  await exigirSessao();
   const where = {
     versaoAtual: true,
     ...(filters.q
@@ -50,6 +52,7 @@ export async function listExames(
 }
 
 export async function getExame(id: string) {
+  await exigirSessao();
   return prisma.exame.findUnique({
     where: { id },
     include: {
@@ -236,6 +239,7 @@ export async function createExame(
   _prevState: ExameActionState,
   formData: FormData,
 ): Promise<ExameActionState> {
+  await exigirSessao();
   const parsed = parseExameForm(formData);
 
   if (!parsed || !parsed.success) {
@@ -520,6 +524,7 @@ export type SincronizacaoExame = {
 
 /** Estado atual do exame para a edição em tempo real (e heartbeat de presença). */
 export async function sincronizarExame(id: string): Promise<SincronizacaoExame | null> {
+  await exigirSessao();
   const versao = await resolverVersaoAtual(id);
   if (!versao) return null;
   const exame = await getExame(versao.id);
@@ -546,6 +551,7 @@ export async function sincronizarExame(id: string): Promise<SincronizacaoExame |
 
 /** Fechou a tela de edição: some da lista "também está editando". */
 export async function sairDaEdicaoExame(id: string) {
+  await exigirSessao();
   const usuario = (await auth())?.user;
   if (!usuario?.id) return;
   await prisma.exameEdicaoPresenca.deleteMany({
@@ -570,6 +576,7 @@ export async function autosalvarExame(
   dados: ExameDraft,
   carregadoEm: string,
 ): Promise<AutosalvarExameResultado> {
+  await exigirSessao();
   const parsed = exameSchema.safeParse(dados);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
@@ -616,6 +623,7 @@ export async function autosalvarExame(
 }
 
 export async function deleteExame(id: string) {
+  await exigirSessao();
   const exame = await prisma.exame.findUnique({
     where: { id },
     include: { _count: { select: { execucoes: true } } },

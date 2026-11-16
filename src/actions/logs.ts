@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { exigirSessao } from "@/lib/sessao";
 
 const PAGE_SIZE = 30;
 
@@ -13,6 +14,7 @@ export type LogFilters = {
 };
 
 export async function listLogs(filters: LogFilters, page: number) {
+  await exigirSessao();
   const criadoEm: { gte?: Date; lte?: Date } = {};
   if (filters.de) criadoEm.gte = new Date(`${filters.de}T00:00:00`);
   if (filters.ate) criadoEm.lte = new Date(`${filters.ate}T23:59:59`);

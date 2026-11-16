@@ -11,6 +11,12 @@ process.env.TZ = process.env.APP_TIMEZONE ?? "America/Sao_Paulo";
 
 const nextConfig: NextConfig = {
   agentRules: false,
+  // Modelos PDF dos documentos do paciente são lidos do disco em runtime
+  // (`src/lib/documentos-pdf.ts`) — sem isso a Vercel não os empacota nas funções.
+  outputFileTracingIncludes: {
+    "/api/documentos/[id]/pdf": ["./src/assets/documentos/**"],
+    "/compartilhado/paciente/[token]/documentos/[id]/pdf": ["./src/assets/documentos/**"],
+  },
   // A suíte E2E (Playwright) sobe um segundo `next dev` (porta 3100) ao lado do seu
   // `npm run dev` normal (porta 3000) — sem isolar o `distDir`, o Next 16 recusa subir
   // (detecta "another dev server is already running" pelo lock dentro de `.next/`,

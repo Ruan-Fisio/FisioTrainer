@@ -2,7 +2,6 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
   copyObject,
@@ -28,6 +27,7 @@ import {
   solicitarUploadPreCadastroSchema,
 } from "@/lib/validations/pre-cadastro";
 import type { StatusPreCadastro } from "@/generated/prisma/client";
+import { exigirSessao } from "@/lib/sessao";
 
 const PAGE_SIZE = 10;
 
@@ -142,15 +142,11 @@ export async function criarPreCadastro(
   return { success: true };
 }
 
-async function exigirSessao() {
-  const session = await auth();
-  if (!session?.user) throw new Error("Não autenticado.");
-}
-
 export async function listPreCadastros(
   filters: { status: StatusPreCadastro; q?: string },
   page: number,
 ) {
+  await exigirSessao();
   const where = {
     status: filters.status,
     ...(filters.q
@@ -209,6 +205,7 @@ export async function listPreCadastros(
 }
 
 export async function contarPreCadastrosPorStatus() {
+  await exigirSessao();
   const grupos = await prisma.preCadastro.groupBy({
     by: ["status"],
     _count: { _all: true },
@@ -223,6 +220,7 @@ export async function contarPreCadastrosPorStatus() {
 }
 
 export async function buscarPreCadastroPendente(id: string) {
+  await exigirSessao();
   return prisma.preCadastro.findFirst({ where: { id, status: "PENDENTE" } });
 }
 

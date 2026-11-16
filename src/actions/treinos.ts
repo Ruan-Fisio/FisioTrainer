@@ -4,10 +4,12 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { treinoSchema, atribuirTreinoSchema } from "@/lib/validations/treino";
 import { updateTreinoInPlace } from "@/lib/treino-persistence";
+import { exigirSessao } from "@/lib/sessao";
 
 const PAGE_SIZE = 10;
 
 export async function listTreinos(filters: { q?: string }, page: number) {
+  await exigirSessao();
   const where = {
     pacienteId: null,
     ...(filters.q
@@ -37,6 +39,7 @@ export async function listTreinos(filters: { q?: string }, page: number) {
 }
 
 export async function listAllTreinos() {
+  await exigirSessao();
   return prisma.treino.findMany({
     where: { pacienteId: null },
     orderBy: { nome: "asc" },
@@ -45,6 +48,7 @@ export async function listAllTreinos() {
 }
 
 export async function getTreino(id: string) {
+  await exigirSessao();
   return prisma.treino.findUnique({
     where: { id },
     include: {
@@ -108,6 +112,7 @@ export async function createTreino(
   _prevState: TreinoActionState,
   formData: FormData,
 ): Promise<TreinoActionState> {
+  await exigirSessao();
   const parsed = parseTreinoForm(formData);
 
   if (!parsed || !parsed.success) {
@@ -133,6 +138,7 @@ export async function updateTreino(
   _prevState: TreinoActionState,
   formData: FormData,
 ): Promise<TreinoActionState> {
+  await exigirSessao();
   const parsed = parseTreinoForm(formData);
 
   if (!parsed || !parsed.success) {
@@ -148,6 +154,7 @@ export async function updateTreino(
 }
 
 export async function deleteTreino(id: string) {
+  await exigirSessao();
   await prisma.treino.delete({ where: { id } });
   revalidatePath("/treinos");
 }
@@ -161,6 +168,7 @@ export async function assignTreino(
   _prevState: AtribuirTreinoActionState,
   formData: FormData,
 ): Promise<AtribuirTreinoActionState> {
+  await exigirSessao();
   const treinoIdsRaw = formData.get("treinoIds");
   let treinoIds: unknown = [];
 

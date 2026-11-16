@@ -2,20 +2,15 @@
 
 import { revalidatePath } from "next/cache";
 import type { Prisma, StatusContrato } from "@/generated/prisma/client";
-import { auth } from "@/lib/auth";
 import {
   normalizarQuebras,
   variaveisDesconhecidas,
 } from "@/lib/contrato-modelo";
 import { getModeloVigente, sincronizarContratoDoPlano } from "@/lib/contratos";
 import { prisma } from "@/lib/prisma";
+import { exigirSessao } from "@/lib/sessao";
 
 const PAGE_SIZE = 20;
-
-async function exigirSessao() {
-  const session = await auth();
-  if (!session) throw new Error("Não autenticado.");
-}
 
 export async function listContratos(
   filters: { q?: string; status?: StatusContrato[] },

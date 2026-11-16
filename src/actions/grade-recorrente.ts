@@ -28,6 +28,7 @@ import {
 } from "@/lib/validations/grade-recorrente";
 import { MODALIDADE_AGENDAMENTO_LABEL } from "@/components/agendamentos/agendamento-labels";
 import type { DiaSemana, ModalidadeAgendamento } from "@/generated/prisma/enums";
+import { exigirSessao, exigirSessaoOuPortal } from "@/lib/sessao";
 
 /** Modalidades que um plano pode cobrir (via `Plano.tipos`). */
 const MODALIDADE_POR_TIPO_PLANO: Record<string, ModalidadeAgendamento> = {
@@ -48,6 +49,7 @@ function modalidadesDoPlano(tipos: string[]): ModalidadeAgendamento[] {
 
 /** Horários pré-configurados por modalidade + profissionais, para montar o editor de grade. */
 export async function getGradeRecorrenteOpcoes() {
+  await exigirSessao();
   const [horarios, profissionais] = await Promise.all([
     prisma.horarioAtendimento.findMany({
       where: { ativo: true },
@@ -78,6 +80,7 @@ export async function getGradeRecorrenteOpcoes() {
 
 /** Linhas da grade recorrente ativa de uma atribuição (para preencher o form na edição). */
 export async function getLinhasGradeRecorrente(atribuicaoId: string) {
+  await exigirSessao();
   const linhas = await prisma.gradeRecorrenteAtendimento.findMany({
     where: { planoAtribuicaoId: atribuicaoId, ativo: true },
     orderBy: [{ diaSemana: "asc" }, { horario: "asc" }],
@@ -103,6 +106,7 @@ export async function getLinhasGradeRecorrente(atribuicaoId: string) {
  * para o diálogo "Editar grade" (ícone) da aba Agendamentos.
  */
 export async function getGradeRecorrenteContexto(pacienteId: string) {
+  await exigirSessao();
   const [opcoes, atribuicoes] = await Promise.all([
     getGradeRecorrenteOpcoes(),
     prisma.planoAtribuicao.findMany({
@@ -148,6 +152,7 @@ export async function salvarGradeRecorrente(
   atribuicaoId: string,
   linhasRaw: GradeRecorrenteLinha[],
 ): Promise<SalvarGradeState> {
+  await exigirSessao();
   const atribuicao = await prisma.planoAtribuicao.findUnique({
     where: { id: atribuicaoId },
     select: {
@@ -200,6 +205,7 @@ export async function previewGradeRecorrente(
   atribuicaoId: string,
   linhasRaw: GradeRecorrenteLinha[],
 ): Promise<PreviewGradeState> {
+  await exigirSessao();
   const vazio: PreviewGradeState = {
     totalPlano: null,
     usadosAtuais: 0,
@@ -308,6 +314,7 @@ export async function validarLinhasGrade(
   tiposPlano: string[],
   maxAtendimentos: number | null,
 ): Promise<string | null> {
+  await exigirSessao();
   const parsed = gradeRecorrenteSchema.safeParse({ linhas: linhasRaw });
   if (!parsed.success) {
     return parsed.error.issues[0]?.message ?? "Grade de atendimento inválida.";
@@ -353,6 +360,7 @@ export async function aplicarGradeRecorrente(
   atribuicaoId: string,
   linhasRaw: GradeRecorrenteLinha[],
 ): Promise<MaterializacaoResumo> {
+  await exigirSessao();
   const parsed = gradeRecorrenteSchema.safeParse({ linhas: linhasRaw });
   const linhas = parsed.success ? parsed.data.linhas : [];
   const agora = new Date();
@@ -611,6 +619,7 @@ async function processarGrade(params: {
 export async function materializarGradeRecorrente(
   atribuicaoId: string,
 ): Promise<MaterializacaoResumo> {
+  await exigirSessao();
   const atribuicao = await prisma.planoAtribuicao.findUnique({
     where: { id: atribuicaoId },
     include: {
@@ -652,6 +661,7 @@ export async function verificarConflitosGrade(
   atribuicaoId: string,
   linhasRaw: GradeRecorrenteLinha[],
 ): Promise<ConflitosGradeState> {
+  await exigirSessao();
   const vazio: ConflitosGradeState = { conflitos: [], criadosSimulados: 0 };
 
   const parsed = gradeRecorrenteSchema.safeParse({ linhas: linhasRaw });
@@ -711,6 +721,7 @@ export async function verificarConflitosGrade(
 
 /** Completa a grade de todas as atribuições ativas de um paciente (lazy top-up). */
 export async function materializarGradesPaciente(pacienteId: string) {
+  await exigirSessaoOuPortal(pacienteId);
   const atribuicoes = await prisma.planoAtribuicao.findMany({
     where: {
       pacienteId,
@@ -726,6 +737,7 @@ export async function materializarGradesPaciente(pacienteId: string) {
 
 /** Completa a grade de todas as atribuições ativas da clínica (lazy top-up ao abrir a agenda). */
 export async function materializarTodasGrades() {
+  await exigirSessao();
   const atribuicoes = await prisma.planoAtribuicao.findMany({
     where: {
       status: "ATIVO",

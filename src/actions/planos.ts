@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { planoSchema } from "@/lib/validations/plano";
 import { planoValoresParaNumero } from "@/lib/planos";
+import { exigirSessao } from "@/lib/sessao";
 
 const PAGE_SIZE = 10;
 
@@ -13,6 +14,7 @@ export async function listPlanos(
   filters: { q?: string; tipo?: "FISIOTERAPIA" | "EDUCACAO_FISICA" },
   page: number,
 ) {
+  await exigirSessao();
   const where = {
     ...(filters.q
       ? { nome: { contains: filters.q, mode: "insensitive" as const } }
@@ -42,11 +44,13 @@ export async function listPlanos(
 }
 
 export async function listPlanosDisponiveis() {
+  await exigirSessao();
   const planos = await prisma.plano.findMany({ orderBy: { nome: "asc" } });
   return planos.map(toNumbers);
 }
 
 export async function getPlano(id: string) {
+  await exigirSessao();
   const plano = await prisma.plano.findUnique({
     where: { id },
     include: { salas: { select: { salaId: true, descricao: true } } },
@@ -78,6 +82,7 @@ export async function createPlano(
   _prevState: PlanoActionState,
   formData: FormData,
 ): Promise<PlanoActionState> {
+  await exigirSessao();
   const parsed = parseForm(formData);
 
   if (!parsed.success) {
@@ -106,6 +111,7 @@ export async function updatePlano(
   _prevState: PlanoActionState,
   formData: FormData,
 ): Promise<PlanoActionState> {
+  await exigirSessao();
   const parsed = parseForm(formData);
 
   if (!parsed.success) {
@@ -134,6 +140,7 @@ export async function updatePlano(
 }
 
 export async function deletePlano(id: string) {
+  await exigirSessao();
   const plano = await prisma.plano.findUnique({
     where: { id },
     include: { _count: { select: { atribuicoes: true } } },

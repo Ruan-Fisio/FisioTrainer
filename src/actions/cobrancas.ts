@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { cobrancaSchema } from "@/lib/validations/cobranca";
 import { aplicarTaxaNotaFiscal } from "@/lib/planos";
+import { exigirSessao, exigirSessaoOuPortal } from "@/lib/sessao";
 
 export type CobrancaActionState = {
   error?: string;
@@ -12,6 +13,7 @@ export type CobrancaActionState = {
 };
 
 export async function getCobrancasByPaciente(pacienteId: string) {
+  await exigirSessaoOuPortal(pacienteId);
   const cobrancas = await prisma.cobranca.findMany({
     where: { pacienteId },
     orderBy: { vencimento: "desc" },
@@ -26,6 +28,7 @@ export async function getCobrancasByPaciente(pacienteId: string) {
 
 /** Todas as cobranças pendentes (de qualquer paciente), para a tela de Cobranças. */
 export async function listCobrancasPendentes() {
+  await exigirSessao();
   const cobrancas = await prisma.cobranca.findMany({
     where: { status: "PENDENTE", paciente: PACIENTE_ATIVO },
     orderBy: { vencimento: "asc" },
@@ -40,6 +43,7 @@ export async function listCobrancasPendentes() {
 }
 
 export async function getCobranca(id: string) {
+  await exigirSessao();
   const cobranca = await prisma.cobranca.findUnique({ where: { id } });
   if (!cobranca) return null;
   return {
@@ -65,6 +69,7 @@ export async function createCobranca(
   _prevState: CobrancaActionState,
   formData: FormData,
 ): Promise<CobrancaActionState> {
+  await exigirSessao();
   const parsed = parseForm(formData);
 
   if (!parsed.success) {
@@ -98,6 +103,7 @@ export async function updateCobranca(
   _prevState: CobrancaActionState,
   formData: FormData,
 ): Promise<CobrancaActionState> {
+  await exigirSessao();
   const parsed = parseForm(formData);
 
   if (!parsed.success) {
@@ -135,6 +141,7 @@ export async function updateCobranca(
 }
 
 export async function marcarCobrancaPaga(id: string, pacienteId: string) {
+  await exigirSessao();
   await prisma.cobranca.update({
     where: { id },
     data: { status: "PAGO", pagoEm: new Date() },
@@ -145,6 +152,7 @@ export async function marcarCobrancaPaga(id: string, pacienteId: string) {
 }
 
 export async function deleteCobranca(id: string, pacienteId: string) {
+  await exigirSessao();
   await prisma.cobranca.delete({ where: { id } });
   revalidatePath(`/pacientes/${pacienteId}`);
   revalidatePath("/dashboard");

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { getExecucao } from "@/actions/exame-execucoes";
 import { resolverPacientePorToken } from "@/lib/acesso-compartilhado";
+import { comAcessoPortal } from "@/lib/sessao";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -17,7 +18,7 @@ export default async function ExecucaoPublicaPage({
   const { token, execucaoId } = await params;
   const { pacienteId } = await resolverPacientePorToken(token);
 
-  const execucao = await getExecucao(execucaoId);
+  const execucao = await comAcessoPortal(pacienteId, () => getExecucao(execucaoId));
 
   if (!execucao || execucao.pacienteId !== pacienteId) notFound();
 

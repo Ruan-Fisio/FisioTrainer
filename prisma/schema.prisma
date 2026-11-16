@@ -13,26 +13,27 @@ datasource db {
 }
 
 model User {
-  id                 String     @id @default(cuid())
-  name               String
-  email              String     @unique
-  password           String
-  cref               String?
-  crefito            String?
-  cpfCnpj            String?
-  razaoSocial        String?
-  inscricaoMunicipal String?
-  telefone           String?
-  endereco           String?
-  atendeFisioterapia   Boolean  @default(false)
-  atendeEducacaoFisica Boolean  @default(false)
-  evolucoes          Evolucao[]
-  agendamentos       Agendamento[]
-  gradesRecorrentes  GradeRecorrenteAtendimento[] @relation("GradeRecorrenteProfissional")
-  servicos           UsuarioServico[]
-  contratoModelos    ContratoModelo[]
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
+  id                   String                       @id @default(cuid())
+  name                 String
+  email                String                       @unique
+  password             String
+  cref                 String?
+  crefito              String?
+  cpfCnpj              String?
+  razaoSocial          String?
+  inscricaoMunicipal   String?
+  telefone             String?
+  endereco             String?
+  atendeFisioterapia   Boolean                      @default(false)
+  atendeEducacaoFisica Boolean                      @default(false)
+  evolucoes            Evolucao[]
+  agendamentos         Agendamento[]
+  gradesRecorrentes    GradeRecorrenteAtendimento[] @relation("GradeRecorrenteProfissional")
+  servicos             UsuarioServico[]
+  contratoModelos      ContratoModelo[]
+  documentosEmitidos   DocumentoPaciente[]
+  createdAt            DateTime                     @default(now())
+  updatedAt            DateTime                     @updatedAt
 }
 
 model Movimento {
@@ -116,70 +117,70 @@ model Exame {
 }
 
 model ExameSecao {
-  id        String        @id @default(cuid())
+  id        String       @id @default(cuid())
   nome      String
   ordem     Int
   exameId   String
-  exame     Exame         @relation(fields: [exameId], references: [id], onDelete: Cascade)
+  exame     Exame        @relation(fields: [exameId], references: [id], onDelete: Cascade)
   campos    ExameCampo[]
   /// Id do item equivalente na versão anterior do exame (ver criarNovaVersaoExame):
   /// a edição em tempo real usa para seguir o item quando o exame vira versão nova.
   origemId  String?
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 }
 
 model ExameCampo {
-  id        String               @id @default(cuid())
-  nome      String
-  ordem     Int
-  repetivel Boolean              @default(false)
-  identificarMembro Boolean      @default(false)
-  secaoId   String
-  secao     ExameSecao           @relation(fields: [secaoId], references: [id], onDelete: Cascade)
-  colunas   ExameCampoColuna[]
+  id                String             @id @default(cuid())
+  nome              String
+  ordem             Int
+  repetivel         Boolean            @default(false)
+  identificarMembro Boolean            @default(false)
+  secaoId           String
+  secao             ExameSecao         @relation(fields: [secaoId], references: [id], onDelete: Cascade)
+  colunas           ExameCampoColuna[]
   /// Id do item equivalente na versão anterior do exame (ver criarNovaVersaoExame):
   /// a edição em tempo real usa para seguir o item quando o exame vira versão nova.
-  origemId  String?
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @updatedAt
+  origemId          String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 }
 
 model ExameCampoColuna {
-  id           String              @id @default(cuid())
-  titulo       String
-  ordem        Int
-  tipo         TipoCampoExame
-  formatacao   String?
-  opcoes       String[]            @default([])
-  multiplaSelecao Boolean          @default(false)
+  id                 String               @id @default(cuid())
+  titulo             String
+  ordem              Int
+  tipo               TipoCampoExame
+  formatacao         String?
+  opcoes             String[]             @default([])
+  multiplaSelecao    Boolean              @default(false)
   /// Preenchimento automático por opção (MULTIPLA_ESCOLHA): array de
   /// `{opcao, formula}`. Só existe quando TODAS as opções têm condição — ver
   /// `validarFormulasDoExame` em src/lib/exame-formula.ts. Vazio = coluna manual.
-  opcoesCondicionais Json          @default("[]")
+  opcoesCondicionais Json                 @default("[]")
   /// Cor de destaque por opção (MULTIPLA_ESCOLHA): array de `{opcao, cor}` com
   /// cor AZUL | VERDE | AMARELO | LARANJA | VERMELHO. Opção sem entrada = sem destaque.
-  coresOpcoes  Json            @default("[]")
+  coresOpcoes        Json                 @default("[]")
   /// Pontuação fixa por opção (MULTIPLA_ESCOLHA): array de `{opcao, pontos}`.
   /// Só existe quando TODAS as opções têm pontos — ver src/lib/pontuacao-opcao.ts.
   /// Vazio = coluna sem pontuação. Nunca gravada na execução (derivada da opção).
-  pontuacoes   Json            @default("[]")
+  pontuacoes         Json                 @default("[]")
   /// Se a coluna aceita anexos (arquivos) na execução do exame. Colunas
   /// anteriores a este campo ficam `true` (migration) para manter o legado.
-  permiteAnexo Boolean         @default(false)
-  valorIdeal   String?
-  direcaoIdeal DirecaoIdealCampo?
+  permiteAnexo       Boolean              @default(false)
+  valorIdeal         String?
+  direcaoIdeal       DirecaoIdealCampo?
   /// Fórmula da coluna CALCULADO, ex: "{Peso} / ({Altura} * {Altura})" —
   /// referencia outras colunas do exame pelo título. Nula para os demais tipos.
-  formula      String?
-  campoId      String
-  campo        ExameCampo          @relation(fields: [campoId], references: [id], onDelete: Cascade)
-  valores      ExameExecucaoValor[]
+  formula            String?
+  campoId            String
+  campo              ExameCampo           @relation(fields: [campoId], references: [id], onDelete: Cascade)
+  valores            ExameExecucaoValor[]
   /// Id do item equivalente na versão anterior do exame (ver criarNovaVersaoExame):
   /// a edição em tempo real usa para seguir o item quando o exame vira versão nova.
-  origemId     String?
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
+  origemId           String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
 }
 
 enum Sexo {
@@ -188,12 +189,12 @@ enum Sexo {
 }
 
 model Paciente {
-  id                    String          @id @default(cuid())
+  id                    String                        @id @default(cuid())
   nome                  String
   sexo                  Sexo?
   idade                 Int?
   dataNascimento        DateTime?
-  cpf                   String?         @unique
+  cpf                   String?                       @unique
   email                 String?
   contato               String?
   endereco              String?
@@ -214,10 +215,11 @@ model Paciente {
   preCadastro           PreCadastro?
   anexos                PacienteAnexo[]
   contratos             Contrato[]
+  documentos            DocumentoPaciente[]
   /// Exclusão lógica: preenchido = excluído. Paciente nunca é apagado de verdade.
-  excluidoEm            DateTime?       @db.Timestamptz(3)
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
+  excluidoEm            DateTime?                     @db.Timestamptz(3)
+  createdAt             DateTime                      @default(now())
+  updatedAt             DateTime                      @updatedAt
 
   @@index([excluidoEm])
 }
@@ -231,20 +233,20 @@ enum StatusPreCadastro {
 /// Interessado que preencheu o formulário público (/pre-cadastro) e aguarda curadoria.
 /// Aprovado = virou Paciente (pacienteId); rejeitado fica no histórico com motivo opcional.
 model PreCadastro {
-  id              String            @id @default(cuid())
+  id              String               @id @default(cuid())
   nome            String
   sobrenome       String
   /// Só dígitos: DDD + número.
   celular         String
   queixaPrincipal String
-  status          StatusPreCadastro @default(PENDENTE)
+  status          StatusPreCadastro    @default(PENDENTE)
   motivoRejeicao  String?
   analisadoEm     DateTime?
-  pacienteId      String?           @unique
-  paciente        Paciente?         @relation(fields: [pacienteId], references: [id], onDelete: SetNull)
+  pacienteId      String?              @unique
+  paciente        Paciente?            @relation(fields: [pacienteId], references: [id], onDelete: SetNull)
   arquivos        PreCadastroArquivo[]
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
 
   @@index([status, createdAt])
 }
@@ -252,18 +254,36 @@ model PreCadastro {
 /// Anexo do histórico clínico do paciente (exames, laudos, fotos); objeto no R2
 /// em `pacientes/{pacienteId}/anexos/`.
 model PacienteAnexo {
-  id           String   @id @default(cuid())
+  id           String      @id @default(cuid())
   pacienteId   String
-  paciente     Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
-  chave        String   @unique
+  paciente     Paciente    @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  chave        String      @unique
   nomeOriginal String
   mime         String
   tamanho      Int
   /// Quem enviou: a clínica (histórico clínico) ou o próprio paciente (portal).
   origem       OrigemAnexo @default(CLINICA)
-  createdAt    DateTime @default(now())
+  createdAt    DateTime    @default(now())
 
   @@index([pacienteId, createdAt])
+}
+
+/// Documento clínico emitido de um modelo PDF preenchível (encaminhamento, atestado,
+/// solicitação de exames…). `tipo` é o slug do catálogo (`src/lib/documentos-catalogo.ts`)
+/// e `valores` os campos preenchidos; o PDF é gerado sob demanda. Ver `docs/documentos.md`.
+model DocumentoPaciente {
+  id         String   @id @default(cuid())
+  pacienteId String
+  paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  tipo       String
+  valores    Json
+  autorId    String?
+  autor      User?    @relation(fields: [autorId], references: [id], onDelete: SetNull)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([pacienteId, createdAt])
+  @@index([createdAt])
 }
 
 enum OrigemAnexo {
@@ -302,24 +322,24 @@ model AcessoCompartilhadoPaciente {
 }
 
 model Evolucao {
-  id             String   @id @default(cuid())
-  data           DateTime @default(now())
-  profissionalId String
-  profissional   User     @relation(fields: [profissionalId], references: [id])
-  hdp            String
-  hda            String
-  pa             String
-  fc             String
-  spo2           String
-  fr             String
-  temperatura    String
+  id               String   @id @default(cuid())
+  data             DateTime @default(now())
+  profissionalId   String
+  profissional     User     @relation(fields: [profissionalId], references: [id])
+  hdp              String
+  hda              String
+  pa               String
+  fc               String
+  spo2             String
+  fr               String
+  temperatura      String
   auscultaPulmonar String?
-  evolucao       String
-  conduta        String
-  pacienteId     String
-  paciente       Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  evolucao         String
+  conduta          String
+  pacienteId       String
+  paciente         Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 enum StatusCobranca {
@@ -381,19 +401,19 @@ enum PeriodicidadePlano {
 }
 
 model Plano {
-  id                         String              @id @default(cuid())
-  nome                       String              @unique
-  descricao                  String?
-  tipos                      TipoPlano[]
-  atendimentos               Int
-  creditosRemarcacao         Int                 @default(0)
+  id                           String            @id @default(cuid())
+  nome                         String            @unique
+  descricao                    String?
+  tipos                        TipoPlano[]
+  atendimentos                 Int
+  creditosRemarcacao           Int               @default(0)
   permiteParcelamentoEstendido Boolean           @default(false)
-  valorAVistaMensal          Decimal             @db.Decimal(10, 2)
-  valorAVistaTrimestral      Decimal             @db.Decimal(10, 2)
-  salas                      PlanoSala[]
-  atribuicoes                PlanoAtribuicao[]
-  createdAt                  DateTime            @default(now())
-  updatedAt                  DateTime            @updatedAt
+  valorAVistaMensal            Decimal           @db.Decimal(10, 2)
+  valorAVistaTrimestral        Decimal           @db.Decimal(10, 2)
+  salas                        PlanoSala[]
+  atribuicoes                  PlanoAtribuicao[]
+  createdAt                    DateTime          @default(now())
+  updatedAt                    DateTime          @updatedAt
 }
 
 /// Salas em que um Plano pode ser executado (Fisioterapia/Educação Física). Ao agendar
@@ -417,31 +437,31 @@ model PlanoSala {
 }
 
 model PlanoAtribuicao {
-  id             String                @id @default(cuid())
-  pacienteId     String
-  paciente       Paciente              @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
-  planoId        String?
-  plano          Plano?                @relation(fields: [planoId], references: [id], onDelete: SetNull)
-  planoNome      String
-  atendimentos   Int?
-  creditosRemarcacao Int             @default(0)
-  formaPagamento FormaPagamentoPlano
-  periodicidade  PeriodicidadePlano    @default(MENSAL)
-  valorOriginal  Decimal               @db.Decimal(10, 2)
-  desconto       Decimal               @default(0) @db.Decimal(10, 2)
-  valor          Decimal               @db.Decimal(10, 2)
-  cartao         Boolean               @default(false)
-  notaFiscal     Boolean               @default(false)
-  numeroParcelas Int
-  dataInicio     DateTime
-  status         StatusPlanoAtribuicao @default(ATIVO)
-  cobrancas      Cobranca[]
-  agendamentos   Agendamento[]
+  id                       String                       @id @default(cuid())
+  pacienteId               String
+  paciente                 Paciente                     @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  planoId                  String?
+  plano                    Plano?                       @relation(fields: [planoId], references: [id], onDelete: SetNull)
+  planoNome                String
+  atendimentos             Int?
+  creditosRemarcacao       Int                          @default(0)
+  formaPagamento           FormaPagamentoPlano
+  periodicidade            PeriodicidadePlano           @default(MENSAL)
+  valorOriginal            Decimal                      @db.Decimal(10, 2)
+  desconto                 Decimal                      @default(0) @db.Decimal(10, 2)
+  valor                    Decimal                      @db.Decimal(10, 2)
+  cartao                   Boolean                      @default(false)
+  notaFiscal               Boolean                      @default(false)
+  numeroParcelas           Int
+  dataInicio               DateTime
+  status                   StatusPlanoAtribuicao        @default(ATIVO)
+  cobrancas                Cobranca[]
+  agendamentos             Agendamento[]
   creditosRemarcacaoUsados CreditoRemarcacao[]
-  gradeRecorrente GradeRecorrenteAtendimento[]
-  contratos      Contrato[]
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
+  gradeRecorrente          GradeRecorrenteAtendimento[]
+  contratos                Contrato[]
+  createdAt                DateTime                     @default(now())
+  updatedAt                DateTime                     @updatedAt
 
   @@index([pacienteId])
 }
@@ -468,29 +488,29 @@ model ContratoModelo {
 /// os dados atuais; só a assinatura congela `conteudo` e as evidências abaixo.
 /// Ver docs/contratos.md.
 model Contrato {
-  id                String          @id @default(cuid())
-  numero            Int             @unique @default(autoincrement())
-  token             String          @unique
-  pacienteId        String
-  paciente          Paciente        @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
-  planoAtribuicaoId String
-  planoAtribuicao   PlanoAtribuicao @relation(fields: [planoAtribuicaoId], references: [id], onDelete: Cascade)
-  status            StatusContrato  @default(PENDENTE)
-  tentativasCpf     Int             @default(0)
-  bloqueadoAte      DateTime? @db.Timestamptz(3)
-  conteudo          String?
-  conteudoHash      String?
-  modeloVersao      Int?
-  dadosPlanoHash    String?
-  assinadoEm        DateTime? @db.Timestamptz(3)
-  assinanteNome     String?
-  assinanteCpf      String?
-  assinanteIp       String?
+  id                 String          @id @default(cuid())
+  numero             Int             @unique @default(autoincrement())
+  token              String          @unique
+  pacienteId         String
+  paciente           Paciente        @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  planoAtribuicaoId  String
+  planoAtribuicao    PlanoAtribuicao @relation(fields: [planoAtribuicaoId], references: [id], onDelete: Cascade)
+  status             StatusContrato  @default(PENDENTE)
+  tentativasCpf      Int             @default(0)
+  bloqueadoAte       DateTime?       @db.Timestamptz(3)
+  conteudo           String?
+  conteudoHash       String?
+  modeloVersao       Int?
+  dadosPlanoHash     String?
+  assinadoEm         DateTime?       @db.Timestamptz(3)
+  assinanteNome      String?
+  assinanteCpf       String?
+  assinanteIp        String?
   assinanteUserAgent String?
-  pdfChave          String?
-  pdfHash           String?
-  createdAt         DateTime        @default(now())
-  updatedAt         DateTime        @updatedAt
+  pdfChave           String?
+  pdfHash            String?
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
 
   @@index([pacienteId])
   @@index([planoAtribuicaoId])
@@ -536,21 +556,21 @@ enum ModalidadeAgendamento {
 /// aditivas, paralelas às colunas fixas de `Sala`/`User` usadas por Fisioterapia/Educação
 /// Física — nunca as substituem, para não arriscar o fluxo de Plano já em produção.
 model Servico {
-  id            String           @id @default(cuid())
-  nome          String           @unique
-  ativo         Boolean          @default(true)
+  id                         String           @id @default(cuid())
+  nome                       String           @unique
+  ativo                      Boolean          @default(true)
   /// Valor padrão cobrado do paciente ao agendar este serviço — pré-preenchido no wizard
   /// de agendamento avulso, mas editável naquele momento (não é um teto).
-  valorPadrao   Decimal          @default(0) @db.Decimal(10, 2)
+  valorPadrao                Decimal          @default(0) @db.Decimal(10, 2)
   /// Percentual retido pela clínica sobre o valor de cada atendimento deste serviço,
   /// repassando o restante ao profissional — só informativo (ver `Cobranca.taxaProfissional`).
-  taxaProfissionalPercentual Decimal @default(0) @db.Decimal(5, 2)
-  salas         SalaServico[]
-  profissionais UsuarioServico[]
-  agendamentos  Agendamento[]
-  cobrancas     Cobranca[]
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  taxaProfissionalPercentual Decimal          @default(0) @db.Decimal(5, 2)
+  salas                      SalaServico[]
+  profissionais              UsuarioServico[]
+  agendamentos               Agendamento[]
+  cobrancas                  Cobranca[]
+  createdAt                  DateTime         @default(now())
+  updatedAt                  DateTime         @updatedAt
 }
 
 /// Salas em que um Servico customizado pode ser executado, com capacidade própria —
@@ -590,36 +610,36 @@ enum StatusAgendamento {
 }
 
 model Agendamento {
-  id             String                @id @default(cuid())
-  titulo         String
-  pacientes      Paciente[]
-  profissionalId String?
-  profissional   User?                 @relation(fields: [profissionalId], references: [id], onDelete: SetNull)
-  dataInicio     DateTime              @db.Timestamptz(3)
-  dataFim        DateTime              @db.Timestamptz(3)
-  diaInteiro     Boolean               @default(false)
-  modalidade     ModalidadeAgendamento @default(FISIOTERAPIA)
-  status         StatusAgendamento     @default(AGENDADO)
-  observacao     String?
-  serieId        String?
-  planoAtribuicaoId String?
-  planoAtribuicao   PlanoAtribuicao? @relation(fields: [planoAtribuicaoId], references: [id], onDelete: SetNull)
-  gradeRecorrenteId String?
-  gradeRecorrente   GradeRecorrenteAtendimento? @relation(fields: [gradeRecorrenteId], references: [id], onDelete: SetNull)
+  id                 String                      @id @default(cuid())
+  titulo             String
+  pacientes          Paciente[]
+  profissionalId     String?
+  profissional       User?                       @relation(fields: [profissionalId], references: [id], onDelete: SetNull)
+  dataInicio         DateTime                    @db.Timestamptz(3)
+  dataFim            DateTime                    @db.Timestamptz(3)
+  diaInteiro         Boolean                     @default(false)
+  modalidade         ModalidadeAgendamento       @default(FISIOTERAPIA)
+  status             StatusAgendamento           @default(AGENDADO)
+  observacao         String?
+  serieId            String?
+  planoAtribuicaoId  String?
+  planoAtribuicao    PlanoAtribuicao?            @relation(fields: [planoAtribuicaoId], references: [id], onDelete: SetNull)
+  gradeRecorrenteId  String?
+  gradeRecorrente    GradeRecorrenteAtendimento? @relation(fields: [gradeRecorrenteId], references: [id], onDelete: SetNull)
   /// Data-calendário (Brasília) que a grade recorrente pretendia para este agendamento.
   /// Chave de idempotência do gerador; permanece no dia original mesmo após remarcação.
-  slotData       DateTime?             @db.Date
+  slotData           DateTime?                   @db.Date
   /// Sala escolhida automaticamente entre as salas cadastradas no Plano (Fisioterapia/
   /// Educação Física) — ver `PlanoSala`. Nula para Avaliação/Terapia Manual (sala fixa,
   /// `MODALIDADE_SALA_PADRAO`) e para agendamentos antigos anteriores a esse recurso.
-  salaId         String?
-  sala           Sala?                 @relation(fields: [salaId], references: [id], onDelete: SetNull)
+  salaId             String?
+  sala               Sala?                       @relation(fields: [salaId], references: [id], onDelete: SetNull)
   /// Preenchido só quando `modalidade === OUTRO` (serviço customizado, ver model `Servico`).
-  servicoId      String?
-  servico        Servico?              @relation(fields: [servicoId], references: [id], onDelete: SetNull)
+  servicoId          String?
+  servico            Servico?                    @relation(fields: [servicoId], references: [id], onDelete: SetNull)
   creditosRemarcacao CreditoRemarcacao[]
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
 
   @@index([dataInicio])
   @@index([status])
@@ -768,6 +788,20 @@ enum TipoExecucaoExame {
 
 /// Quem está com a edição de um modelo de exame aberta (heartbeat da sincronização
 /// em tempo real). Fora da auditoria: é escrita a cada poucos segundos.
+/// Controle de força bruta (login, tokens públicos, formulário público). Chave =
+/// "<escopo>:<identificador>", ex. "login-email:fulano@x.com", "login-ip:1.2.3.4".
+/// Regras em src/lib/limite-tentativas.ts. Fora da trilha de auditoria (escrito a cada tentativa).
+model LimiteTentativa {
+  chave        String    @id
+  tentativas   Int       @default(0)
+  janelaInicio DateTime  @default(now())
+  bloqueadoAte DateTime?
+  bloqueios    Int       @default(0)
+  atualizadoEm DateTime  @default(now()) @updatedAt
+
+  @@index([atualizadoEm])
+}
+
 model ExameEdicaoPresenca {
   exameId     String
   usuarioId   String
@@ -779,29 +813,29 @@ model ExameEdicaoPresenca {
 }
 
 model ExameExecucao {
-  id           String               @id @default(cuid())
-  tipo         TipoExecucaoExame
-  data         DateTime             @default(now())
-  exameId      String
-  exame        Exame                @relation(fields: [exameId], references: [id], onDelete: Cascade)
-  pacienteId   String
-  paciente     Paciente             @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
-  avaliacaoId  String?
-  avaliacao    ExameExecucao?       @relation("AvaliacaoRetornos", fields: [avaliacaoId], references: [id], onDelete: Cascade)
-  retornos     ExameExecucao[]      @relation("AvaliacaoRetornos")
-  valores      ExameExecucaoValor[]
-  imagens      ExameExecucaoImagem[]
-  createdAt    DateTime             @default(now())
+  id          String                @id @default(cuid())
+  tipo        TipoExecucaoExame
+  data        DateTime              @default(now())
+  exameId     String
+  exame       Exame                 @relation(fields: [exameId], references: [id], onDelete: Cascade)
+  pacienteId  String
+  paciente    Paciente              @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  avaliacaoId String?
+  avaliacao   ExameExecucao?        @relation("AvaliacaoRetornos", fields: [avaliacaoId], references: [id], onDelete: Cascade)
+  retornos    ExameExecucao[]       @relation("AvaliacaoRetornos")
+  valores     ExameExecucaoValor[]
+  imagens     ExameExecucaoImagem[]
+  createdAt   DateTime              @default(now())
 }
 
 model ExameExecucaoValor {
-  id          String        @id @default(cuid())
-  valor       String
-  linha       Int           @default(0)
-  execucaoId  String
-  execucao    ExameExecucao @relation(fields: [execucaoId], references: [id], onDelete: Cascade)
-  colunaId    String
-  coluna      ExameCampoColuna @relation(fields: [colunaId], references: [id], onDelete: Cascade)
+  id         String           @id @default(cuid())
+  valor      String
+  linha      Int              @default(0)
+  execucaoId String
+  execucao   ExameExecucao    @relation(fields: [execucaoId], references: [id], onDelete: Cascade)
+  colunaId   String
+  coluna     ExameCampoColuna @relation(fields: [colunaId], references: [id], onDelete: Cascade)
 }
 
 /// Imagem anexada a um campo (exercício) de uma execução, guardada no R2.
@@ -816,6 +850,8 @@ model ExameExecucaoImagem {
   nomeOriginal String
   mime         String
   tamanho      Int
+  /// Desenhos sobre a imagem (linhas, medidas, ângulos…); ver `src/lib/anotacoes-imagem.ts`.
+  anotacoes    Json?
   createdAt    DateTime      @default(now())
 
   @@index([execucaoId, colunaId, linha])
@@ -872,7 +908,7 @@ model TreinoDiaExercicio {
   ordem       Int       @default(0)
   series      Int?
   repeticoes  String?
-  carga       Decimal? @db.Decimal(6, 2)
+  carga       Decimal?  @db.Decimal(6, 2)
   descanso    Int?
   instrucoes  String?
   createdAt   DateTime  @default(now())

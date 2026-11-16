@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { exercicioSchema } from "@/lib/validations/exercicio";
+import { exigirSessao } from "@/lib/sessao";
 
 const PAGE_SIZE = 10;
 
@@ -10,6 +11,7 @@ export async function listExercicios(
   filters: { q?: string; categoriaIds?: string[] },
   page: number,
 ) {
+  await exigirSessao();
   const where = {
     ...(filters.q
       ? { name: { contains: filters.q, mode: "insensitive" as const } }
@@ -73,6 +75,7 @@ export async function createExercicio(
   _prevState: ExercicioActionState,
   formData: FormData,
 ): Promise<ExercicioActionState> {
+  await exigirSessao();
   const parsed = parseExercicioForm(formData);
 
   if (!parsed || !parsed.success) {
@@ -98,6 +101,7 @@ export async function updateExercicio(
   _prevState: ExercicioActionState,
   formData: FormData,
 ): Promise<ExercicioActionState> {
+  await exigirSessao();
   const parsed = parseExercicioForm(formData);
 
   if (!parsed || !parsed.success) {
@@ -127,6 +131,7 @@ export async function updateExercicio(
 }
 
 export async function deleteExercicio(id: string) {
+  await exigirSessao();
   await prisma.exercicio.delete({ where: { id } });
   revalidatePath("/biblioteca/exercicios");
 }

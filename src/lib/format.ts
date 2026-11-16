@@ -77,6 +77,11 @@ export function formatarDataSemHora(
   return formatInTimeZone(new Date(data), "UTC", pattern, { locale: ptBR });
 }
 
+/** "YYYY-MM-DD" de um campo de **data pura** (ver `formatarDataSemHora`) — sempre em UTC. */
+export function ymdDataSemHora(data: Date | string) {
+  return formatInTimeZone(new Date(data), "UTC", "yyyy-MM-dd");
+}
+
 /** Reformata uma string "YYYY-MM-DD" para "DD/MM/YYYY" sem passar por `Date`/fuso. */
 export function formatarYmd(ymd: string) {
   const [ano, mes, dia] = ymd.split("-");

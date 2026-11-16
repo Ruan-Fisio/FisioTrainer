@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { GitCompare } from "lucide-react";
+import { GitCompare, PencilRuler } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ComparacaoImagensDialog } from "@/components/pacientes/comparacao-imagens-dialog";
-import type { SerieImagens } from "@/actions/exame-imagens";
+import { AnotarImagemDialog } from "@/components/pacientes/anotar-imagem-dialog";
+import type { ImagemSerie, SerieImagens } from "@/actions/exame-imagens";
+import type { Anotacoes } from "@/lib/anotacoes-imagem";
 import { formatarData } from "@/lib/format";
 
 const TIPO_LABEL = { AVALIACAO: "Avaliação", RETORNO: "Retorno" } as const;
@@ -15,6 +17,9 @@ export function PacienteImagensTab({ series }: { series: SerieImagens[] }) {
   // Até 2 imagens selecionadas por série (a mais antiga sai ao marcar a terceira).
   const [selecionadas, setSelecionadas] = useState<Record<string, string[]>>({});
   const [comparando, setComparando] = useState<string | null>(null);
+  const [anotando, setAnotando] = useState<string | null>(null);
+  // Anotações salvas nesta sessão: valem até o servidor devolver a lista nova.
+  const [locais, setLocais] = useState<Record<string, Anotacoes | null>>({});
 
   if (series.length === 0) {
     return (
@@ -37,9 +42,17 @@ export function PacienteImagensTab({ series }: { series: SerieImagens[] }) {
     });
   }
 
+  const comLocais = (i: ImagemSerie): ImagemSerie =>
+    i.id in locais ? { ...i, anotacoes: locais[i.id] } : i;
+
   return (
     <div className="flex flex-col gap-4">
-      {series.map((serie) => {
+      {series.map((serieOriginal) => {
+        const serie = {
+          ...serieOriginal,
+          imagens: serieOriginal.imagens.map(comLocais),
+        };
+        const imagemAnotando = serie.imagens.find((i) => i.id === anotando);
         const marcadas = selecionadas[serie.id] ?? [];
         const [idA, idB] = marcadas;
         const imgA = serie.imagens.find((i) => i.id === idA);
@@ -75,6 +88,7 @@ export function PacienteImagensTab({ series }: { series: SerieImagens[] }) {
                   const posicao = marcadas.indexOf(imagem.id);
                   return (
                     <li key={imagem.id} className="flex flex-col gap-1">
+                      <div className="relative">
                       <button
                         type="button"
                         aria-pressed={posicao >= 0}
@@ -97,6 +111,23 @@ export function PacienteImagensTab({ series }: { series: SerieImagens[] }) {
                           </span>
                         )}
                       </button>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="secondary"
+                        aria-label={`Anotar imagem: ${imagem.rotulo}`}
+                        title="Anotar imagem"
+                        className="absolute right-1.5 bottom-1.5 shadow-md"
+                        onClick={() => setAnotando(imagem.id)}
+                      >
+                        <PencilRuler />
+                      </Button>
+                      {imagem.anotacoes && (
+                        <span className="pointer-events-none absolute top-1.5 right-1.5 rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
+                          Anotada
+                        </span>
+                      )}
+                      </div>
                       <p className="line-clamp-2 text-xs">{imagem.rotulo}</p>
                       <p className="text-[11px] text-muted-foreground">
                         {TIPO_LABEL[imagem.tipo]} · {formatarData(imagem.data)}
@@ -109,6 +140,17 @@ export function PacienteImagensTab({ series }: { series: SerieImagens[] }) {
                 Toque em duas imagens para compará-las sobrepostas.
               </p>
             </CardContent>
+            {imagemAnotando && (
+              <AnotarImagemDialog
+                key={imagemAnotando.id}
+                imagem={imagemAnotando}
+                open
+                onOpenChange={(aberto) => !aberto && setAnotando(null)}
+                onSalvo={(anot) =>
+                  setLocais((prev) => ({ ...prev, [imagemAnotando.id]: anot }))
+                }
+              />
+            )}
             {imgA && imgB && comparando === serie.id && (
               <ComparacaoImagensDialog
                 key={`${imgA.id}-${imgB.id}`}

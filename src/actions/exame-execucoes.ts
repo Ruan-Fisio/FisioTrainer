@@ -24,8 +24,10 @@ import {
   parseImagensForm,
   type ImagemNova,
 } from "@/lib/validations/exame-imagens";
+import { exigirSessao, exigirSessaoOuPortal, pacienteDoPortal } from "@/lib/sessao";
 
 export async function listAllExamesCompletos() {
+  await exigirSessao();
   return prisma.exame.findMany({
     where: { versaoAtual: true },
     orderBy: { nome: "asc" },
@@ -44,6 +46,7 @@ export async function listAllExamesCompletos() {
 }
 
 export async function getAvaliacoesByPaciente(pacienteId: string) {
+  await exigirSessaoOuPortal(pacienteId);
   return prisma.exameExecucao.findMany({
     where: { pacienteId, tipo: "AVALIACAO" },
     orderBy: { data: "desc" },
@@ -58,8 +61,11 @@ export async function getAvaliacoesByPaciente(pacienteId: string) {
 }
 
 export async function getExecucao(id: string) {
-  return prisma.exameExecucao.findUnique({
-    where: { id },
+  await exigirSessaoOuPortal();
+  // No portal, só execuções do próprio paciente do token.
+  const doPortal = pacienteDoPortal();
+  return prisma.exameExecucao.findFirst({
+    where: { id, ...(doPortal ? { pacienteId: doPortal } : {}) },
     include: {
       paciente: {
         select: { id: true, nome: true, sexo: true, idade: true },
@@ -96,6 +102,7 @@ export async function getExecucaoAnteriorParaRetorno(
   pacienteId: string,
   exameId: string,
 ) {
+  await exigirSessao();
   return prisma.exameExecucao.findFirst({
     where: { pacienteId, exameId },
     orderBy: { data: "desc" },
@@ -104,6 +111,7 @@ export async function getExecucaoAnteriorParaRetorno(
 }
 
 export async function getComparativo(avaliacaoId: string, retornoId: string) {
+  await exigirSessao();
   const [avaliacao, retorno, movimentos] = await Promise.all([
     prisma.exameExecucao.findUnique({
       where: { id: avaliacaoId },
@@ -189,6 +197,7 @@ export async function getComparacaoRapida(
   avaliacaoId: string,
   execucaoIds: string[],
 ) {
+  await exigirSessao();
   const avaliacao = await prisma.exameExecucao.findUnique({
     where: { id: avaliacaoId },
     include: {
@@ -386,6 +395,7 @@ export async function createAvaliacao(
   _prevState: ExameExecucaoActionState,
   formData: FormData,
 ): Promise<ExameExecucaoActionState> {
+  await exigirSessao();
   const parsed = parseExecucaoForm(formData);
 
   if (!parsed || !parsed.success) {
@@ -425,6 +435,7 @@ export async function createRetorno(
   _prevState: ExameExecucaoActionState,
   formData: FormData,
 ): Promise<ExameExecucaoActionState> {
+  await exigirSessao();
   const parsed = parseExecucaoForm(formData);
 
   if (!parsed || !parsed.success) {
@@ -474,6 +485,7 @@ export async function updateExecucao(
   _prevState: ExameExecucaoActionState,
   formData: FormData,
 ): Promise<ExameExecucaoActionState> {
+  await exigirSessao();
   const parsed = parseExecucaoForm(formData);
 
   if (!parsed || !parsed.success) {
@@ -559,6 +571,7 @@ export async function updateExecucao(
 }
 
 export async function deleteExecucao(id: string, pacienteId: string) {
+  await exigirSessao();
   // Apagar uma avaliação apaga seus retornos em cascata (e as imagens deles).
   const imagens = await prisma.exameExecucaoImagem.findMany({
     where: { execucao: { OR: [{ id }, { avaliacaoId: id }] } },

@@ -3,11 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { movimentoSchema } from "@/lib/validations/movimento";
+import { exigirSessao } from "@/lib/sessao";
 
 const PAGE_SIZE = 10;
 const ROUTE = "/biblioteca-movimento/goniometria";
 
 export async function listMovimentos(filters: { q?: string }, page: number) {
+  await exigirSessao();
   const where = filters.q
     ? { nome: { contains: filters.q, mode: "insensitive" as const } }
     : {};
@@ -31,6 +33,7 @@ export async function listMovimentos(filters: { q?: string }, page: number) {
 }
 
 export async function listAllMovimentos() {
+  await exigirSessao();
   return prisma.movimento.findMany({
     orderBy: { nome: "asc" },
     select: { id: true, nome: true, grauIdeal: true },
@@ -46,6 +49,7 @@ export async function createMovimento(
   _prevState: MovimentoActionState,
   formData: FormData,
 ): Promise<MovimentoActionState> {
+  await exigirSessao();
   const parsed = movimentoSchema.safeParse({
     nome: formData.get("nome"),
     grauIdeal: formData.get("grauIdeal"),
@@ -74,6 +78,7 @@ export async function updateMovimento(
   _prevState: MovimentoActionState,
   formData: FormData,
 ): Promise<MovimentoActionState> {
+  await exigirSessao();
   const parsed = movimentoSchema.safeParse({
     nome: formData.get("nome"),
     grauIdeal: formData.get("grauIdeal"),
@@ -98,6 +103,7 @@ export async function updateMovimento(
 }
 
 export async function deleteMovimento(id: string) {
+  await exigirSessao();
   await prisma.movimento.delete({ where: { id } });
   revalidatePath(ROUTE);
 }
@@ -120,6 +126,7 @@ export async function importMovimentosCsv(
   _prevState: ImportMovimentosState,
   formData: FormData,
 ): Promise<ImportMovimentosState> {
+  await exigirSessao();
   const file = formData.get("file");
 
   if (!(file instanceof File) || file.size === 0) {

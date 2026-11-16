@@ -15,11 +15,13 @@ import {
 } from "@/lib/financeiro";
 import { whereFiltrosComuns, type FiltrosAgendamentoComuns } from "@/lib/agendamento-filtros";
 import { PACIENTE_ATIVO } from "@/lib/paciente-exclusao";
+import { exigirSessao } from "@/lib/sessao";
 
 export type PeriodoProximos = "dia" | "semana" | "mes";
 
 /** Contagem de compromissos ainda por acontecer em cada janela, para o resumo do dashboard. */
 export async function getContagensAgenda(filters: FiltrosAgendamentoComuns = {}) {
+  await exigirSessao();
   const inicio = inicioDoDia();
   const base = { status: "AGENDADO" as const, ...whereFiltrosComuns(filters) };
 
@@ -39,6 +41,7 @@ export async function getContagensAgenda(filters: FiltrosAgendamentoComuns = {})
 }
 
 export async function getDashboardStats() {
+  await exigirSessao();
   const [pacientes, avaliacoes, evolucoes] = await Promise.all([
     prisma.paciente.count({ where: PACIENTE_ATIVO }),
     prisma.exameExecucao.count({ where: { tipo: "AVALIACAO", paciente: PACIENTE_ATIVO } }),
@@ -53,6 +56,7 @@ export async function getProximosAgendamentos(
   periodo: PeriodoProximos = "dia",
   filters: FiltrosAgendamentoComuns = {},
 ) {
+  await exigirSessao();
   const inicio = inicioDoDia();
   const fim =
     periodo === "dia" ? fimDoDia() : periodo === "semana" ? fimDaSemana() : fimDoMes();
@@ -90,6 +94,7 @@ export type CobrancaAtrasada = {
  * em `@/lib/financeiro` (puro, testado); aqui só a leitura do banco.
  */
 export async function getAnaliseFinanceira() {
+  await exigirSessao();
   const agora = new Date();
   const hoje = inicioDoDia(agora);
   const inicioJanela = new Date(

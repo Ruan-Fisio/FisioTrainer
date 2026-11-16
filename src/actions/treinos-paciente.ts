@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { treinoSchema } from "@/lib/validations/treino";
 import { updateTreinoInPlace } from "@/lib/treino-persistence";
+import { exigirSessao } from "@/lib/sessao";
 
 export async function listTreinosPaciente(pacienteId: string) {
+  await exigirSessao();
   return prisma.treino.findMany({
     where: { pacienteId, ativo: true },
     orderBy: { createdAt: "desc" },
@@ -26,6 +28,7 @@ export async function listTreinosPaciente(pacienteId: string) {
 }
 
 export async function getTreinoPaciente(id: string, pacienteId: string) {
+  await exigirSessao();
   const treino = await prisma.treino.findUnique({
     where: { id },
     include: {
@@ -75,6 +78,7 @@ export async function updateTreinoPaciente(
   _prevState: TreinoPacienteActionState,
   formData: FormData,
 ): Promise<TreinoPacienteActionState> {
+  await exigirSessao();
   const treino = await prisma.treino.findUnique({ where: { id } });
   if (!treino || treino.pacienteId !== pacienteId) {
     return { error: "Treino não encontrado para este paciente." };
@@ -96,6 +100,7 @@ export async function updateTreinoPaciente(
 }
 
 export async function desativarTreinoPaciente(id: string, pacienteId: string) {
+  await exigirSessao();
   const treino = await prisma.treino.findUnique({ where: { id } });
   if (!treino || treino.pacienteId !== pacienteId) {
     throw new Error("Treino não encontrado para este paciente.");
@@ -107,6 +112,7 @@ export async function desativarTreinoPaciente(id: string, pacienteId: string) {
 }
 
 export async function deleteTreinoPaciente(id: string, pacienteId: string) {
+  await exigirSessao();
   const treino = await prisma.treino.findUnique({ where: { id } });
   if (!treino || treino.pacienteId !== pacienteId) {
     throw new Error("Treino não encontrado para este paciente.");

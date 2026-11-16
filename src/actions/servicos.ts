@@ -3,10 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { servicoSchema } from "@/lib/validations/servico";
+import { exigirSessao } from "@/lib/sessao";
 
 const PAGE_SIZE = 10;
 
 export async function listServicos(filters: { q?: string }, page: number) {
+  await exigirSessao();
   const where = filters.q
     ? { nome: { contains: filters.q, mode: "insensitive" as const } }
     : {};
@@ -36,6 +38,7 @@ export async function listServicos(filters: { q?: string }, page: number) {
 
 /** Só serviços ativos, para popular selects (ex. agendamento manual de serviço). */
 export async function listAllServicos() {
+  await exigirSessao();
   const servicos = await prisma.servico.findMany({
     where: { ativo: true },
     orderBy: { nome: "asc" },
@@ -59,6 +62,7 @@ export async function listAllServicos() {
  * (mesma regra de `validarProfissionalServico` em `agendamento-checagens.ts`).
  */
 export async function getProfissionaisServico(servicoId: string) {
+  await exigirSessao();
   const [habilitados, todos] = await Promise.all([
     prisma.usuarioServico.findMany({
       where: { servicoId },
@@ -71,6 +75,7 @@ export async function getProfissionaisServico(servicoId: string) {
 }
 
 export async function getServico(id: string) {
+  await exigirSessao();
   return prisma.servico.findUnique({
     where: { id },
     include: {
@@ -100,6 +105,7 @@ export async function createServico(
   _prevState: ServicoActionState,
   formData: FormData,
 ): Promise<ServicoActionState> {
+  await exigirSessao();
   const parsed = parseForm(formData);
 
   if (!parsed.success) {
@@ -129,6 +135,7 @@ export async function updateServico(
   _prevState: ServicoActionState,
   formData: FormData,
 ): Promise<ServicoActionState> {
+  await exigirSessao();
   const parsed = parseForm(formData);
 
   if (!parsed.success) {
@@ -159,6 +166,7 @@ export async function updateServico(
 }
 
 export async function deleteServico(id: string) {
+  await exigirSessao();
   const servico = await prisma.servico.findUnique({
     where: { id },
     include: { _count: { select: { agendamentos: true } } },

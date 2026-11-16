@@ -4,10 +4,12 @@ import bcrypt from "bcryptjs";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { usuarioSchema, usuarioUpdateSchema } from "@/lib/validations/usuario";
+import { exigirSessao } from "@/lib/sessao";
 
 const PAGE_SIZE = 10;
 
 export async function listAllUsuarios() {
+  await exigirSessao();
   return prisma.user.findMany({
     orderBy: { name: "asc" },
     select: { id: true, name: true },
@@ -15,6 +17,7 @@ export async function listAllUsuarios() {
 }
 
 export async function listUsuarios(filters: { q?: string }, page: number) {
+  await exigirSessao();
   const where = filters.q
     ? {
         OR: [
@@ -59,6 +62,7 @@ export async function createUsuario(
   _prevState: UsuarioActionState,
   formData: FormData,
 ): Promise<UsuarioActionState> {
+  await exigirSessao();
   const parsed = usuarioSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
@@ -111,6 +115,7 @@ export async function updateUsuario(
   _prevState: UsuarioActionState,
   formData: FormData,
 ): Promise<UsuarioActionState> {
+  await exigirSessao();
   const parsed = usuarioUpdateSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),
@@ -176,6 +181,7 @@ export async function updateUsuario(
 }
 
 export async function deleteUsuario(id: string) {
+  await exigirSessao();
   await prisma.user.delete({ where: { id } });
   revalidatePath("/usuarios");
 }

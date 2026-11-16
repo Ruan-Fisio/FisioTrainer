@@ -6,6 +6,8 @@ import {
   ClipboardList,
   ClipboardPlus,
   Dumbbell,
+  FilePlus2,
+  FileText,
   Images,
   NotebookPen,
   Package,
@@ -43,6 +45,8 @@ import { PacienteImagensTab } from "@/components/pacientes/paciente-imagens-tab"
 import { listarSeriesImagensPaciente } from "@/actions/exame-imagens";
 import { listarAnexosPaciente } from "@/actions/paciente-anexos";
 import { PacienteTabs } from "@/components/pacientes/paciente-tabs";
+import { PacienteDocumentosTab } from "@/components/pacientes/paciente-documentos-tab";
+import { listarDocumentosPaciente } from "@/actions/documentos-paciente";
 import { formatarDataSemHora } from "@/lib/format";
 import { anoMesBrasilia } from "@/lib/datas-brasilia";
 import { listTreinosPaciente } from "@/actions/treinos-paciente";
@@ -62,6 +66,11 @@ async function AvaliacoesListLoader({ pacienteId }: { pacienteId: string }) {
 async function ImagensLoader({ pacienteId }: { pacienteId: string }) {
   const series = await listarSeriesImagensPaciente(pacienteId);
   return <PacienteImagensTab series={series} />;
+}
+
+async function DocumentosLoader({ pacienteId }: { pacienteId: string }) {
+  const documentos = await listarDocumentosPaciente(pacienteId);
+  return <PacienteDocumentosTab pacienteId={pacienteId} documentos={documentos} />;
 }
 
 async function EvolucoesListLoader({ pacienteId }: { pacienteId: string }) {
@@ -229,6 +238,24 @@ export default async function PacienteDetailPage({
             content: (
               <Suspense fallback={<TableSkeleton />}>
                 <EvolucoesListLoader pacienteId={id} />
+              </Suspense>
+            ),
+          },
+          {
+            value: "documentos",
+            label: "Documentos",
+            icon: <FileText />,
+            action: (
+              <Button asChild size="sm">
+                <Link href={`/pacientes/${id}/documentos/novo`}>
+                  <FilePlus2 />
+                  Novo documento
+                </Link>
+              </Button>
+            ),
+            content: (
+              <Suspense fallback={<TableSkeleton />}>
+                <DocumentosLoader pacienteId={id} />
               </Suspense>
             ),
           },

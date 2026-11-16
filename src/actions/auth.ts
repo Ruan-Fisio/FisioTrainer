@@ -1,6 +1,6 @@
 "use server";
 
-import { AuthError } from "next-auth";
+import { AuthError, type CredentialsSignin } from "next-auth";
 import { signIn } from "@/lib/auth";
 import { loginSchema } from "@/lib/validations/usuario";
 
@@ -31,6 +31,13 @@ export async function loginAction(
   } catch (error) {
     if (error instanceof AuthError) {
       if (error.type === "CredentialsSignin") {
+        const code = (error as CredentialsSignin).code ?? "";
+        if (code.startsWith("bloqueado:")) {
+          const espera = code.slice("bloqueado:".length);
+          return {
+            error: `Muitas tentativas de login. Por segurança, aguarde ${espera} e tente de novo.`,
+          };
+        }
         return { error: "E-mail ou senha inválidos." };
       }
       return { error: "Não foi possível entrar. Tente novamente." };

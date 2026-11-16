@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { resolverPacientePorToken } from "@/lib/acesso-compartilhado";
+import { comAcessoPortal } from "@/lib/sessao";
 import { listPlanoAtribuicoesByPaciente } from "@/actions/plano-atribuicoes";
 import { getCobrancasByPaciente } from "@/actions/cobrancas";
 import { PacienteCobrancasList } from "@/components/cobrancas/paciente-cobrancas-list";
@@ -14,10 +15,9 @@ export default async function FinanceiroPlanoPublicoPage({
   const { token, planoId } = await params;
   const { pacienteId, paciente } = await resolverPacientePorToken(token);
 
-  const [atribuicoes, cobrancas] = await Promise.all([
-    listPlanoAtribuicoesByPaciente(pacienteId),
-    getCobrancasByPaciente(pacienteId),
-  ]);
+  const [atribuicoes, cobrancas] = await comAcessoPortal(pacienteId, () =>
+    Promise.all([listPlanoAtribuicoesByPaciente(pacienteId), getCobrancasByPaciente(pacienteId)]),
+  );
 
   const isAvulsas = planoId === "avulsas";
   const atribuicao = isAvulsas

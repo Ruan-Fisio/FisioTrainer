@@ -29,6 +29,7 @@ import { vagasTotais } from "@/lib/sala-plano";
 import { MODALIDADE_AGENDAMENTO_LABEL } from "@/components/agendamentos/agendamento-labels";
 import { whereFiltrosComuns, type FiltrosAgendamentoComuns } from "@/lib/agendamento-filtros";
 import type { ModalidadeAgendamento } from "@/generated/prisma/enums";
+import { exigirSessao, exigirSessaoOuPortal } from "@/lib/sessao";
 
 const PAGE_SIZE = 10;
 
@@ -48,6 +49,7 @@ export async function listAgendamentos(
   },
   page: number,
 ) {
+  await exigirSessao();
   const dataFilter: { gte?: Date; lte?: Date } = {};
   if (filters.de) dataFilter.gte = new Date(`${filters.de}T00:00:00`);
   if (filters.ate) dataFilter.lte = new Date(`${filters.ate}T23:59:59`);
@@ -94,6 +96,7 @@ export async function listAgendamentos(
 export async function listAgendamentosPorIntervalo(
   intervalo: { inicio: Date; fim: Date } & FiltrosAgendamentoComuns,
 ) {
+  await exigirSessao();
   return prisma.agendamento.findMany({
     where: {
       dataInicio: { lte: intervalo.fim },
@@ -111,6 +114,7 @@ export async function getAgendamentosDoDia(
   profissionalId: string | null,
   excludeId?: string,
 ) {
+  await exigirSessao();
   const inicio = new Date(`${data}T00:00:00`);
   const fim = new Date(`${data}T23:59:59`);
 
@@ -142,6 +146,7 @@ export async function getDisponibilidadeHorarios(
   excludeId?: string,
   planoAtribuicaoId?: string,
 ) {
+  await exigirSessaoOuPortal();
   const { diasAbertos, feriados } = await getConfigFuncionamento();
   if (!diasAbertos.has(diaSemanaDeYmd(data)) || feriados.has(data)) return [];
 
@@ -221,6 +226,7 @@ export async function atualizarStatusAgendamento(
   id: string,
   status: "COMPARECEU" | "FALTOU" | "AGENDADO",
 ) {
+  await exigirSessao();
   const agendamento = await prisma.agendamento.update({
     where: { id },
     data: { status },
@@ -250,6 +256,7 @@ export async function remarcarAgendamento(
   justificativa?: string,
   forcar = false,
 ): Promise<RemarcarActionState> {
+  await exigirSessao();
   const agendamento = await prisma.agendamento.findUnique({
     where: { id },
     include: {
@@ -346,6 +353,7 @@ export async function desmarcarAgendamentoPeloPaciente(
   pacienteId: string,
   justificativa: string,
 ): Promise<DesmarcarAgendamentoState> {
+  await exigirSessaoOuPortal(pacienteId);
   const motivo = justificativa?.trim() ?? "";
   if (motivo.length < 3) {
     return { error: "Descreva o motivo da remarcação para continuar." };
@@ -440,6 +448,7 @@ const MODALIDADE_POR_TIPO_PLANO: Record<string, ModalidadeAgendamento> = {
 
 /** Planos ativos do paciente (uma opção por modalidade coberta) + profissionais para o wizard. */
 export async function getDadosAgendamentoAssistido(pacienteId: string) {
+  await exigirSessaoOuPortal(pacienteId);
   const [atribuicoes, profissionais] = await Promise.all([
     prisma.planoAtribuicao.findMany({
       where: { pacienteId, status: "ATIVO" },
@@ -627,6 +636,7 @@ export async function getDisponibilidadeMes(params: {
   excludeId?: string;
   planoAtribuicaoId?: string;
 }) {
+  await exigirSessao();
   return {
     dias: await calcularDiasDisponiveis(
       params.modalidade,
@@ -650,6 +660,7 @@ export async function getDisponibilidadeMesAssistido(params: {
   atendimentos: number | null;
   periodicidade?: string;
 }) {
+  await exigirSessaoOuPortal();
   const { modalidade, ano, mes, planoAtribuicaoId, atendimentos } = params;
   const inicioMes = dataBrasilia(ano, mes);
   const fimMes = fimDoMes(inicioMes);
@@ -688,6 +699,7 @@ export async function criarAgendamentoAssistido(params: {
   data: string; // YYYY-MM-DD
   horario: string; // HH:mm
 }): Promise<AgendamentoAssistidoState> {
+  await exigirSessaoOuPortal(params.pacienteId);
   const { pacienteId, planoAtribuicaoId, profissionalId, modalidade, data, horario } = params;
 
   if (!profissionalId) return { error: "Selecione o profissional." };
@@ -780,6 +792,7 @@ export async function getConsumoPlanoPaciente(
   ano: number,
   mes: number, // 1-12
 ) {
+  await exigirSessaoOuPortal(pacienteId);
   const inicioMes = dataBrasilia(ano, mes);
   const fimMes = fimDoMes(inicioMes);
 
@@ -879,6 +892,7 @@ export async function criarAgendamentoServico(params: {
   formaPagamento: "A_VISTA" | "ATE_3X_CARTAO";
   vencimentos: string[];
 }): Promise<AgendamentoServicoState> {
+  await exigirSessao();
   const { pacienteId, servicoId, profissionalId, data, horaInicio, horaFim } = params;
 
   if (!servicoId) return { error: "Selecione o serviço." };
@@ -967,6 +981,7 @@ export async function listAgendamentosServicoPaciente(
   ano: number,
   mes: number, // 1-12
 ) {
+  await exigirSessao();
   const inicioMes = dataBrasilia(ano, mes);
   const fimMes = fimDoMes(inicioMes);
 

@@ -11,6 +11,35 @@ services:
       - "5432:5432"
     volumes:
       - fisiotrainer_pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fisiotrainer -d fisiotrainer"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # Build de produção do app (next build + next start), contra o Postgres acima.
+  # Subir: `docker compose up -d --build` → http://localhost:3000
+  app:
+    build:
+      context: .
+      args:
+        NEXT_PUBLIC_APP_URL: http://localhost:3000
+    container_name: fisiotrainer-app
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Segredos (AUTH_SECRET, R2…) vêm do .env; o banco é SEMPRE o container local,
+    # mesmo que o .env aponte para o Neon de produção.
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql://fisiotrainer:fisiotrainer@postgres:5432/fisiotrainer
+      DIRECT_URL: postgresql://fisiotrainer:fisiotrainer@postgres:5432/fisiotrainer
+      NEXT_PUBLIC_APP_URL: http://localhost:3000
+      AUTH_TRUST_HOST: "true"
+      APP_TIMEZONE: America/Sao_Paulo
+    ports:
+      - "3000:3000"
 
 volumes:
   fisiotrainer_pgdata:

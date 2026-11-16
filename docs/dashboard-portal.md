@@ -63,3 +63,9 @@ Pelo portal, cada slot preenchido `AGENDADO` tem botão **"Desmarcar"** (`Desmar
 - **O paciente NUNCA vê o saldo** (nem na UI nem no payload RSC — a page do portal zera `creditos` antes de passar ao client). O saldo só aparece do lado da clínica: aba "Agendamentos" do paciente (`paciente-agendamentos-tab.tsx`, ramo `!somenteLeitura`) mostra "Remarcações: X de N neste mês" por plano; `getConsumoPlanoPaciente` devolve `creditos: { max, usados, disponiveis }` por atribuição.
 - `RemarcarAlvo` (wizard) carrega `planoAtribuicaoId`; `EventoCalendario` também. Auditoria: `CreditoRemarcacao` em `MODULO_LABEL` (`src/lib/audit.ts`).
 
+
+### Autorização das actions no portal
+
+Toda action exige sessão (`exigirSessao`) ou contexto de portal (`exigirSessaoOuPortal`, `src/lib/sessao.ts`). No portal não há sessão:
+- **Loaders da página** (server): chamam a action dentro de `comAcessoPortal(pacienteId, () => ...)`, com o `pacienteId` vindo do token.
+- **Chamadas do navegador** (trocar mês, agendar, desmarcar): o portal injeta, via `AcoesPortalProvider` (`src/components/compartilhado/acoes-portal.tsx`), as versões de `src/actions/portal-agendamentos.ts` com `.bind(null, token)` — elas derivam o paciente do token, ignoram o `pacienteId` do client e conferem que o plano informado é dele. Componente compartilhado clínica/portal que chame action nova do navegador → usar `useAcoesAgendamento()` e criar a versão por token.

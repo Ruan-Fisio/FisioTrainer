@@ -22,12 +22,7 @@ import { cn } from "@/lib/utils";
 import { CalendarioDisponibilidade } from "@/components/agendamentos/calendario-disponibilidade";
 import { GradeHorariosDisponiveis } from "@/components/agendamentos/grade-horarios-disponiveis";
 import { MODALIDADE_AGENDAMENTO_LABEL } from "@/components/agendamentos/agendamento-labels";
-import {
-  criarAgendamentoAssistido,
-  getDadosAgendamentoAssistido,
-  getDisponibilidadeHorarios,
-  getDisponibilidadeMesAssistido,
-} from "@/actions/agendamentos";
+import { useAcoesAgendamento } from "@/components/compartilhado/acoes-portal";
 import type { ModalidadeAgendamento } from "@/generated/prisma/enums";
 
 type Opcao = {
@@ -57,6 +52,13 @@ export function AgendamentoAssistidoDialog({
   size?: "default" | "sm";
 }) {
   const router = useRouter();
+  // No portal, versões presas ao token (ver `AcoesPortalProvider`).
+  const {
+    criarAgendamentoAssistido,
+    getDadosAgendamentoAssistido,
+    getDisponibilidadeHorarios,
+    getDisponibilidadeMesAssistido,
+  } = useAcoesAgendamento();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState<1 | 2 | 3>(1);
 
@@ -120,7 +122,7 @@ export function AgendamentoAssistidoDialog({
       // Um único plano: já seleciona pra modalidade (e o filtro de profissional) valer de cara.
       if (res.opcoes.length === 1) setOpcaoIdx(0);
     });
-  }, [open, opcoes, pacienteId]);
+  }, [open, opcoes, pacienteId, getDadosAgendamentoAssistido]);
 
   // Carrega disponibilidade do mês no passo 2
   useEffect(() => {
@@ -136,7 +138,7 @@ export function AgendamentoAssistidoDialog({
       });
       setDispMes(res);
     });
-  }, [step, opcao, mesRef]);
+  }, [step, opcao, mesRef, getDisponibilidadeMesAssistido]);
 
   // Carrega horários do dia no passo 3
   useEffect(() => {
@@ -150,7 +152,7 @@ export function AgendamentoAssistidoDialog({
       );
       setSlots(res);
     });
-  }, [step, diaSelecionado, opcao]);
+  }, [step, diaSelecionado, opcao, getDisponibilidadeHorarios]);
 
   function confirmar() {
     if (!opcao || !diaSelecionado || !horaSelecionada) return;

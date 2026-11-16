@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { pacienteSchema } from "@/lib/validations/paciente";
-import { auth } from "@/lib/auth";
 import { PACIENTE_ATIVO, planejarAgendamentosDaExclusao } from "@/lib/paciente-exclusao";
+import { exigirSessao } from "@/lib/sessao";
 
 const PAGE_SIZE = 10;
 
@@ -12,6 +12,7 @@ export async function listPacientes(
   filters: { q?: string; excluidos?: boolean },
   page: number,
 ) {
+  await exigirSessao();
   const where = {
     excluidoEm: filters.excluidos ? { not: null } : null,
     ...(filters.q
@@ -44,6 +45,7 @@ export async function listPacientes(
 }
 
 export async function listAllPacientes() {
+  await exigirSessao();
   return prisma.paciente.findMany({
     where: PACIENTE_ATIVO,
     orderBy: { nome: "asc" },
@@ -94,6 +96,7 @@ export async function createPaciente(
   _prevState: PacienteActionState,
   formData: FormData,
 ): Promise<PacienteActionState> {
+  await exigirSessao();
   const parsed = parsePacienteForm(formData);
 
   if (!parsed.success) {
@@ -150,6 +153,7 @@ export async function updatePaciente(
   _prevState: PacienteActionState,
   formData: FormData,
 ): Promise<PacienteActionState> {
+  await exigirSessao();
   const parsed = parsePacienteForm(formData);
 
   if (!parsed.success) {
@@ -175,10 +179,6 @@ export async function updatePaciente(
 
   revalidatePath("/pacientes");
   return { success: true };
-}
-
-async function exigirSessao() {
-  if (!(await auth())) throw new Error("Não autenticado.");
 }
 
 /**

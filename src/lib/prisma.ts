@@ -125,6 +125,8 @@ function criarPrisma() {
             model === "AuditLog" ||
             // Heartbeat da edição em tempo real: escrito a cada poucos segundos.
             model === "ExameEdicaoPresenca" ||
+            // Contador de força bruta: escrito a cada tentativa de login/token.
+            model === "LimiteTentativa" ||
             !WRITE_OPS.has(operation)
           ) {
             return query(args);

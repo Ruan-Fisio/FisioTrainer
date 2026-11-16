@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeftRight, Grid3x3 } from "lucide-react";
+import { ArrowLeftRight, Grid3x3, PencilRuler } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { CamadaAnotacoes } from "@/components/pacientes/anotacoes-camada";
 import type { ImagemSerie } from "@/actions/exame-imagens";
 import { formatarData } from "@/lib/format";
 
@@ -141,6 +142,7 @@ export function ComparacaoImagensDialog({
   // 0 = só a primeira imagem (A), 100 = só a segunda (B).
   const [mistura, setMistura] = useState(50);
   const [grade, setGrade] = useState(true);
+  const [anotacoes, setAnotacoes] = useState(true);
 
   const a = trocadas ? sobreposta : base;
   const b = trocadas ? base : sobreposta;
@@ -181,6 +183,17 @@ export function ComparacaoImagensDialog({
               className="absolute inset-0 size-full object-contain"
               style={{ opacity: mistura / 100 }}
             />
+            {/* Cada anotação acompanha a opacidade da sua imagem. */}
+            {anotacoes && a.anotacoes && (
+              <div className="absolute inset-0" style={{ opacity: 1 - mistura / 100 }}>
+                <CamadaAnotacoes anotacoes={a.anotacoes} />
+              </div>
+            )}
+            {anotacoes && b.anotacoes && (
+              <div className="absolute inset-0" style={{ opacity: mistura / 100 }}>
+                <CamadaAnotacoes anotacoes={b.anotacoes} />
+              </div>
+            )}
             {grade && <GradeNumerada />}
           </div>
         </div>
@@ -212,6 +225,16 @@ export function ComparacaoImagensDialog({
           >
             <Grid3x3 />
             Grade
+          </Button>
+          <Button
+            type="button"
+            variant={anotacoes ? "default" : "outline"}
+            size="sm"
+            aria-pressed={anotacoes}
+            onClick={() => setAnotacoes((v) => !v)}
+          >
+            <PencilRuler />
+            Anotações
           </Button>
           <Button
             type="button"

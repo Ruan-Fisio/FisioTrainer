@@ -73,7 +73,8 @@ export function PacienteTabs({
 
       {/* Desktop: barra de abas tradicional */}
       <div className="hidden md:block">
-        <TabsList>
+        {/* Quebra em mais de uma linha quando as abas não cabem (sem scroll horizontal). */}
+        <TabsList className="h-auto max-w-full flex-wrap justify-start group-data-horizontal/tabs:h-auto">
           {tabs.map((tab) => (
             <TabsTrigger
               key={tab.value}

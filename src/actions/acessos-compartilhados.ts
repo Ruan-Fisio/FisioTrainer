@@ -2,12 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
-
-async function exigirSessao() {
-  const session = await auth();
-  if (!session?.user) throw new Error("Não autorizado.");
-}
+import { gerarTokenPublico } from "@/lib/acesso-compartilhado";
+import { exigirSessao } from "@/lib/sessao";
 
 /** Retorna o link público ativo do paciente, criando um se ainda não existir. */
 export async function getOuCriarAcessoPaciente(pacienteId: string) {
@@ -20,7 +16,7 @@ export async function getOuCriarAcessoPaciente(pacienteId: string) {
   if (existente) return existente;
 
   const criado = await prisma.acessoCompartilhadoPaciente.create({
-    data: { pacienteId },
+    data: { pacienteId, token: gerarTokenPublico() },
   });
   revalidatePath(`/pacientes/${pacienteId}`);
   return criado;

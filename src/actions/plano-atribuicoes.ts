@@ -29,8 +29,10 @@ import {
 import type { GradeRecorrenteLinha } from "@/lib/validations/grade-recorrente";
 import { sincronizarContratoDoPlano } from "@/lib/contratos";
 import { PACIENTE_ATIVO } from "@/lib/paciente-exclusao";
+import { exigirSessao, exigirSessaoOuPortal } from "@/lib/sessao";
 
 export async function listPlanoAtribuicoesByPaciente(pacienteId: string) {
+  await exigirSessaoOuPortal(pacienteId);
   const atribuicoes = await prisma.planoAtribuicao.findMany({
     where: { pacienteId },
     orderBy: { createdAt: "desc" },
@@ -55,6 +57,7 @@ export async function listPlanoAtribuicoesByPaciente(pacienteId: string) {
 }
 
 export async function getPlanoAtribuicao(id: string) {
+  await exigirSessao();
   const atribuicao = await prisma.planoAtribuicao.findUnique({
     where: { id },
     include: { cobrancas: { orderBy: { vencimento: "asc" } } },
@@ -142,6 +145,7 @@ export async function createPlanoAtribuicao(
   _prevState: PlanoAtribuicaoActionState,
   formData: FormData,
 ): Promise<PlanoAtribuicaoActionState> {
+  await exigirSessao();
   const parsed = parseForm(formData);
 
   if (!parsed.success) {
@@ -242,6 +246,7 @@ export async function updatePlanoAtribuicao(
   _prevState: PlanoAtribuicaoActionState,
   formData: FormData,
 ): Promise<PlanoAtribuicaoActionState> {
+  await exigirSessao();
   const parsed = parseForm(formData);
 
   if (!parsed.success) {
@@ -347,6 +352,7 @@ export async function updatePlanoAtribuicao(
 }
 
 export async function cancelarPlanoAtribuicao(id: string, pacienteId: string) {
+  await exigirSessao();
   await prisma.$transaction(async (tx) => {
     await tx.cobranca.deleteMany({
       where: { planoAtribuicaoId: id, status: "PENDENTE" },
@@ -390,6 +396,7 @@ export async function cancelarPlanoAtribuicao(id: string, pacienteId: string) {
  * a clínica renovar; ver `planoRenovavel` (`src/lib/plano-renovacao.ts`).
  */
 export async function listPlanosRenovaveis() {
+  await exigirSessao();
   const atribuicoes = await prisma.planoAtribuicao.findMany({
     where: { status: "ATIVO", paciente: PACIENTE_ATIVO },
     orderBy: { dataInicio: "asc" },
@@ -443,6 +450,7 @@ export async function renovarPlanoAtribuicao(
   primeiraData: string,
   numeroParcelas: number,
 ): Promise<RenovarPlanoState> {
+  await exigirSessao();
   const parsed = renovarPlanoSchema.safeParse({ primeiraData, numeroParcelas });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Dados inválidos." };

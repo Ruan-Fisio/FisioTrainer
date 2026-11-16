@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { feriadoSchema } from "@/lib/validations/funcionamento";
 import { DIA_SEMANA_INFO } from "@/lib/funcionamento";
 import type { DiaSemana } from "@/generated/prisma/enums";
+import { exigirSessao } from "@/lib/sessao";
 
 export type FuncionamentoActionState = { error?: string; success?: boolean };
 
@@ -16,6 +17,7 @@ function revalidar() {
 
 /** Os 7 dias da semana (ordem de exibição) com o flag `aberto` atual. */
 export async function listDiasFuncionamento() {
+  await exigirSessao();
   const salvos = await prisma.diaFuncionamento.findMany();
   const porDia = new Map(salvos.map((d) => [d.diaSemana, d.aberto]));
 
@@ -27,10 +29,12 @@ export async function listDiasFuncionamento() {
 }
 
 export async function listFeriados() {
+  await exigirSessao();
   return prisma.feriado.findMany({ orderBy: { data: "asc" } });
 }
 
 export async function setDiaFuncionamento(diaSemana: DiaSemana, aberto: boolean) {
+  await exigirSessao();
   await prisma.diaFuncionamento.upsert({
     where: { diaSemana },
     update: { aberto },
@@ -43,6 +47,7 @@ export async function createFeriado(
   _prev: FuncionamentoActionState,
   formData: FormData,
 ): Promise<FuncionamentoActionState> {
+  await exigirSessao();
   const parsed = feriadoSchema.safeParse({
     data: formData.get("data"),
     descricao: formData.get("descricao"),
@@ -61,6 +66,7 @@ export async function createFeriado(
 }
 
 export async function deleteFeriado(id: string) {
+  await exigirSessao();
   await prisma.feriado.delete({ where: { id } });
   revalidar();
 }

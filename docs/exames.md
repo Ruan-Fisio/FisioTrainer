@@ -141,3 +141,13 @@ Cada opção (manual **ou** automática por fórmula) pode ter uma cor — **Azu
 - Marque 2 imagens da série (A e B) e **Comparar** (`comparacao-imagens-dialog.tsx`): as duas ficam sobrepostas e **um único slider** mistura as imagens — à esquerda aparece a primeira (A), à direita a segunda (B). Sem ajuste de tamanho nem de posição; só "Trocar A e B".
 - **Grade numerada, ligada por padrão** (botão "Grade" liga/desliga): quadrados iguais, **13 colunas × 17 linhas**, em que a 1ª linha e a 1ª coluna são só rótulos — o canto fica vazio, as letras **A–L** começam na 2ª coluna e os números **1–16** na 2ª linha (padrão das fotos posturais). Tamanho do quadrado não é configurável.
 - Só a clínica vê esta aba (o portal `/compartilhado` não exibe imagens).
+
+## Anotações sobre imagens (aba Imagens do paciente)
+
+- Botão de lápis/régua em cada miniatura abre `AnotarImagemDialog` (mover, linha, seta, medida, ângulo, círculo, livre, texto, calibrar, apagar). Persistido em `ExameExecucaoImagem.anotacoes` (Json), validado por `src/lib/anotacoes-imagem.ts` (zod + cálculo de distância/ângulo/calibração, com teste).
+- Pontos são **normalizados (0..1)**; `largura`/`altura` naturais ficam no JSON para medidas sem distorção. Calibração = 2 pontos + cm reais; sem ela, medidas saem em px.
+- A comparação por sobreposição (`ComparacaoImagensDialog`) exibe as anotações de A e B acompanhando a opacidade de cada imagem.
+- O paciente no portal público ainda **não** vê as anotações (não implementado).
+- Ferramenta **Mover**: arrasta a marcação inteira ou as alças (pontas/vértice) para alinhar; lógica em `pontosDaForma`/`moverPonto`/`transladar`.
+- "Reta H/V" (ligado por padrão): ímã de 8° nos eixos ao desenhar e ao arrastar pontas; Shift força H/V (`alinharReto`/`pontoAncora`).
+- Editor pensado para toque: tela cheia no mobile, lupa sob o dedo (toque/caneta), pinça/roda/botões de zoom com pan (`src/lib/visor-zoom.ts`, testado), alças e áreas de toque com tamanho fixo na tela, alças aparecem logo após desenhar (sem trocar de ferramenta), desfazer/refazer (Ctrl+Z/Ctrl+Shift+Z), Delete exclui a selecionada, cor muda a selecionada, texto editado inline, alinhamento Livre/Ímã/Reta, aviso ao descartar alterações.

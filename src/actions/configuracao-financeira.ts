@@ -7,14 +7,17 @@ import {
   CHAVE_TAXA_PARCELAMENTO_CARTAO,
   TAXA_PARCELAMENTO_CARTAO_PADRAO,
 } from "@/lib/configuracao-financeira";
+import { exigirSessao } from "@/lib/sessao";
 
 export async function listConfiguracoesTaxa() {
+  await exigirSessao();
   const taxas = await prisma.configuracaoTaxa.findMany({ orderBy: { nome: "asc" } });
   return taxas.map((t) => ({ ...t, percentual: Number(t.percentual) }));
 }
 
 /** Percentual atual da taxa de parcelamento no cartão de um Plano. */
 export async function getTaxaParcelamentoCartao(): Promise<number> {
+  await exigirSessao();
   const taxa = await prisma.configuracaoTaxa.findUnique({
     where: { chave: CHAVE_TAXA_PARCELAMENTO_CARTAO },
   });
@@ -31,6 +34,7 @@ export async function updateConfiguracaoTaxa(
   _prevState: ConfiguracaoTaxaActionState,
   formData: FormData,
 ): Promise<ConfiguracaoTaxaActionState> {
+  await exigirSessao();
   const parsed = configuracaoTaxaSchema.safeParse({
     percentual: formData.get("percentual"),
   });
