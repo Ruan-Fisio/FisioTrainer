@@ -1,4 +1,5 @@
 import Image from "next/image";
+import { RastreadorAcesso } from "@/components/metricas/rastreador-acesso";
 
 export default function PreCadastroLayout({
   children,
@@ -7,6 +8,7 @@ export default function PreCadastroLayout({
 }) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary/10 via-background to-background">
+      <RastreadorAcesso />
       <main className="mx-auto flex w-full max-w-xl flex-col gap-6 px-4 py-8">
         <div className="flex justify-center">
           <Image

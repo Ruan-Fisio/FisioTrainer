@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { Sidebar } from "@/components/layout/sidebar";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { UserMenu } from "@/components/layout/user-menu";
+import { RastreadorAcesso } from "@/components/metricas/rastreador-acesso";
 
 export default async function AppLayout({
   children,
@@ -13,6 +14,7 @@ export default async function AppLayout({
 
   return (
     <div className="flex min-h-svh w-full bg-muted/30">
+      <RastreadorAcesso />
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b bg-background/80 px-4 shadow-sm backdrop-blur-md md:px-6">

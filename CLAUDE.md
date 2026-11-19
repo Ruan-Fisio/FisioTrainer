@@ -28,8 +28,14 @@ Este `CLAUDE.md` é só um **índice + regras críticas** (mantê-lo em ~100 lin
 | Pré-cadastro público (`/pre-cadastro`) e Fila de Curadoria (`/curadoria`) | `docs/pre-cadastro.md` |
 | Contratos, modelo editável e assinatura eletrônica (`/contratos`, `/compartilhado/contrato`) | `docs/contratos.md` |
 | Documentos do paciente (encaminhamentos, exames, atestados — modelos PDF preenchíveis, também no portal) | `docs/documentos.md` |
+| Treinos (modelo/atribuição) e Evoluções | `docs/treinos-evolucoes.md` |
+| Biblioteca de exercícios/categorias · Goniometria (movimentos) | `docs/biblioteca.md` · `docs/biblioteca-movimento.md` |
+| Cobranças, taxas (NF, cartão, profissional), análise financeira | `docs/financeiro.md` |
+| Login, proxy, `exigirSessao`, portal, usuários | `docs/auth.md` |
 | Fuso horário / datas (LEIA antes de tocar em qualquer `Date`) | `docs/fuso-horario.md` |
 | Auditoria (`/logs`), backup antes de operação destrutiva, seed | `docs/ops.md` |
+| Métricas de uso (`/metrics`, fora do menu): coleta de page views, planos mais usados | `docs/metricas.md` |
+| Fluxo SDD: `/spec` (spec + plano) → `/spec-review` → `/implement` (features em `specs/NNN-slug.md`) | `specs/README.md` |
 
 ## Regras críticas (valem sempre)
 

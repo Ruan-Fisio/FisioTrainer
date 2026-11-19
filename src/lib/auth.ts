@@ -2,6 +2,7 @@ import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { registrarEvento } from "@/lib/metricas";
 import { loginSchema } from "@/lib/validations/usuario";
 import { authConfig } from "@/lib/auth.config";
 import {
@@ -31,6 +32,17 @@ const HASH_FICTICIO = bcrypt.hashSync(crypto.randomUUID(), 10);
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   ...authConfig,
+  events: {
+    // Métrica de login (spec 001). Só aqui: `auth.config.ts` é edge-safe (proxy).
+    async signIn({ user }) {
+      await registrarEvento({
+        area: "CLINICA",
+        tipo: "ACAO",
+        chave: "login",
+        usuarioId: user?.id ?? null,
+      });
+    },
+  },
   providers: [
     Credentials({
       credentials: {

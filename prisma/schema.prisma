@@ -936,3 +936,42 @@ model AuditLog {
   @@index([acao])
   @@index([usuarioId])
 }
+
+enum AreaUso {
+  CLINICA
+  PORTAL
+  PRE_CADASTRO
+}
+
+enum TipoUso {
+  TELA
+  ACAO
+}
+
+/// Métricas de uso (/metrics): evento bruto, apagado após 90 dias. Escrito a cada page view,
+/// por isso fica FORA da auditoria (src/lib/prisma.ts). `chave` é a rota-padrão (sem IDs)
+/// ou o nome da ação. `usuarioId` só na área CLINICA e sem FK (excluir usuário não bloqueia).
+model EventoUso {
+  id        String   @id @default(cuid())
+  criadoEm  DateTime @default(now())
+  area      AreaUso
+  tipo      TipoUso
+  chave     String
+  usuarioId String?
+
+  @@index([criadoEm])
+  @@index([area, tipo, chave])
+}
+
+/// Agregado diário de `EventoUso` (dia em Brasília, data pura). Sobrevive à purga de 90 dias.
+/// Incrementado por SQL atômico (`ON CONFLICT DO UPDATE`), ver src/lib/metricas.ts.
+model UsoDiario {
+  id    String  @id @default(cuid())
+  dia   DateTime @db.Date
+  area  AreaUso
+  tipo  TipoUso
+  chave String
+  total Int     @default(0)
+
+  @@unique([dia, area, tipo, chave])
+}

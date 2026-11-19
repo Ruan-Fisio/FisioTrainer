@@ -22,6 +22,7 @@ Toda operação de **escrita** (create/update/upsert/delete e variantes `*Many`)
 - Em `delete` de registro único, busca o estado anterior (`findUnique`) antes de apagar, pra guardar em `dados.registro`.
 - O log **nunca quebra a operação real** (`void registrar(...).catch(() => {})`); e `model === "AuditLog"` é ignorado (sem recursão — além disso a escrita do log usa o client base, sem extensão).
 - Rótulos pt-BR de model/ação em `src/lib/audit.ts` (`MODULO_LABEL`, `ACAO_LABEL`). Model novo → adicionar em `MODULO_LABEL` (senão aparece com o nome cru).
+- **Ficam fora da auditoria**, por serem escritos a cada request: `ExameEdicaoPresenca`, `LimiteTentativa`, `EventoUso` e `UsoDiario` (ver `docs/metricas.md`). Model de alto volume novo → adicionar ao ignore em `src/lib/prisma.ts`.
 - Desligar em ambiente específico: `AUDIT_LOG=off`.
 - Tela `/logs` (última no menu): filtros por texto / módulo / ação / intervalo de datas (padrão de filtros da URL), paginação, e "Detalhes" abre o JSON de `dados`.
 

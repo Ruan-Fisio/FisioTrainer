@@ -127,6 +127,9 @@ function criarPrisma() {
             model === "ExameEdicaoPresenca" ||
             // Contador de força bruta: escrito a cada tentativa de login/token.
             model === "LimiteTentativa" ||
+            // Métricas de uso (/metrics): uma escrita por page view, não é dado de negócio.
+            model === "EventoUso" ||
+            model === "UsoDiario" ||
             !WRITE_OPS.has(operation)
           ) {
             return query(args);
