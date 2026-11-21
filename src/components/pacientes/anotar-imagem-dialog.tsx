@@ -64,7 +64,8 @@ type Ferramenta =
   | "circulo"
   | "livre"
   | "texto"
-  | "calibrar";
+  | "calibrar"
+  | "borracha";
 
 /** Alinhamento de linhas: livre, ímã nos eixos (8°) ou sempre reta (H/V). */
 type ModoReta = "livre" | "ima" | "travar";
@@ -89,6 +90,7 @@ const FERRAMENTAS: {
   { id: "livre", label: "Livre", icone: Pencil },
   { id: "texto", label: "Texto", icone: Type },
   { id: "calibrar", label: "Calibrar", icone: Scale },
+  { id: "borracha", label: "Borracha", icone: Eraser },
 ];
 
 const MODOS_RETA: { id: ModoReta; label: string; titulo: string }[] = [
@@ -112,6 +114,8 @@ function dica(ferramenta: Ferramenta): string {
       return "Arraste de um ponto a outro: o ângulo é medido em relação à horizontal (linha tracejada).";
     case "texto":
       return "Toque na imagem onde o texto deve ficar e digite.";
+    case "borracha":
+      return "Toque numa marcação para apagá-la (Desfazer recupera).";
     case "calibrar":
       return "Arraste sobre algo de tamanho conhecido (ex.: uma régua) e informe o comprimento real.";
     case "circulo":
@@ -261,6 +265,12 @@ export function AnotarImagemDialog({
     setSelecionada(forma.id);
   }
 
+  function apagarForma(id: string) {
+    if (!anot) return;
+    atualizar({ ...anot, formas: anot.formas.filter((f) => f.id !== id) });
+    if (selecionada === id) setSelecionada(null);
+  }
+
   function excluirSelecionada() {
     if (!anot || !selecionada) return;
     atualizar({ ...anot, formas: anot.formas.filter((f) => f.id !== selecionada) });
@@ -382,6 +392,12 @@ export function AnotarImagemDialog({
 
     if (ferramenta === "mover") {
       setSelecionada(null); // toque no fundo (as marcações param a propagação)
+      if (vista.z > 1) gesto.current = { tipo: "pan", x: e.clientX, y: e.clientY, vista };
+      return;
+    }
+
+    if (ferramenta === "borracha") {
+      // Toque no fundo não apaga nada (as marcações param a propagação).
       if (vista.z > 1) gesto.current = { tipo: "pan", x: e.clientX, y: e.clientY, vista };
       return;
     }
@@ -719,9 +735,28 @@ export function AnotarImagemDialog({
                     />
                   ))}
 
+                {/* Borracha: toque numa marcação apaga só ela */}
+                {ferramenta === "borracha" &&
+                  anot.formas.map((f) => (
+                    <FormaHit
+                      key={f.id}
+                      forma={f}
+                      anotacoes={anot}
+                      zoom={vista.z}
+                      espessura={28 * k}
+                      cursor="pointer"
+                      rotulo="Apagar marcação"
+                      onPointerDown={(e) => {
+                        e.stopPropagation();
+                        apagarForma(f.id);
+                      }}
+                    />
+                  ))}
+
                 {/* Alças da marcação selecionada (tamanho fixo na tela) */}
                 {formaSel &&
                   !desenhando &&
+                  ferramenta !== "borracha" &&
                   pontosDaForma(formaSel).map((pt, indice) => (
                     <g
                       key={`${formaSel.id}-${indice}`}
@@ -915,7 +950,7 @@ export function AnotarImagemDialog({
           )}
 
           {/* Ferramentas: grade (sem rolagem horizontal) */}
-          <div className="grid grid-cols-5 gap-1 sm:grid-cols-9" role="group" aria-label="Ferramentas">
+          <div className="grid grid-cols-5 gap-1 sm:grid-cols-10" role="group" aria-label="Ferramentas">
             {FERRAMENTAS.map(({ id, label, icone: Icone }) => (
               <button
                 key={id}
@@ -1008,21 +1043,6 @@ export function AnotarImagemDialog({
                 disabled={!formaSel}
               >
                 <Trash2 />
-              </Button>
-              <Button
-                type="button"
-                size="icon"
-                variant="outline"
-                aria-label="Limpar todas as marcações"
-                title="Limpar tudo"
-                onClick={() => {
-                  if (!anot) return;
-                  atualizar({ ...anot, formas: [] });
-                  setSelecionada(null);
-                }}
-                disabled={!anot || anot.formas.length === 0}
-              >
-                <Eraser />
               </Button>
             </div>
           </div>

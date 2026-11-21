@@ -244,12 +244,17 @@ export function FormaHit({
   anotacoes,
   espessura,
   zoom = 1,
+  cursor = "move",
+  rotulo,
   onPointerDown,
 }: {
   forma: Forma;
   anotacoes: Pick<Anotacoes, "largura" | "altura">;
   espessura: number;
   zoom?: number;
+  cursor?: React.CSSProperties["cursor"];
+  /** Dica ao passar o mouse (ex.: "Apagar marcação"). */
+  rotulo?: string;
   onPointerDown: (e: React.PointerEvent) => void;
 }) {
   const m = medidasDe(anotacoes, zoom);
@@ -259,8 +264,9 @@ export function FormaHit({
     strokeLinecap: "round" as const,
     strokeLinejoin: "round" as const,
     fill: "none",
-    style: { cursor: "move" },
+    style: { cursor },
     onPointerDown,
+    children: rotulo ? <title>{rotulo}</title> : undefined,
   };
   const P = (p: Ponto) => px(p, m);
 

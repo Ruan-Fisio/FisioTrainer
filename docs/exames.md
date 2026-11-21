@@ -144,7 +144,7 @@ Cada opção (manual **ou** automática por fórmula) pode ter uma cor — **Azu
 
 ## Anotações sobre imagens (aba Imagens do paciente)
 
-- Botão de lápis/régua em cada miniatura abre `AnotarImagemDialog` (mover, linha, seta, medida, ângulo, círculo, livre, texto, calibrar, apagar). A ferramenta Ângulo é de 2 pontos: a linha a→b grava `tipo: "inclinacao"` e mostra o ângulo (0–90°) em relação à horizontal, com referência tracejada; o tipo `angulo` de 3 pontos (vértice) só existe para anotações antigas. Persistido em `ExameExecucaoImagem.anotacoes` (Json), validado por `src/lib/anotacoes-imagem.ts` (zod + cálculo de distância/ângulo/calibração, com teste).
+- Botão de lápis/régua em cada miniatura abre `AnotarImagemDialog` (mover, linha, seta, medida, ângulo, círculo, livre, texto, calibrar, borracha). A Borracha apaga só a marcação tocada (não existe "limpar tudo"; Desfazer recupera); a lixeira apaga a marcação selecionada. A ferramenta Ângulo é de 2 pontos: a linha a→b grava `tipo: "inclinacao"` e mostra o ângulo (0–90°) em relação à horizontal, com referência tracejada; o tipo `angulo` de 3 pontos (vértice) só existe para anotações antigas. Persistido em `ExameExecucaoImagem.anotacoes` (Json), validado por `src/lib/anotacoes-imagem.ts` (zod + cálculo de distância/ângulo/calibração, com teste).
 - Pontos são **normalizados (0..1)**; `largura`/`altura` naturais ficam no JSON para medidas sem distorção. Calibração = 2 pontos + cm reais; sem ela, medidas saem em px.
 - A comparação por sobreposição (`ComparacaoImagensDialog`) exibe as anotações de A e B acompanhando a opacidade de cada imagem.
 - O paciente no portal público ainda **não** vê as anotações (não implementado).
