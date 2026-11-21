@@ -2,12 +2,16 @@ import { describe, expect, it } from "vitest";
 import { anotacoesSchema, anotacoesVazias, quebrarLinhas, type Forma } from "./anotacoes-imagem";
 import {
   COR_PROTOCOLO,
+  apicesColuna,
+  caixaColuna,
   desvioVerticalGraus,
   ladoPaciente,
   normalizarPonto,
+  pontoDoRecorte,
   respostaParaFormas,
   resultadoAnaliseSchema,
   substituirFormasIa,
+  suavizarCurva,
   type PontosAnterior,
   type PontosPosterior,
 } from "./analise-postural";
@@ -40,7 +44,13 @@ const POSTERIOR: PontosPosterior = {
   joelho_esquerdo: { x: 380, y: 710 },
   calcaneo_direito: { x: 620, y: 950 },
   calcaneo_esquerdo: { x: 380, y: 950 },
+  // Coluna reta, de C7 (170) até S1 (470).
+  coluna: [170, 230, 290, 350, 410, 470].map((y) => ({ x: 500, y })),
 };
+
+/** Coluna com desvio lateral: `dx` em px (imagem 1000×1000) em cada altura. */
+const colunaCom = (dx: Record<number, number>) =>
+  [170, 230, 290, 350, 410, 470].map((y) => ({ x: 500 + (dx[y] ?? 0), y }));
 
 const ANTERIOR: PontosAnterior = {
   vertice: { x: 500, y: 20 },
@@ -128,7 +138,7 @@ describe("protocolo posterior nivelado", () => {
 
   it("todos os pontos anatômicos em verde e o marco C7", () => {
     const pontos = formas.filter((f) => f.tipo === "ponto");
-    expect(pontos).toHaveLength(12);
+    expect(pontos).toHaveLength(12); // pontos da coluna viram a curva, não bolinhas
     expect(pontos.every((p) => p.cor === COR_PROTOCOLO.ponto)).toBe(true);
     const c7 = rotuloDe(formas, "ia-marco-c7");
     expect(c7?.texto).toBe("C7");
@@ -159,6 +169,7 @@ describe("protocolo posterior nivelado", () => {
       ["Linha escapular", "nivelada"],
       ["Linha pélvica (EIPS)", "nivelada"],
       ["Alinhamento dos pés", "nivelada"],
+      ["Linha da coluna", "sem desvio lateral relevante"],
     ]);
   });
 
@@ -226,6 +237,130 @@ describe("assimetria", () => {
     );
     // 20px = 2 cm; para a esquerda da imagem = direita do paciente na anterior.
     expect(achados[0].detalhe).toBe("manúbrio 2,0 cm para a direita");
+  });
+});
+
+describe("linha da coluna (escoliose)", () => {
+  const analisar = (coluna: { x: number; y: number }[], calibracao: typeof ctx.calibracao = null) =>
+    respostaParaFormas(
+      { vista: "posterior", confianca: 1, pontos: { ...POSTERIOR, coluna } },
+      { ...ctx, calibracao },
+    );
+  const coluna = (achados: { nome: string; detalhe: string }[]) =>
+    achados.find((a) => a.nome === "Linha da coluna")?.detalhe;
+
+  it("coluna reta: curva azul, referência tracejada, sem alerta", () => {
+    const { formas } = analisar(POSTERIOR.coluna!);
+    expect(porId(formas, "ia-coluna")?.cor).toBe(COR_PROTOCOLO.referencia);
+    const ref = porId(formas, "ia-coluna-ref");
+    expect(ref?.tipo === "linha" && ref.tracejada).toBe(true);
+    expect(porId(formas, "ia-coluna-alerta-0")).toBeUndefined();
+    expect(rotuloDe(formas, "ia-coluna-rot")?.texto).toBe("Linha da coluna");
+  });
+
+  it("curva torácica para a direita do paciente (posterior: direita da imagem)", () => {
+    // Escápulas em 300 e EIPS em 440 → T12 ≈ 359; ápice em 290 é torácico.
+    const { formas, achados } = analisar(colunaCom({ 230: 12, 290: 20, 350: 10 }));
+    expect(coluna(achados)).toBe("curva torácica, convexidade à direita (20 px)");
+    expect(porId(formas, "ia-coluna")?.cor).toBe(COR_PROTOCOLO.assimetria);
+    const alerta = rotuloDe(formas, "ia-coluna-alerta-0");
+    expect(alerta?.titulo).toBe("20 px");
+    expect(alerta?.texto).toBe("Convexidade à direita");
+    expect(alerta?.alvo).toEqual({ x: 0.52, y: 0.29 });
+    expect(alerta!.pos.x).toBeGreaterThan(0.52); // caixa do lado da convexidade
+    validarSalvavel(formas);
+  });
+
+  it("curva em S: torácica e lombar para lados opostos", () => {
+    const { achados } = analisar(colunaCom({ 230: 15, 290: 18, 350: 0, 410: -16 }));
+    expect(coluna(achados)).toBe(
+      "curva em S: torácica à direita (18 px), lombar à esquerda (16 px)",
+    );
+  });
+
+  it("desvio só no fim da coluna (base deslocada) também conta", () => {
+    const { achados } = analisar(colunaCom({ 410: -8, 470: -20 }));
+    expect(coluna(achados)).toBe("curva lombar, convexidade à esquerda (20 px)");
+  });
+
+  it("desvio pequeno (< 1% da altura) é ignorado", () => {
+    const { achados } = analisar(colunaCom({ 290: 6 }));
+    expect(coluna(achados)).toBe("sem desvio lateral relevante");
+  });
+
+  it("acentuada fica vermelha", () => {
+    const { formas, achados } = analisar(colunaCom({ 290: 40 }));
+    expect(porId(formas, "ia-coluna")?.cor).toBe(COR_PROTOCOLO.acentuada);
+    expect(coluna(achados)).toMatch(/acentuada$/);
+  });
+
+  it("em cm com calibração (≥ 1 cm)", () => {
+    // 100px = 10cm → 15px = 1,5 cm
+    const { achados } = analisar(colunaCom({ 290: 15 }), {
+      a: { x: 0, y: 0 },
+      b: { x: 0.1, y: 0 },
+      cm: 10,
+    });
+    expect(coluna(achados)).toBe("curva torácica, convexidade à direita (1,5 cm)");
+  });
+
+  it("sem pontos da coluna, ela aparece em não encontrado", () => {
+    const { ausentes, formas } = analisar([]);
+    expect(ausentes).toContain("Linha da coluna");
+    expect(porId(formas, "ia-coluna")).toBeUndefined();
+  });
+
+  it("apicesColuna mede o maior desvio de cada lado em relação ao prumo de C7", () => {
+    const pts = [
+      { x: 0.5, y: 0.1 },
+      { x: 0.55, y: 0.3 },
+      { x: 0.47, y: 0.5 },
+      { x: 0.5, y: 0.7 },
+    ];
+    const ap = apicesColuna(pts, 1000);
+    expect(ap.map((a) => [a.sentido, Math.round(a.px)])).toEqual([
+      [1, 50],
+      [-1, 30],
+    ]);
+  });
+
+  it("suavizarCurva passa pelos pontos originais", () => {
+    const pts = [
+      { x: 0.5, y: 0.1 },
+      { x: 0.55, y: 0.3 },
+      { x: 0.5, y: 0.5 },
+    ];
+    const curva = suavizarCurva(pts, 4);
+    expect(curva).toHaveLength(9);
+    expect(curva[0]).toEqual(pts[0]);
+    expect(curva[4].x).toBeCloseTo(0.55);
+    expect(curva[8]).toEqual(pts[2]);
+  });
+});
+
+describe("caixaColuna / pontoDoRecorte", () => {
+  it("recorta de C7 à pelve com margens e limita ao quadro", () => {
+    const c = caixaColuna({
+      c7: { x: 500, y: 20 },
+      eips_direita: { x: 950, y: 980 },
+      eips_esquerda: { x: 400, y: 600 },
+    })!;
+    expect(c.x).toBeCloseTo(0.28);
+    expect(c.y).toBe(0);
+    expect(c.x + c.w).toBe(1);
+    expect(c.y + c.h).toBe(1);
+  });
+
+  it("sem C7 ou sem base abaixo dele, não recorta", () => {
+    expect(caixaColuna({ eips_direita: { x: 1, y: 900 } })).toBeNull();
+    expect(caixaColuna({ c7: { x: 500, y: 300 } })).toBeNull();
+  });
+
+  it("converte ponto do recorte para a imagem inteira", () => {
+    expect(pontoDoRecorte({ x: 500, y: 500 }, { x: 0.2, y: 0.1, w: 0.4, h: 0.6 })).toEqual({
+      x: 400,
+      y: 400,
+    });
   });
 });
 

@@ -9,6 +9,7 @@ import {
   criarPipelinePostural,
   etapasFake,
   etapasGemini,
+  prepararImagem,
   type SaidaPipeline,
 } from "@/lib/analise-postural-pipeline";
 import {
@@ -22,8 +23,8 @@ import {
 /** Formatos que o Gemini lê e que a aba Imagens mostra. */
 const MIMES_ACEITOS = new Set(["image/jpeg", "image/png", "image/webp"]);
 const TAMANHO_MAXIMO = 15 * 1024 * 1024;
-/** Classificação + localização com modelo Pro (~5–15 s cada). */
-const TIMEOUT_MS = 60_000;
+/** Classificação + localização + refino da coluna (modelo Pro, ~5–15 s cada). */
+const TIMEOUT_MS = 75_000;
 
 /**
  * Roda a análise postural por IA numa imagem já anexada (ver
@@ -67,10 +68,9 @@ export async function analisarPosturaImagem(
             modeloPontos: modeloPontosIa(),
           }),
     );
-    saida = await pipeline.invoke(
-      { base64: Buffer.from(bytes).toString("base64"), mime: imagem.mime },
-      { signal: AbortSignal.timeout(TIMEOUT_MS) },
-    );
+    // Rotação EXIF aplicada, sem metadados (GPS) e no máx. 2048 px.
+    const entrada = await prepararImagem(bytes);
+    saida = await pipeline.invoke(entrada, { signal: AbortSignal.timeout(TIMEOUT_MS) });
   } catch (e) {
     // Nunca logar a imagem; só a mensagem do erro.
     console.error("Falha na análise postural por IA:", e instanceof Error ? e.message : e);

@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { RunnableLambda } from "@langchain/core/runnables";
 import type { VistaPostural } from "./analise-postural";
-import { criarPipelinePostural, etapasFake, type EtapasPostural } from "./analise-postural-pipeline";
+import sharp from "sharp";
+import {
+  criarPipelinePostural,
+  etapasFake,
+  prepararImagem,
+  type EtapasPostural,
+} from "./analise-postural-pipeline";
 
 const IMAGEM = { base64: "AAAA", mime: "image/jpeg" };
 
@@ -79,6 +85,100 @@ describe("criarPipelinePostural", () => {
   it("etapas fake produzem resultado completo", async () => {
     const r = await criarPipelinePostural(etapasFake("posterior")).invoke(IMAGEM);
     expect(r.resultado.vista).toBe("posterior");
-    if (r.resultado.vista === "posterior") expect(Object.keys(r.resultado.pontos)).toHaveLength(12);
+    if (r.resultado.vista === "posterior") expect(r.resultado.pontos.coluna).toHaveLength(7);
+  });
+});
+
+describe("refino da coluna (posterior)", () => {
+  const POSTERIOR = {
+    c7: { x: 500, y: 200 },
+    eips_direita: { x: 600, y: 600 },
+    eips_esquerda: { x: 400, y: 600 },
+    coluna: [
+      { x: 500, y: 200 },
+      { x: 500, y: 400 },
+      { x: 500, y: 600 },
+    ],
+  };
+
+  function etapasComRefino(refino: () => unknown) {
+    const recortes: unknown[] = [];
+    const etapas: EtapasPostural = {
+      ...etapasFake("posterior"),
+      localizarPosterior: RunnableLambda.from(() => ({
+        dados: POSTERIOR,
+        uso: { entrada: 10, saida: 1 },
+      })),
+      refinarColuna: {
+        recortar: async (img, caixa) => {
+          recortes.push(caixa);
+          return { ...img, base64: "RECORTE" };
+        },
+        localizar: RunnableLambda.from((img: { base64: string }) => {
+          expect(img.base64).toBe("RECORTE");
+          return refino() as { dados: { coluna: { x: number; y: number }[] }; uso: { entrada: number; saida: number } };
+        }),
+      },
+    };
+    return { etapas, recortes };
+  }
+
+  it("troca a coluna pela do recorte, convertida para a imagem inteira", async () => {
+    const { etapas, recortes } = etapasComRefino(() => ({
+      dados: { coluna: [{ x: 500, y: 0 }, { x: 600, y: 500 }, { x: 500, y: 1000 }] },
+      uso: { entrada: 5, saida: 5 },
+    }));
+    const r = await criarPipelinePostural(etapas).invoke(IMAGEM);
+    // caixa: x 0,28..0,72 (margem 0,12), y 0,16..0,66
+    expect(recortes).toHaveLength(1);
+    const caixa = recortes[0] as { x: number; y: number; w: number; h: number };
+    expect(caixa.x).toBeCloseTo(0.28);
+    expect(caixa.w).toBeCloseTo(0.44);
+    expect(caixa.y).toBeCloseTo(0.16);
+    expect(caixa.h).toBeCloseTo(0.5);
+    if (r.resultado.vista !== "posterior") throw new Error("vista");
+    const col = r.resultado.pontos.coluna!;
+    expect(col[0].x).toBeCloseTo(500);
+    expect(col[0].y).toBeCloseTo(160);
+    expect(col[1].x).toBeCloseTo(544);
+    expect(col[2].y).toBeCloseTo(660);
+    expect(r.uso).toEqual({ entrada: 15, saida: 6 });
+  });
+
+  it("refino com erro mantém a coluna da localização", async () => {
+    const { etapas } = etapasComRefino(() => {
+      throw new Error("falhou");
+    });
+    const r = await criarPipelinePostural(etapas).invoke(IMAGEM);
+    if (r.resultado.vista !== "posterior") throw new Error("vista");
+    expect(r.resultado.pontos.coluna).toEqual(POSTERIOR.coluna);
+  });
+
+  it("refino com menos de 3 pontos é ignorado", async () => {
+    const { etapas } = etapasComRefino(() => ({
+      dados: { coluna: [{ x: 1, y: 1 }] },
+      uso: { entrada: 0, saida: 0 },
+    }));
+    const r = await criarPipelinePostural(etapas).invoke(IMAGEM);
+    if (r.resultado.vista !== "posterior") throw new Error("vista");
+    expect(r.resultado.pontos.coluna).toEqual(POSTERIOR.coluna);
+  });
+});
+
+describe("prepararImagem", () => {
+  it("aplica a rotação EXIF, descarta metadados e limita a 2048 px", async () => {
+    // 3000×1000 com orientação 6 (90°): o navegador mostra 1000×3000.
+    const original = await sharp({
+      create: { width: 3000, height: 1000, channels: 3, background: "#888" },
+    })
+      .jpeg()
+      .withMetadata({ orientation: 6 })
+      .toBuffer();
+    const r = await prepararImagem(original);
+    expect(r.mime).toBe("image/jpeg");
+    const meta = await sharp(Buffer.from(r.base64, "base64")).metadata();
+    expect([meta.width, meta.height]).toEqual([683, 2048]);
+    expect(meta.orientation).toBeUndefined();
+    expect(meta.exif).toBeUndefined();
   });
 });

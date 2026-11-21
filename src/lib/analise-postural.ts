@@ -89,6 +89,15 @@ export const pontosPosteriorSchema = z.object({
   joelho_esquerdo: op("Centro da fossa poplítea esquerda"),
   calcaneo_direito: op("Centro do calcâneo direito"),
   calcaneo_esquerdo: op("Centro do calcâneo esquerdo"),
+  coluna: z
+    .array(pontoIa)
+    .optional()
+    .describe(
+      "Linha da coluna: 8 a 15 pontos sobre os processos espinhosos, em ordem de cima para baixo, " +
+        "de C7 até S1 (ou até a vértebra mais baixa visível). Siga a curvatura REAL da coluna " +
+        "(inclusive desvios laterais de escoliose), não uma linha reta nem o meio do tronco. " +
+        "Omita se a coluna não estiver visível.",
+    ),
 });
 export type PontosPosterior = z.infer<typeof pontosPosteriorSchema>;
 
@@ -143,6 +152,48 @@ export const resultadoAnaliseSchema: z.ZodType<ResultadoAnalise> = z.union([
   }),
 ]);
 
+/** Resposta da etapa de refino: só a linha da coluna, em coordenadas do recorte. */
+export const colunaRefinoSchema = z.object({
+  coluna: z
+    .array(pontoIa)
+    .describe("12 a 18 pontos sobre os processos espinhosos, de cima (C7) para baixo (S1)"),
+});
+export type ColunaRefino = z.infer<typeof colunaRefinoSchema>;
+
+/** Região da imagem (frações 0..1). */
+export type Caixa = { x: number; y: number; w: number; h: number };
+
+/**
+ * Recorte das costas (C7 até a pelve, com margem lateral) para a etapa que
+ * refina a linha da coluna com mais resolução. `null` sem C7 ou sem base.
+ */
+export function caixaColuna(p: PontosPosterior): Caixa | null {
+  if (!p.c7) return null;
+  const c7 = normalizarPonto(p.c7);
+  const coluna = (p.coluna ?? []).map(normalizarPonto);
+  const eips = [p.eips_direita, p.eips_esquerda].filter(Boolean).map((q) => normalizarPonto(q!));
+  const base = Math.max(...eips.map((q) => q.y), ...coluna.map((q) => q.y), -1);
+  if (base <= c7.y) return null;
+  const escapulas = [p.escapula_direita, p.escapula_esquerda]
+    .filter(Boolean)
+    .map((q) => normalizarPonto(q!));
+  const xs = [c7, ...coluna, ...eips, ...escapulas].map((q) => q.x);
+  const x0 = Math.max(0, Math.min(...xs) - 0.12);
+  const x1 = Math.min(1, Math.max(...xs) + 0.12);
+  const y0 = Math.max(0, c7.y - 0.04);
+  const y1 = Math.min(1, base + 0.06);
+  if (x1 - x0 < 0.05 || y1 - y0 < 0.1) return null;
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+
+/** Ponto 0–1000 do recorte → ponto 0–1000 da imagem inteira. */
+export function pontoDoRecorte(p: { x: number; y: number }, caixa: Caixa): { x: number; y: number } {
+  return {
+    x: (caixa.x + (p.x / 1000) * caixa.w) * 1000,
+    y: (caixa.y + (p.y / 1000) * caixa.h) * 1000,
+  };
+}
+
 // ---------- prompts ----------
 
 export const PROMPT_CLASSIFICAR =
@@ -150,6 +201,14 @@ export const PROMPT_CLASSIFICAR =
   "Classifique a vista da foto. Considere 'nao_postural' se não houver uma pessoa em pé " +
   "com tronco e membros visíveis para avaliação (ex.: documento, exame de imagem, close de " +
   "uma parte do corpo).";
+
+export const PROMPT_REFINAR_COLUNA =
+  "Recorte ampliado das costas de um paciente em pé (vista posterior), para avaliação de " +
+  "escoliose por um fisioterapeuta. Trace a linha dos processos espinhosos da coluna, vértebra " +
+  "a vértebra, de C7 (topo) até S1 (ou a vértebra mais baixa visível). Use o sulco mediano entre " +
+  "os músculos paravertebrais e as saliências das vértebras; siga a curvatura REAL, inclusive " +
+  "desvios laterais, e não uma reta nem o centro do tronco. Coordenadas na escala 0–1000 " +
+  "(x da esquerda para a direita, y de cima para baixo) relativas a ESTE recorte.";
 
 export function promptLocalizar(vista: VistaPostural): string {
   const base =
@@ -163,7 +222,7 @@ export function promptLocalizar(vista: VistaPostural): string {
     case "anterior":
       return `${base} Vista ANTERIOR (paciente de frente): o lado direito do paciente aparece à esquerda da imagem.`;
     case "posterior":
-      return `${base} Vista POSTERIOR (paciente de costas): o lado direito do paciente aparece à direita da imagem.`;
+      return `${base} Vista POSTERIOR (paciente de costas): o lado direito do paciente aparece à direita da imagem. Em 'coluna', acompanhe com cuidado os processos espinhosos vértebra a vértebra: o objetivo é detectar escoliose.`;
     case "lateral_direita":
     case "lateral_esquerda":
       return `${base} Vista LATERAL (${vista === "lateral_direita" ? "lado direito" : "lado esquerdo"} do paciente voltado para a câmera).`;
@@ -193,6 +252,77 @@ function inclinacao(a: Ponto, b: Ponto, largura: number, altura: number): number
   const dy = Math.abs(b.y - a.y) * altura;
   if (dx === 0 && dy === 0) return 0;
   return (Math.atan2(dy, dx) * 180) / Math.PI;
+}
+
+// ---------- coluna (escoliose) ----------
+
+/**
+ * Curva suave (Catmull-Rom) passando pelos pontos, para a linha da coluna não
+ * ficar "quebrada". `passos` pontos intermediários por segmento.
+ */
+export function suavizarCurva(pontos: Ponto[], passos = 6): Ponto[] {
+  if (pontos.length < 3) return pontos;
+  const saida: Ponto[] = [];
+  for (let i = 0; i < pontos.length - 1; i++) {
+    const p0 = pontos[Math.max(0, i - 1)];
+    const p1 = pontos[i];
+    const p2 = pontos[i + 1];
+    const p3 = pontos[Math.min(pontos.length - 1, i + 2)];
+    for (let k = 0; k < passos; k++) {
+      const t = k / passos;
+      const t2 = t * t;
+      const t3 = t2 * t;
+      const f = (a: number, b: number, c: number, d: number) =>
+        0.5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+      saida.push(limitarPonto({ x: f(p0.x, p1.x, p2.x, p3.x), y: f(p0.y, p1.y, p2.y, p3.y) }));
+    }
+  }
+  saida.push(pontos[pontos.length - 1]);
+  return saida;
+}
+
+/** Ponto de maior desvio lateral da curva para um lado, em relação ao prumo de C7. */
+export type ApiceColuna = {
+  ponto: Ponto;
+  /** Ponto da reta de referência na mesma altura. */
+  pe: Ponto;
+  /** Desvio horizontal em pixels reais (sempre positivo). */
+  px: number;
+  /** +1 = para a direita da imagem, -1 = para a esquerda. */
+  sentido: 1 | -1;
+};
+
+/**
+ * Maiores desvios laterais da linha da coluna para cada lado, medidos na
+ * horizontal em relação ao fio de prumo que desce de C7 (1º ponto) — referência
+ * clássica da avaliação postural. Com menos de 3 pontos, nada.
+ */
+export function apicesColuna(pontos: Ponto[], largura: number): ApiceColuna[] {
+  if (pontos.length < 3) return [];
+  const ini = pontos[0];
+  const melhores = new Map<1 | -1, ApiceColuna>();
+  for (const p of pontos.slice(1)) {
+    const xRef = ini.x;
+    const d = (p.x - xRef) * largura;
+    if (d === 0) continue;
+    const sentido: 1 | -1 = d > 0 ? 1 : -1;
+    const atual = melhores.get(sentido);
+    if (!atual || Math.abs(d) > atual.px) {
+      melhores.set(sentido, { ponto: p, pe: { x: xRef, y: p.y }, px: Math.abs(d), sentido });
+    }
+  }
+  return [...melhores.values()].sort((a, b) => a.ponto.y - b.ponto.y);
+}
+
+/** Desvio relevante: ≥ 1 cm com calibração, ou ≥ 1% da altura da imagem sem. */
+function desvioRelevante(px: number, ctx: Contexto, cm = 1, fracao = 0.01): boolean {
+  const escala = cmPorPixel(ctx.calibracao, ctx.largura, ctx.altura);
+  return escala != null ? px * escala >= cm : px >= ctx.altura * fracao;
+}
+
+/** Desvio acentuado da coluna: ≥ 2 cm com calibração, ou ≥ 2,5% da altura sem. */
+function desvioAcentuado(px: number, ctx: Contexto): boolean {
+  return desvioRelevante(px, ctx, 2, 0.025);
 }
 
 // ---------- montagem do protocolo ----------
@@ -233,7 +363,7 @@ type DefVista<K extends string> = {
   nomes: Record<K, string>;
 };
 
-type ChavePosterior = keyof PontosPosterior;
+type ChavePosterior = Exclude<keyof PontosPosterior, "coluna">;
 type ChaveAnterior = keyof PontosAnterior;
 
 const POSTERIOR: DefVista<ChavePosterior> = {
@@ -361,6 +491,7 @@ function formasProtocolo<K extends string>(
   def: DefVista<K>,
   bruto: Partial<Record<K, { x: number; y: number }>>,
   ctx: Contexto,
+  coluna?: { x: number; y: number }[],
 ): FormasIa {
   const { largura, altura } = ctx;
   const linhas: Forma[] = [];
@@ -499,6 +630,93 @@ function formasProtocolo<K extends string>(
     }
   }
 
+  // Linha da coluna (escoliose) — só na posterior.
+  if (vista === "posterior") {
+    const curva = (coluna ?? []).slice(0, 20).map(normalizarPonto).sort((a, b) => a.y - b.y);
+    if (curva.length < 3) {
+      ausentes.push("Linha da coluna");
+    } else {
+      const ini = curva[0];
+      const fim = curva[curva.length - 1];
+      const relevantes = apicesColuna(curva, largura).filter((a) => desvioRelevante(a.px, ctx));
+      const acentuada = relevantes.some((a) => desvioAcentuado(a.px, ctx));
+      const corCurva =
+        relevantes.length === 0
+          ? COR_PROTOCOLO.referencia
+          : acentuada
+            ? COR_PROTOCOLO.acentuada
+            : COR_PROTOCOLO.assimetria;
+
+      // Fio de prumo de C7 (referência dos desvios).
+      linhas.push({
+        id: id("coluna-ref"),
+        cor: COR_PROTOCOLO.referencia,
+        tipo: "linha",
+        tracejada: true,
+        a: ini,
+        b: { x: ini.x, y: fim.y },
+      });
+      linhas.push({ id: id("coluna"), cor: corCurva, tipo: "livre", pontos: suavizarCurva(curva) });
+
+      // Torácica x lombar: T12 fica ~42% do caminho entre o ângulo inferior da
+      // escápula (≈T7) e a EIPS (≈S2); sem esses pontos, usa a metade da curva.
+      const escY = ["escapula_direita", "escapula_esquerda"]
+        .map((k) => pts.get(k as K)?.y)
+        .filter((y): y is number => y != null);
+      const eipsY = ["eips_direita", "eips_esquerda"]
+        .map((k) => pts.get(k as K)?.y)
+        .filter((y): y is number => y != null);
+      const limiteToracica =
+        escY.length && eipsY.length
+          ? Math.max(...escY) + 0.42 * (Math.min(...eipsY) - Math.max(...escY))
+          : ini.y + 0.55 * (fim.y - ini.y);
+
+      const descricoes = relevantes.map((a, i) => {
+        const regiao = a.ponto.y < limiteToracica ? "torácica" : "lombar";
+        const lado = ladoPaciente(a.sentido, vista);
+        const dist = formatarDistancia(a.ponto, a.pe, ctx);
+        const cor = desvioAcentuado(a.px, ctx) ? COR_PROTOCOLO.acentuada : COR_PROTOCOLO.assimetria;
+        const texto = `Convexidade à ${lado}`;
+        const tam = tamanhoRotuloNorm(texto, dist, ctx, "alerta");
+        // Caixa do lado para onde a curva "abre", na altura do ápice.
+        const x =
+          a.sentido > 0
+            ? Math.min(1 - tam.w / 2 - 0.01, a.ponto.x + 0.07 + tam.w / 2)
+            : Math.max(tam.w / 2 + 0.01, a.ponto.x - 0.07 - tam.w / 2);
+        rotulos.push(
+          rotulo(`coluna-alerta-${i}`, "alerta", { x, y: a.ponto.y }, a.ponto, texto, cor, dist),
+        );
+        return { regiao, lado, dist };
+      });
+
+      const meioCurva = curva[Math.floor(curva.length * 0.75)];
+      rotulos.push(
+        rotulo(
+          "coluna-rot",
+          "linha",
+          { x: xDir("Linha da coluna"), y: meioCurva.y },
+          meioCurva,
+          "Linha da coluna",
+          COR_PROTOCOLO.referencia,
+        ),
+      );
+
+      let detalhe: string;
+      if (descricoes.length === 0) {
+        detalhe = "sem desvio lateral relevante";
+      } else if (descricoes.length === 1) {
+        const [d] = descricoes;
+        detalhe = `curva ${d.regiao}, convexidade à ${d.lado} (${d.dist})`;
+      } else {
+        detalhe = `curva em S: ${descricoes
+          .map((d) => `${d.regiao} à ${d.lado} (${d.dist})`)
+          .join(", ")}`;
+      }
+      if (acentuada) detalhe += " — acentuada";
+      achados.push({ nome: "Linha da coluna", detalhe, alerta: descricoes.length > 0 });
+    }
+  }
+
   // Pontos anatômicos (verde).
   for (const [k, p] of pts) {
     pontos.push({ id: id(`pt-${k}`), cor: COR_PROTOCOLO.ponto, tipo: "ponto", pos: p });
@@ -610,7 +828,13 @@ export function respostaParaFormas(resultado: ResultadoAnalise, ctx: Contexto): 
     case "nao_postural":
       return { formas: [], ausentes: [], achados: [] };
     case "posterior":
-      return formasProtocolo("posterior", POSTERIOR, resultado.pontos, ctx);
+      return formasProtocolo(
+        "posterior",
+        POSTERIOR,
+        resultado.pontos,
+        ctx,
+        resultado.pontos.coluna,
+      );
     case "anterior":
       return formasProtocolo("anterior", ANTERIOR, resultado.pontos, ctx);
     case "lateral_direita":

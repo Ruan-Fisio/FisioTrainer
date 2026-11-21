@@ -10,6 +10,12 @@ import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
 import type { z } from "zod";
 import {
   PROMPT_CLASSIFICAR,
+  PROMPT_REFINAR_COLUNA,
+  caixaColuna,
+  colunaRefinoSchema,
+  pontoDoRecorte,
+  type Caixa,
+  type ColunaRefino,
   classificacaoSchema,
   ehLateral,
   pontosAnteriorSchema,
@@ -47,6 +53,14 @@ export type EtapasPostural = {
   localizarAnterior: Runnable<EntradaLocalizar, SaidaEtapa<PontosAnterior>>;
   localizarPosterior: Runnable<EntradaLocalizar, SaidaEtapa<PontosPosterior>>;
   localizarLateral: Runnable<EntradaLocalizar, SaidaEtapa<PontosLaterais>>;
+  /**
+   * Refino da linha da coluna (posterior) num recorte ampliado das costas.
+   * Opcional: sem ele, fica a coluna da localização.
+   */
+  refinarColuna?: {
+    recortar: (imagem: EntradaImagem, caixa: Caixa) => Promise<EntradaImagem>;
+    localizar: Runnable<EntradaImagem, SaidaEtapa<ColunaRefino>>;
+  };
 };
 
 export type SaidaPipeline = { resultado: ResultadoAnalise; uso: Uso };
@@ -86,10 +100,25 @@ export function criarPipelinePostural(
         { base64: x.base64, mime: x.mime, vista: "posterior" },
         config,
       );
-      return {
-        resultado: { vista: "posterior", confianca, pontos: loc.dados },
-        uso: somar(x.classificacao.uso, loc.uso),
-      };
+      let pontos = loc.dados;
+      let uso = somar(x.classificacao.uso, loc.uso);
+
+      // Refino da coluna: recorte C7→pelve ampliado. Falhou → mantém a 1ª linha.
+      const caixa = caixaColuna(pontos);
+      if (etapas.refinarColuna && caixa) {
+        try {
+          const recorte = await etapas.refinarColuna.recortar(x, caixa);
+          const ref = await etapas.refinarColuna.localizar.invoke(recorte, config);
+          uso = somar(uso, ref.uso);
+          if (ref.dados.coluna.length >= 3) {
+            pontos = { ...pontos, coluna: ref.dados.coluna.map((p) => pontoDoRecorte(p, caixa)) };
+          }
+        } catch (e) {
+          if (config?.signal?.aborted) throw e;
+        }
+      }
+
+      return { resultado: { vista: "posterior", confianca, pontos }, uso };
     },
   ).withConfig({ runName: "localizar_posterior" });
 
@@ -164,6 +193,10 @@ export function etapasGemini(opcoes: {
   }
 
   return {
+    refinarColuna: {
+      recortar: recortarImagem,
+      localizar: etapa(preciso, colunaRefinoSchema, () => PROMPT_REFINAR_COLUNA),
+    },
     classificar: etapa(leve, classificacaoSchema, () => PROMPT_CLASSIFICAR),
     localizarAnterior: etapa(preciso, pontosAnteriorSchema, (x: EntradaLocalizar) =>
       promptLocalizar(x.vista),
@@ -175,6 +208,42 @@ export function etapasGemini(opcoes: {
       promptLocalizar(x.vista),
     ),
   };
+}
+
+/**
+ * Normaliza a foto antes de enviar à IA: aplica a rotação EXIF (como o navegador
+ * mostra), limita a 2048 px e regrava em JPEG — o que também descarta todos os
+ * metadados (EXIF/GPS). As coordenadas da IA ficam no mesmo referencial do editor.
+ */
+export async function prepararImagem(bytes: Uint8Array): Promise<EntradaImagem> {
+  const { default: sharp } = await import("sharp");
+  const saida = await sharp(Buffer.from(bytes))
+    .rotate()
+    .resize({ width: 2048, height: 2048, fit: "inside", withoutEnlargement: true })
+    .jpeg({ quality: 90 })
+    .toBuffer();
+  return { base64: saida.toString("base64"), mime: "image/jpeg" };
+}
+
+/** Recorta a região (frações 0..1) e amplia para 1400 px de altura (JPEG). */
+async function recortarImagem(imagem: EntradaImagem, caixa: Caixa): Promise<EntradaImagem> {
+  const { default: sharp } = await import("sharp");
+  const img = sharp(Buffer.from(imagem.base64, "base64"));
+  const { width: W, height: H } = await img.metadata();
+  if (!W || !H) throw new Error("Imagem sem dimensões.");
+  const left = Math.round(caixa.x * W);
+  const top = Math.round(caixa.y * H);
+  const saida = await img
+    .extract({
+      left,
+      top,
+      width: Math.max(1, Math.min(W - left, Math.round(caixa.w * W))),
+      height: Math.max(1, Math.min(H - top, Math.round(caixa.h * H))),
+    })
+    .resize({ height: 1400 })
+    .jpeg({ quality: 90 })
+    .toBuffer();
+  return { base64: saida.toString("base64"), mime: "image/jpeg" };
 }
 
 // ---------- etapas fake (E2E / dev sem chave) ----------
@@ -217,6 +286,15 @@ export function etapasFake(vista: VistaPostural = "anterior"): EtapasPostural {
         joelho_esquerdo: { x: 353, y: 713 },
         calcaneo_direito: { x: 627, y: 945 },
         calcaneo_esquerdo: { x: 336, y: 945 },
+        coluna: [
+          { x: 489, y: 172 },
+          { x: 494, y: 215 },
+          { x: 502, y: 260 },
+          { x: 508, y: 305 },
+          { x: 505, y: 350 },
+          { x: 496, y: 395 },
+          { x: 489, y: 440 },
+        ],
       },
       uso: SEM_USO,
     })),
