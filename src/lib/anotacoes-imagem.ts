@@ -35,6 +35,9 @@ const formaSchema = z.discriminatedUnion("tipo", [
   z.object({ ...base, tipo: z.literal("linha"), a: pontoSchema, b: pontoSchema }),
   z.object({ ...base, tipo: z.literal("seta"), a: pontoSchema, b: pontoSchema }),
   z.object({ ...base, tipo: z.literal("medida"), a: pontoSchema, b: pontoSchema }),
+  /** Ângulo de 2 pontos: inclinação da linha a→b em relação à horizontal. */
+  z.object({ ...base, tipo: z.literal("inclinacao"), a: pontoSchema, b: pontoSchema }),
+  /** Ângulo de 3 pontos (legado: a ferramenta atual desenha `inclinacao`). */
   z.object({
     ...base,
     tipo: z.literal("angulo"),
@@ -149,6 +152,22 @@ export function anguloGraus(
   return (Math.acos(cos) * 180) / Math.PI;
 }
 
+/**
+ * Ângulo (0–90°) entre a linha a→b e a horizontal, medido em pixels reais.
+ * 0° = horizontal, 90° = vertical; pontos coincidentes devolvem 0.
+ */
+export function inclinacaoGraus(
+  a: Ponto,
+  b: Ponto,
+  largura: number,
+  altura: number,
+): number {
+  const dx = Math.abs(b.x - a.x) * largura;
+  const dy = Math.abs(b.y - a.y) * altura;
+  if (dx === 0 && dy === 0) return 0;
+  return (Math.atan2(dy, dx) * 180) / Math.PI;
+}
+
 export function formatarAngulo(graus: number): string {
   return `${graus.toFixed(1).replace(".", ",")}°`;
 }
@@ -167,6 +186,7 @@ export function pontosDaForma(f: Forma): Ponto[] {
     case "linha":
     case "seta":
     case "medida":
+    case "inclinacao":
       return [f.a, f.b];
     case "angulo":
       return [f.a, f.vertice, f.b];
@@ -186,6 +206,7 @@ export function moverPonto(f: Forma, indice: number, p: Ponto): Forma {
     case "linha":
     case "seta":
     case "medida":
+    case "inclinacao":
       return indice === 0 ? { ...f, a: q } : indice === 1 ? { ...f, b: q } : f;
     case "angulo":
       return indice === 0
@@ -227,6 +248,7 @@ export function transladar(f: Forma, dx: number, dy: number): Forma {
     case "linha":
     case "seta":
     case "medida":
+    case "inclinacao":
       return { ...f, a: mv(f.a), b: mv(f.b) };
     case "angulo":
       return { ...f, a: mv(f.a), vertice: mv(f.vertice), b: mv(f.b) };
@@ -270,6 +292,7 @@ export function pontoAncora(f: Forma, indice: number): Ponto | null {
     case "linha":
     case "seta":
     case "medida":
+    case "inclinacao":
       return indice === 0 ? f.b : indice === 1 ? f.a : null;
     case "angulo":
       return indice === 0 || indice === 2 ? f.vertice : null;

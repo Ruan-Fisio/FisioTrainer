@@ -2,6 +2,7 @@ import {
   anguloGraus,
   formatarAngulo,
   formatarDistancia,
+  inclinacaoGraus,
   type Anotacoes,
   type Forma,
   type Ponto,
@@ -122,6 +123,68 @@ export function FormaSvg({
         </g>
       );
     }
+    case "inclinacao": {
+      const A = px(forma.a, m);
+      const B = px(forma.b, m);
+      const comp = Math.hypot(B.x - A.x, B.y - A.y);
+      const graus = inclinacaoGraus(forma.a, forma.b, m.l, m.h);
+      // Referência horizontal tracejada saindo de `a` para o lado de `b`.
+      const sx = B.x >= A.x ? 1 : -1;
+      const ux = comp > 0 ? (B.x - A.x) / comp : sx;
+      const uy = comp > 0 ? (B.y - A.y) / comp : 0;
+      const r = Math.min(comp * 0.45, m.fonte * 3);
+      const sweep = sx * uy > 0 ? 1 : 0;
+      // Rótulo: ângulo aberto → na bissetriz, fora do arco; ângulo fechado
+      // (não cabe na fatia) → do outro lado da referência horizontal.
+      let lx: number;
+      let ly: number;
+      if (graus >= 30) {
+        const bx = sx + ux;
+        const by = uy;
+        const nb = Math.hypot(bx, by) || 1;
+        const dist = r + m.fonte * 1.5;
+        lx = A.x + (bx / nb) * dist;
+        ly = A.y + (by / nb) * dist + m.fonte * 0.35;
+      } else {
+        lx = A.x + sx * (r + m.fonte * 0.4);
+        ly = uy <= 0 ? A.y + m.fonte * 1.1 : A.y - m.fonte * 0.45;
+      }
+      return (
+        <g>
+          <line
+            x1={A.x}
+            y1={A.y}
+            x2={A.x + sx * comp}
+            y2={A.y}
+            stroke={cor}
+            strokeWidth={m.traco * 0.7}
+            strokeDasharray={`${m.traco * 3} ${m.traco * 2.5}`}
+            strokeLinecap="round"
+            opacity={0.8}
+          />
+          <Segmento a={forma.a} b={forma.b} cor={cor} m={m} />
+          {r > 0 && graus > 0.5 && (
+            <path
+              d={`M ${A.x + sx * r} ${A.y} A ${r} ${r} 0 0 ${sweep} ${A.x + ux * r} ${A.y + uy * r}`}
+              stroke={cor}
+              strokeWidth={m.traco}
+              fill="none"
+            />
+          )}
+          {[A, B].map((p, i) => (
+            <circle key={i} cx={p.x} cy={p.y} r={m.traco * 1.6} fill={cor} />
+          ))}
+          <Rotulo
+            x={lx}
+            y={ly}
+            cor={cor}
+            m={m}
+          >
+            {formatarAngulo(graus)}
+          </Rotulo>
+        </g>
+      );
+    }
     case "angulo": {
       const V = px(forma.vertice, m);
       const graus = anguloGraus(forma.a, forma.vertice, forma.b, m.l, m.h);
@@ -204,7 +267,8 @@ export function FormaHit({
   switch (forma.tipo) {
     case "linha":
     case "seta":
-    case "medida": {
+    case "medida":
+    case "inclinacao": {
       const [A, B] = [P(forma.a), P(forma.b)];
       return <line x1={A.x} y1={A.y} x2={B.x} y2={B.y} {...comum} />;
     }

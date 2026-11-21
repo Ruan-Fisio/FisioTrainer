@@ -7,6 +7,7 @@ import {
   cmPorPixel,
   distanciaPx,
   formatarDistancia,
+  inclinacaoGraus,
   lerAnotacoes,
   limitarPonto,
   moverPonto,
@@ -79,6 +80,43 @@ describe("anguloGraus", () => {
   it("vértice coincidente com um ponto devolve 0", () => {
     const p = { x: 0.2, y: 0.2 };
     expect(anguloGraus(p, p, { x: 0.8, y: 0.8 }, 100, 100)).toBe(0);
+  });
+});
+
+describe("inclinacaoGraus", () => {
+  it("0° na horizontal e 90° na vertical, em qualquer sentido", () => {
+    expect(inclinacaoGraus({ x: 0.2, y: 0.5 }, { x: 0.8, y: 0.5 }, 100, 100)).toBe(0);
+    expect(inclinacaoGraus({ x: 0.8, y: 0.5 }, { x: 0.2, y: 0.5 }, 100, 100)).toBe(0);
+    expect(inclinacaoGraus({ x: 0.5, y: 0.9 }, { x: 0.5, y: 0.1 }, 100, 100)).toBeCloseTo(90);
+  });
+
+  it("45° na diagonal, subindo ou descendo", () => {
+    expect(inclinacaoGraus({ x: 0, y: 0 }, { x: 0.5, y: 0.5 }, 100, 100)).toBeCloseTo(45);
+    expect(inclinacaoGraus({ x: 0.5, y: 0.5 }, { x: 0, y: 1 }, 100, 100)).toBeCloseTo(45);
+  });
+
+  it("respeita a proporção da imagem", () => {
+    // largura 200, altura 100: diagonal do retângulo = atan(100/200)
+    expect(inclinacaoGraus({ x: 0, y: 0 }, { x: 1, y: 1 }, 200, 100)).toBeCloseTo(26.565, 2);
+  });
+
+  it("pontos coincidentes devolvem 0", () => {
+    const p = { x: 0.3, y: 0.3 };
+    expect(inclinacaoGraus(p, p, 100, 100)).toBe(0);
+  });
+
+  it("forma inclinacao é válida, tem 2 alças e âncora na outra ponta", () => {
+    const f: Forma = {
+      id: "i",
+      cor: "#ef4444",
+      tipo: "inclinacao",
+      a: { x: 0.1, y: 0.1 },
+      b: { x: 0.5, y: 0.3 },
+    };
+    expect(lerAnotacoes({ ...anotacoesVazias(10, 10), formas: [f] })).not.toBeNull();
+    expect(pontosDaForma(f)).toEqual([f.a, f.b]);
+    expect(pontoAncora(f, 1)).toEqual(f.a);
+    expect(moverPonto(f, 1, { x: 0.9, y: 0.9 })).toMatchObject({ b: { x: 0.9, y: 0.9 } });
   });
 });
 

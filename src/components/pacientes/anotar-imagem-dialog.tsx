@@ -60,7 +60,7 @@ type Ferramenta =
   | "linha"
   | "seta"
   | "medida"
-  | "angulo"
+  | "inclinacao"
   | "circulo"
   | "livre"
   | "texto"
@@ -84,7 +84,7 @@ const FERRAMENTAS: {
   { id: "linha", label: "Linha", icone: Minus },
   { id: "seta", label: "Seta", icone: ArrowUpRight },
   { id: "medida", label: "Medida", icone: Ruler },
-  { id: "angulo", label: "Ângulo", icone: Triangle },
+  { id: "inclinacao", label: "Ângulo", icone: Triangle },
   { id: "circulo", label: "Círculo", icone: Circle },
   { id: "livre", label: "Livre", icone: Pencil },
   { id: "texto", label: "Texto", icone: Type },
@@ -104,14 +104,12 @@ const LUPA_TAM = 128;
 let contador = 0;
 const novoId = () => `f${Date.now().toString(36)}${(contador++).toString(36)}`;
 
-function dica(ferramenta: Ferramenta, faseAngulo: number): string {
+function dica(ferramenta: Ferramenta): string {
   switch (ferramenta) {
     case "mover":
       return "Toque numa marcação e arraste para movê-la; arraste as bolinhas para ajustar. Com zoom, arraste o fundo para navegar.";
-    case "angulo":
-      return faseAngulo === 2
-        ? "Agora arraste (ou toque) para posicionar o segundo braço."
-        : "Arraste do fim do primeiro braço até o vértice.";
+    case "inclinacao":
+      return "Arraste de um ponto a outro: o ângulo é medido em relação à horizontal (linha tracejada).";
     case "texto":
       return "Toque na imagem onde o texto deve ficar e digite.";
     case "calibrar":
@@ -149,8 +147,6 @@ export function AnotarImagemDialog({
   const [modoReta, setModoReta] = useState<ModoReta>("ima");
   const [selecionada, setSelecionada] = useState<string | null>(null);
   const [rascunho, setRascunho] = useState<Forma | null>(null);
-  const [pontosAngulo, setPontosAngulo] = useState<Ponto[]>([]);
-  const [cursor, setCursor] = useState<Ponto | null>(null);
   const [pendenteCalib, setPendenteCalib] = useState<{ a: Ponto; b: Ponto } | null>(null);
   const [cmReal, setCmReal] = useState("");
   const [lupa, setLupa] = useState<Ponto | null>(null);
@@ -307,8 +303,6 @@ export function AnotarImagemDialog({
   function trocarFerramenta(f: Ferramenta) {
     setFerramenta(f);
     setRascunho(null);
-    setPontosAngulo([]);
-    setCursor(null);
     setPendenteCalib(null);
     gesto.current = null;
   }
@@ -397,16 +391,11 @@ export function AnotarImagemDialog({
       return;
     }
 
-    let alvo = p;
-    if (ferramenta === "angulo" && pontosAngulo.length === 2) {
-      alvo = ajustar(e, pontosAngulo[1], p);
-      setCursor(alvo);
-    }
     gesto.current = { tipo: "desenho", inicio: p };
     if (ferramenta === "livre") {
       setRascunho({ id: "rascunho", cor, tipo: "livre", pontos: [p, p] });
     }
-    mostrarLupa(e, alvo);
+    mostrarLupa(e, p);
   }
 
   function aoMover(e: React.PointerEvent) {
@@ -414,13 +403,7 @@ export function AnotarImagemDialog({
     const g = gesto.current;
     const p = ponto(e);
 
-    if (!g) {
-      // Mouse: o segundo braço do ângulo segue o cursor sem precisar pressionar.
-      if (ferramenta === "angulo" && pontosAngulo.length === 2 && e.pointerType === "mouse") {
-        setCursor(ajustar(e, pontosAngulo[1], p));
-      }
-      return;
-    }
+    if (!g) return;
 
     switch (g.tipo) {
       case "pan":
@@ -477,22 +460,11 @@ export function AnotarImagemDialog({
 
       case "desenho": {
         const a = g.inicio;
-        if (ferramenta === "angulo") {
-          if (pontosAngulo.length === 2) {
-            const b = ajustar(e, pontosAngulo[1], p);
-            setCursor(b);
-            mostrarLupa(e, b);
-          } else {
-            const b = ajustar(e, a, p);
-            setRascunho({ id: "rascunho", cor, tipo: "linha", a, b });
-            mostrarLupa(e, b);
-          }
-          return;
-        }
         switch (ferramenta) {
           case "linha":
           case "seta":
           case "medida":
+          case "inclinacao":
           case "calibrar": {
             const b = ajustar(e, a, p);
             setRascunho(
@@ -525,27 +497,6 @@ export function AnotarImagemDialog({
     gesto.current = null;
     setLupa(null);
     if (!g || g.tipo !== "desenho" || !anot) return;
-
-    if (ferramenta === "angulo") {
-      if (pontosAngulo.length === 2) {
-        // 2ª fase: fixa o segundo braço onde o cursor está.
-        const [p1, vertice] = pontosAngulo;
-        const b = cursor;
-        if (!b || Math.hypot(b.x - vertice.x, b.y - vertice.y) < 0.01) return;
-        adicionar({ id: novoId(), cor, tipo: "angulo", a: p1, vertice, b });
-        setPontosAngulo([]);
-        setCursor(null);
-      } else if (rascunho?.tipo === "linha") {
-        // 1ª fase: primeiro braço, do ponto inicial até o vértice.
-        const { a: p1, b: vertice } = rascunho;
-        setRascunho(null);
-        if (Math.hypot(p1.x - vertice.x, p1.y - vertice.y) >= 0.01) {
-          setPontosAngulo([p1, vertice]);
-          setCursor(vertice);
-        }
-      }
-      return;
-    }
 
     const r = rascunho;
     setRascunho(null);
@@ -655,20 +606,6 @@ export function AnotarImagemDialog({
           />
         )}
         {rascunho && <FormaSvg forma={rascunho} anotacoes={anot} zoom={zoom} />}
-        {ferramenta === "angulo" && pontosAngulo.length === 2 && (
-          <FormaSvg
-            forma={{
-              id: "ra",
-              cor,
-              tipo: "angulo",
-              a: pontosAngulo[0],
-              vertice: pontosAngulo[1],
-              b: cursor ?? pontosAngulo[1],
-            }}
-            anotacoes={anot}
-            zoom={zoom}
-          />
-        )}
       </>
     );
   }
@@ -686,10 +623,8 @@ export function AnotarImagemDialog({
         onInteractOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => {
           // Esc desfaz o passo em andamento antes de pensar em fechar.
-          if (pontosAngulo.length > 0 || pendenteCalib || selecionada || confirmarSaida) {
+          if (pendenteCalib || selecionada || confirmarSaida) {
             e.preventDefault();
-            setPontosAngulo([]);
-            setCursor(null);
             setPendenteCalib(null);
             setSelecionada(null);
             setConfirmarSaida(false);
@@ -959,21 +894,8 @@ export function AnotarImagemDialog({
           ) : (
             <div className="flex flex-wrap items-center gap-2">
               <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-                {dica(ferramenta, pontosAngulo.length)}
+                {dica(ferramenta)}
               </p>
-              {ferramenta === "angulo" && pontosAngulo.length === 2 && (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setPontosAngulo([]);
-                    setCursor(null);
-                  }}
-                >
-                  Refazer 1º braço
-                </Button>
-              )}
               {ferramenta === "calibrar" && anot?.calibracao && (
                 <>
                   <span className="text-xs font-medium">
