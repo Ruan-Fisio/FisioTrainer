@@ -80,11 +80,19 @@ export async function valoresParaNovoDocumento(pacienteId: string, tipo: TipoDoc
 export async function gerarPdfDocumento(id: string, pacienteId?: string) {
   const doc = await prisma.documentoPaciente.findUnique({
     where: { id },
-    include: { paciente: { select: { nome: true } } },
+    include: {
+      paciente: { select: { nome: true } },
+      // A assinatura congelada na emissão — nunca a atual do autor.
+      assinatura: { select: { png: true } },
+    },
   });
   if (!doc || (pacienteId !== undefined && doc.pacienteId !== pacienteId)) return null;
   const tipo = tipoDocumento(doc.tipo);
   if (!tipo) return null;
-  const bytes = await preencherDocumento(tipo, valoresDoBanco(doc.valores));
+  const bytes = await preencherDocumento(
+    tipo,
+    valoresDoBanco(doc.valores),
+    doc.assinatura?.png ?? null,
+  );
   return { bytes, nomeArquivo: nomeArquivoDocumento(tipo.titulo, doc.paciente.nome) };
 }

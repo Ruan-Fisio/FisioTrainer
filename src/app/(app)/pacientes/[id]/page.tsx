@@ -46,6 +46,7 @@ import { listarSeriesImagensPaciente } from "@/actions/exame-imagens";
 import { listarAnexosPaciente } from "@/actions/paciente-anexos";
 import { PacienteTabs } from "@/components/pacientes/paciente-tabs";
 import { PacienteDocumentosTab } from "@/components/pacientes/paciente-documentos-tab";
+import { AvisoSemAssinatura } from "@/components/documentos/aviso-sem-assinatura";
 import { listarDocumentosPaciente } from "@/actions/documentos-paciente";
 import { formatarDataSemHora } from "@/lib/format";
 import { anoMesBrasilia } from "@/lib/datas-brasilia";
@@ -70,7 +71,12 @@ async function ImagensLoader({ pacienteId }: { pacienteId: string }) {
 
 async function DocumentosLoader({ pacienteId }: { pacienteId: string }) {
   const documentos = await listarDocumentosPaciente(pacienteId);
-  return <PacienteDocumentosTab pacienteId={pacienteId} documentos={documentos} />;
+  return (
+    <div className="flex flex-col gap-4">
+      <AvisoSemAssinatura />
+      <PacienteDocumentosTab pacienteId={pacienteId} documentos={documentos} />
+    </div>
+  );
 }
 
 async function EvolucoesListLoader({ pacienteId }: { pacienteId: string }) {

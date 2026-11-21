@@ -32,6 +32,10 @@ model User {
   servicos             UsuarioServico[]
   contratoModelos      ContratoModelo[]
   documentosEmitidos   DocumentoPaciente[]
+  /// Assinatura vigente (ver docs/documentos.md). Versões antigas continuam em AssinaturaProfissional.
+  assinaturaAtualId    String?                      @unique
+  assinaturaAtual      AssinaturaProfissional?      @relation("AssinaturaAtual", fields: [assinaturaAtualId], references: [id], onDelete: SetNull)
+  assinaturas          AssinaturaProfissional[]     @relation("AssinaturasDoUsuario")
   createdAt            DateTime                     @default(now())
   updatedAt            DateTime                     @updatedAt
 }
@@ -272,18 +276,35 @@ model PacienteAnexo {
 /// solicitação de exames…). `tipo` é o slug do catálogo (`src/lib/documentos-catalogo.ts`)
 /// e `valores` os campos preenchidos; o PDF é gerado sob demanda. Ver `docs/documentos.md`.
 model DocumentoPaciente {
-  id         String   @id @default(cuid())
-  pacienteId String
-  paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
-  tipo       String
-  valores    Json
-  autorId    String?
-  autor      User?    @relation(fields: [autorId], references: [id], onDelete: SetNull)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id           String                  @id @default(cuid())
+  pacienteId   String
+  paciente     Paciente                @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  tipo         String
+  valores      Json
+  autorId      String?
+  autor        User?                   @relation(fields: [autorId], references: [id], onDelete: SetNull)
+  /// Assinatura do autor congelada na emissão; editar o documento não muda.
+  assinaturaId String?
+  assinatura   AssinaturaProfissional? @relation(fields: [assinaturaId], references: [id], onDelete: SetNull)
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
 
   @@index([pacienteId, createdAt])
   @@index([createdAt])
+}
+
+/// Versões da assinatura do profissional (PNG transparente ≤ 900×300). Só acréscimo:
+/// nenhuma versão é apagada, nem ao excluir o usuário (documentos emitidos apontam para ela).
+model AssinaturaProfissional {
+  id           String              @id @default(cuid())
+  userId       String?
+  user         User?               @relation("AssinaturasDoUsuario", fields: [userId], references: [id], onDelete: SetNull)
+  png          Bytes
+  createdAt    DateTime            @default(now())
+  documentos   DocumentoPaciente[]
+  usuarioAtual User?               @relation("AssinaturaAtual")
+
+  @@index([userId])
 }
 
 enum OrigemAnexo {
@@ -966,12 +987,12 @@ model EventoUso {
 /// Agregado diário de `EventoUso` (dia em Brasília, data pura). Sobrevive à purga de 90 dias.
 /// Incrementado por SQL atômico (`ON CONFLICT DO UPDATE`), ver src/lib/metricas.ts.
 model UsoDiario {
-  id    String  @id @default(cuid())
+  id    String   @id @default(cuid())
   dia   DateTime @db.Date
   area  AreaUso
   tipo  TipoUso
   chave String
-  total Int     @default(0)
+  total Int      @default(0)
 
   @@unique([dia, area, tipo, chave])
 }

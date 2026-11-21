@@ -21,6 +21,7 @@ export const MODULO_LABEL: Record<string, string> = {
   Paciente: "Paciente",
   PacienteAnexo: "Anexo do paciente",
   DocumentoPaciente: "Documento do paciente",
+  AssinaturaProfissional: "Assinatura do profissional",
   PreCadastro: "Pré-cadastro",
   PreCadastroArquivo: "Arquivo de pré-cadastro",
   Categoria: "Categoria",
@@ -100,7 +101,8 @@ export function sanitizarValorAuditoria(valor: unknown, profundidade = 0): unkno
   if (typeof valor === "object" && "toNumber" in valor && typeof valor.toNumber === "function") {
     return (valor as { toNumber: () => number }).toNumber();
   }
-  if (Buffer.isBuffer?.(valor as Buffer)) return "[binário]";
+  // Buffer e Uint8Array (o Prisma 7 devolve `Bytes` como Uint8Array): nunca serializar byte a byte.
+  if (ArrayBuffer.isView(valor) || valor instanceof ArrayBuffer) return "[binário]";
 
   if (Array.isArray(valor)) {
     return valor

@@ -17,6 +17,17 @@ Aba **Documentos** do paciente (`/pacientes/[id]?tab=documentos`): encaminhament
 - `prefill`: nome, nascimento, CPF (como "CPF …") do paciente e a data de hoje.
 - `lembrar`: dados do profissional (local de emissão, endereço, contato, CEP…) vêm do documento mais recente de **qualquer** paciente/tipo que tenha o mesmo `lembrar`.
 
+## Assinatura do profissional
+
+- Cada usuário cadastra a **própria** assinatura no card "Minha assinatura" em `/usuarios/[id]` (só aparece na tela de quem está logado). Dá para desenhar (`AssinaturaPad`) ou enviar uma foto. A foto é tratada no navegador: o fundo claro vira transparente, as bordas são recortadas e o resultado é reduzido para no máximo 900×300 (`src/lib/assinatura-imagem.ts`). As actions (`src/actions/assinatura-profissional.ts`) não recebem id, então sempre agem sobre a sessão. O server confere o PNG, o tamanho (≤ 300 KB) e as dimensões.
+- Quem assina é sempre o **autor** do documento, e todo documento dele sai assinado (não há opção por documento).
+- **Congelada na emissão**: `criarDocumento` grava `DocumentoPaciente.assinaturaId` com a versão atual do autor, e o PDF usa essa versão (nunca a atual). Editar o documento, trocar ou remover a assinatura e excluir o usuário não mudam documentos já emitidos.
+- `AssinaturaProfissional` só recebe acréscimos: trocar cria uma versão, e remover só zera `User.assinaturaAtualId`. Excluir o usuário deixa a versão sem dono (`SetNull`), sem apagar nada.
+- Posição: `TipoDocumento.assinaturas` no catálogo, com caixas em pontos PDF sobre a linha de assinatura do profissional (nunca a do paciente). As caixas foram medidas renderizando os modelos, e o teste do catálogo garante que nenhuma cobre um campo. Trocou um modelo → medir de novo e conferir renderizando.
+- **Encaminhamento multiprofissional e solicitação de exames não recebem a assinatura cadastrada**: esses modelos já trazem o carimbo e a assinatura do Ruan embutidos (`assinaturas: []`, sem `assinaturaId`).
+- Os modelos têm nome e registro do Ruan impressos. Outro profissional que emitir vai assinar sobre esse nome; isso é aceito porque hoje só ele emite.
+- Quem não tem assinatura vê um aviso com link na aba Documentos e em "Novo documento" (`AvisoSemAssinatura`).
+
 ## Portal do paciente
 
 - **Todo documento emitido aparece no portal** (`/compartilhado/paciente/[token]?tab=documentos`) — decisão da clínica, sem opção por documento. Excluir o documento tira do portal.

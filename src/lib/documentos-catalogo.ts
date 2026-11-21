@@ -67,8 +67,40 @@ export type TipoDocumento = {
   paginas: number[];
   /** Campo cujo valor aparece como subtítulo na listagem (ex.: destino do encaminhamento). */
   resumo?: string;
+  /**
+   * Onde entra a assinatura cadastrada do autor (vazio = o tipo nunca recebe assinatura,
+   * ex.: modelos que já trazem carimbo + assinatura embutidos).
+   */
+  assinaturas: CaixaAssinatura[];
   secoes: SecaoDocumento[];
 };
+
+/**
+ * Retângulo, em pontos PDF com origem no canto inferior esquerdo, onde a imagem da
+ * assinatura é desenhada. `pagina` é o índice no arquivo modelo (antes de remover páginas).
+ */
+export type CaixaAssinatura = { pagina: number; x: number; y: number; largura: number; altura: number };
+
+/** Altura da página A4 dos modelos, em pontos. */
+const ALTURA_A4 = 841.89;
+const LARGURA_CAIXA = 220;
+
+/**
+ * Caixa assentada sobre a linha de assinatura do modelo. `linha` é a distância da linha ao
+ * topo da página (medida renderizando o PDF); `centro`, o centro horizontal da linha;
+ * `altura`, o espaço livre acima dela até o campo anterior. A base fica 3pt abaixo da
+ * linha, como uma assinatura feita à mão que encosta no traço.
+ */
+const sobreLinha = (pagina: number, centro: number, linha: number, altura: number): CaixaAssinatura => ({
+  pagina,
+  x: centro - LARGURA_CAIXA / 2,
+  y: ALTURA_A4 - (linha + 3),
+  largura: LARGURA_CAIXA,
+  altura,
+});
+/** Linha centralizada (x 154–441) e linha da coluna direita (x 312–557). */
+const CENTRO = 297.5;
+const COLUNA_DIREITA = 434.5;
 
 // ---- construtores curtos ----
 const t = (nome: string, label: string, max: number, extra: Partial<CampoDocumento> = {}): CampoDocumento => ({
@@ -100,6 +132,7 @@ export const TIPOS_DOCUMENTO: TipoDocumento[] = [
     categoria: "Encaminhamentos e solicitações",
     arquivo: "encaminhamento-multiprofissional.pdf",
     paginas: [0],
+    assinaturas: [] /* modelo já tem carimbo + assinatura */,
     resumo: "destino_profissional",
     secoes: [
       {
@@ -156,6 +189,7 @@ export const TIPOS_DOCUMENTO: TipoDocumento[] = [
     categoria: "Encaminhamentos e solicitações",
     arquivo: "solicitacao-exames.pdf",
     paginas: [0],
+    assinaturas: [] /* modelo já tem carimbo + assinatura */,
     resumo: "exame_1",
     secoes: [
       {
@@ -205,6 +239,7 @@ export const TIPOS_DOCUMENTO: TipoDocumento[] = [
     categoria: "Encaminhamentos e solicitações",
     arquivo: "solicitacao-prorrogacao.pdf",
     paginas: [0],
+    assinaturas: [sobreLinha(0, CENTRO, 776, 26)],
     resumo: "pror_destinatario",
     secoes: [
       {
@@ -263,6 +298,7 @@ export const TIPOS_DOCUMENTO: TipoDocumento[] = [
     categoria: "Atestados e declarações",
     arquivo: "atestado-fisioterapeutico.pdf",
     paginas: [0],
+    assinaturas: [sobreLinha(0, CENTRO, 738, 44)],
     resumo: "finalidade_destinatario",
     secoes: [
       {
@@ -317,6 +353,7 @@ export const TIPOS_DOCUMENTO: TipoDocumento[] = [
     categoria: "Atestados e declarações",
     arquivo: "declaracao-comparecimento.pdf",
     paginas: [0],
+    assinaturas: [sobreLinha(0, CENTRO, 660, 44)],
     secoes: [
       {
         titulo: "Identificação do paciente",
@@ -360,6 +397,7 @@ export const TIPOS_DOCUMENTO: TipoDocumento[] = [
     categoria: "Relatórios e alta",
     arquivo: "relatorio-parecer.pdf",
     paginas: [0],
+    assinaturas: [sobreLinha(0, CENTRO, 768, 42)],
     resumo: "rel_finalidade",
     secoes: [
       {
@@ -403,6 +441,7 @@ export const TIPOS_DOCUMENTO: TipoDocumento[] = [
     categoria: "Relatórios e alta",
     arquivo: "relatorio-parecer.pdf",
     paginas: [1],
+    assinaturas: [sobreLinha(1, CENTRO, 778, 35)],
     resumo: "par_objeto",
     secoes: [
       {
@@ -449,6 +488,7 @@ export const TIPOS_DOCUMENTO: TipoDocumento[] = [
     categoria: "Relatórios e alta",
     arquivo: "alta-fisioterapeutica.pdf",
     paginas: [0],
+    assinaturas: [sobreLinha(0, CENTRO, 774, 30)],
     resumo: "alta_destinatario",
     secoes: [
       {
@@ -499,6 +539,7 @@ export const TIPOS_DOCUMENTO: TipoDocumento[] = [
     categoria: "Termos e registros",
     arquivo: "tcle.pdf",
     paginas: [0, 1],
+    assinaturas: [sobreLinha(1, COLUNA_DIREITA, 751, 34)],
     secoes: [
       {
         titulo: "Identificação",
@@ -557,6 +598,7 @@ export const TIPOS_DOCUMENTO: TipoDocumento[] = [
     categoria: "Termos e registros",
     arquivo: "autorizacao-imagem.pdf",
     paginas: [0],
+    assinaturas: [sobreLinha(0, COLUNA_DIREITA, 786, 28)],
     secoes: [
       {
         titulo: "Clínica",
@@ -611,6 +653,7 @@ export const TIPOS_DOCUMENTO: TipoDocumento[] = [
     categoria: "Termos e registros",
     arquivo: "registro-recusa.pdf",
     paginas: [0],
+    assinaturas: [sobreLinha(0, COLUNA_DIREITA, 760, 33)],
     secoes: [
       {
         titulo: "Identificação",

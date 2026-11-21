@@ -37,8 +37,19 @@ export async function criarDocumento(
   const r = validarValoresDocumento(tipo, lerValoresDoFormData(tipo, formData));
   if (!r.ok) return { error: r.erro };
 
+  // Congela a assinatura atual do autor (tipos sem caixa — modelo já assinado — não guardam).
+  const assinaturaId =
+    tipo.assinaturas.length > 0
+      ? ((
+          await prisma.user.findUnique({
+            where: { id: usuario.id },
+            select: { assinaturaAtualId: true },
+          })
+        )?.assinaturaAtualId ?? null)
+      : null;
+
   const doc = await prisma.documentoPaciente.create({
-    data: { pacienteId, tipo: tipo.slug, valores: r.valores, autorId: usuario.id },
+    data: { pacienteId, tipo: tipo.slug, valores: r.valores, autorId: usuario.id, assinaturaId },
     select: { id: true },
   });
   revalidatePath(`/pacientes/${pacienteId}`);

@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { PDFDocument, StandardFonts } from "pdf-lib";
+import { PDFDict, PDFDocument, PDFName, PDFStream, StandardFonts, type PDFPage } from "pdf-lib";
 import { TIPOS_DOCUMENTO, tipoDocumento } from "@/lib/documentos-catalogo";
-import { preencherDocumento, tamanhoQueCabe } from "@/lib/documentos-pdf";
+import { encaixarImagem, preencherDocumento, tamanhoQueCabe } from "@/lib/documentos-pdf";
+import { pngDeTeste } from "@/lib/png-teste";
 
 describe("tamanhoQueCabe", () => {
   it("usa 10pt quando cabe e reduz quando o texto é longo, até 6pt", async () => {
@@ -55,4 +56,75 @@ describe("preencherDocumento", () => {
     const pdf = await PDFDocument.load(await preencherDocumento(tipo, valores));
     expect(pdf.getPageCount()).toBe(tipo.paginas.length);
   });
+});
+
+/** Imagens (XObject /Image) desenhadas direto na página. */
+function imagensDaPagina(pagina: PDFPage) {
+  const xobjs = pagina.node.Resources()?.lookupMaybe(PDFName.of("XObject"), PDFDict);
+  if (!xobjs) return 0;
+  return xobjs.keys().filter((k) => {
+    const obj = xobjs.lookup(k);
+    return obj instanceof PDFStream && obj.dict.get(PDFName.of("Subtype")) === PDFName.of("Image");
+  }).length;
+}
+
+async function contarImagens(bytes: Uint8Array) {
+  const pdf = await PDFDocument.load(bytes);
+  return pdf.getPages().map(imagensDaPagina);
+}
+
+describe("encaixarImagem", () => {
+  const caixa = { x: 100, y: 50, largura: 220, altura: 40 };
+
+  it("limita pela altura, mantém a proporção e centraliza na horizontal", () => {
+    expect(encaixarImagem({ largura: 900, altura: 300 }, caixa)).toEqual({
+      x: 100 + (220 - 120) / 2,
+      y: 50,
+      largura: 120,
+      altura: 40,
+    });
+  });
+
+  it("limita pela largura quando a assinatura é comprida, apoiada na base", () => {
+    const r = encaixarImagem({ largura: 900, altura: 100 }, caixa);
+    expect(r.largura).toBe(220);
+    expect(r.altura).toBeCloseTo(220 / 9);
+    expect(r.x).toBe(100);
+    expect(r.y).toBe(50);
+  });
+});
+
+describe("preencherDocumento com assinatura", () => {
+  const png = new Uint8Array(pngDeTeste(900, 300));
+
+  it.each(TIPOS_DOCUMENTO.filter((t) => t.assinaturas.length > 0).map((t) => t.slug))(
+    "%s: a assinatura entra só na página da caixa",
+    async (slug) => {
+      const tipo = tipoDocumento(slug)!;
+      const sem = await contarImagens(await preencherDocumento(tipo, {}));
+      const com = await contarImagens(await preencherDocumento(tipo, {}, png));
+      // índice da página da caixa no PDF final (as páginas fora do tipo saem)
+      const esperado = sem.map((n, i) =>
+        n + tipo.assinaturas.filter((c) => tipo.paginas.indexOf(c.pagina) === i).length,
+      );
+      expect(com).toEqual(esperado);
+    },
+  );
+
+  it("sem PNG o PDF não ganha imagem", async () => {
+    const tipo = tipoDocumento("atestado-fisioterapeutico")!;
+    const a = await contarImagens(await preencherDocumento(tipo, {}));
+    const b = await contarImagens(await preencherDocumento(tipo, {}, null));
+    expect(b).toEqual(a);
+  });
+
+  it.each(["encaminhamento-multiprofissional", "solicitacao-exames"])(
+    "%s nunca recebe a assinatura cadastrada (modelo já assinado)",
+    async (slug) => {
+      const tipo = tipoDocumento(slug)!;
+      const sem = await contarImagens(await preencherDocumento(tipo, {}));
+      const com = await contarImagens(await preencherDocumento(tipo, {}, png));
+      expect(com).toEqual(sem);
+    },
+  );
 });

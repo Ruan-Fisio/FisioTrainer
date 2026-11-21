@@ -47,4 +47,37 @@ describe("catálogo de documentos × modelos PDF", () => {
       expect(tipo.paginas, `${campo.nome} na página ${pagina}`).toContain(pagina);
     }
   });
+
+  it("só encaminhamento e solicitação de exames ficam sem caixa de assinatura (modelo já assinado)", () => {
+    const semCaixa = TIPOS_DOCUMENTO.filter((t) => t.assinaturas.length === 0).map((t) => t.slug);
+    expect(semCaixa.sort()).toEqual(["encaminhamento-multiprofissional", "solicitacao-exames"]);
+  });
+
+  it.each(TIPOS_DOCUMENTO.filter((t) => t.assinaturas.length > 0).map((t) => [t.slug, t] as const))(
+    "%s: caixa de assinatura numa página mantida, dentro da página e sem cobrir campos",
+    async (_slug, tipo) => {
+      const pdf = await PDFDocument.load(readFileSync(path.join(PASTA, tipo.arquivo)));
+      const paginas = pdf.getPages();
+      const widgets = pdf
+        .getForm()
+        .getFields()
+        .flatMap((f) => f.acroField.getWidgets().map((w) => ({ nome: f.getName(), w })));
+      for (const c of tipo.assinaturas) {
+        expect(tipo.paginas).toContain(c.pagina);
+        const { width, height } = paginas[c.pagina].getSize();
+        expect(c.x).toBeGreaterThanOrEqual(0);
+        expect(c.y).toBeGreaterThanOrEqual(0);
+        expect(c.x + c.largura).toBeLessThanOrEqual(width);
+        expect(c.y + c.altura).toBeLessThanOrEqual(height);
+        expect(c.altura).toBeGreaterThanOrEqual(24);
+        for (const { nome, w } of widgets) {
+          if (w.P() !== paginas[c.pagina].ref) continue;
+          const r = w.getRectangle();
+          const sobrepoe =
+            c.x < r.x + r.width && r.x < c.x + c.largura && c.y < r.y + r.height && r.y < c.y + c.altura;
+          expect(sobrepoe, `caixa cobre o campo ${nome}`).toBe(false);
+        }
+      }
+    },
+  );
 });

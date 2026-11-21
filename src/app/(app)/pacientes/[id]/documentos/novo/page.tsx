@@ -13,6 +13,7 @@ import {
 import { valoresParaNovoDocumento } from "@/lib/documentos-paciente";
 import { criarDocumento } from "@/actions/documentos-paciente";
 import { DocumentoForm } from "@/components/documentos/documento-form";
+import { AvisoSemAssinatura } from "@/components/documentos/aviso-sem-assinatura";
 
 export default async function NovoDocumentoPage({
   params,
@@ -42,6 +43,7 @@ export default async function NovoDocumentoPage({
             Escolha o modelo para {paciente.nome}. Os dados do paciente já vêm preenchidos.
           </p>
         </div>
+        <AvisoSemAssinatura />
         {CATEGORIAS_DOCUMENTO.map((categoria) => (
           <section key={categoria} className="flex flex-col gap-3">
             <h2 className="text-sm font-semibold text-muted-foreground">{categoria}</h2>
@@ -80,6 +82,7 @@ export default async function NovoDocumentoPage({
           </Link>
         </p>
       </div>
+      {tipo.assinaturas.length > 0 && <AvisoSemAssinatura />}
       <DocumentoForm
         tipoSlug={tipo.slug}
         pacienteId={id}
