@@ -9,11 +9,23 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { storageDevAtivo, urlStorageDev } from "@/lib/storage-dev";
+import {
+  devCopy,
+  devDelete,
+  devDeletePrefix,
+  devGetBytes,
+  devHead,
+  devPut,
+} from "@/lib/storage-dev-db";
 
 /**
  * Cliente fino do Cloudflare R2 (API S3-compatível). Regras de chave/validação
  * ficam em `storage-keys.ts` (puro e testado).
  * Env: R2_ACCOUNT_ID, ACCESS_KEY_ID, SECRET_ACCESS_ID, R2_BUCKET (default "fisiotrainer").
+ *
+ * Fora de produção e sem R2 configurado (ou com STORAGE_DEV=db), tudo vai para a
+ * tabela `ArquivoDev` em base64, servida por `/api/dev-storage` (ver `storage-dev.ts`).
  */
 
 let client: S3Client | null = null;
@@ -53,6 +65,17 @@ export function presignPut(
   mime: string,
   opts: { tamanho?: number; expiraEm?: number } = {},
 ) {
+  if (storageDevAtivo()) {
+    return Promise.resolve(
+      urlStorageDev({
+        op: "put",
+        chave,
+        mime,
+        tamanho: opts.tamanho,
+        exp: Date.now() + (opts.expiraEm ?? 300) * 1000,
+      }),
+    );
+  }
   return getSignedUrl(
     r2(),
     new PutObjectCommand({
@@ -74,6 +97,11 @@ export function presignGet(
   opts: { nome?: string; inline?: boolean; expiraEm?: number } = {},
 ) {
   const { nome, inline = false, expiraEm = 900 } = opts;
+  if (storageDevAtivo()) {
+    return Promise.resolve(
+      urlStorageDev({ op: "get", chave, inline, nome, exp: Date.now() + expiraEm * 1000 }),
+    );
+  }
   return getSignedUrl(
     r2(),
     new GetObjectCommand({
@@ -89,6 +117,7 @@ export function presignGet(
 
 /** Grava bytes gerados no servidor (ex. PDF de contrato assinado). */
 export async function putObject(chave: string, corpo: Uint8Array, mime: string) {
+  if (storageDevAtivo()) return devPut(chave, corpo, mime);
   await r2().send(
     new PutObjectCommand({
       Bucket: r2Bucket(),
@@ -100,6 +129,7 @@ export async function putObject(chave: string, corpo: Uint8Array, mime: string) 
 }
 
 export async function getObjectBytes(chave: string) {
+  if (storageDevAtivo()) return devGetBytes(chave);
   const res = await r2().send(
     new GetObjectCommand({ Bucket: r2Bucket(), Key: chave }),
   );
@@ -109,6 +139,7 @@ export async function getObjectBytes(chave: string) {
 
 /** Metadados reais do objeto (não confia no que o navegador declarou). */
 export async function headObject(chave: string) {
+  if (storageDevAtivo()) return devHead(chave);
   const res = await r2().send(
     new HeadObjectCommand({ Bucket: r2Bucket(), Key: chave }),
   );
@@ -116,6 +147,7 @@ export async function headObject(chave: string) {
 }
 
 export async function copyObject(origem: string, destino: string) {
+  if (storageDevAtivo()) return devCopy(origem, destino);
   await r2().send(
     new CopyObjectCommand({
       Bucket: r2Bucket(),
@@ -129,12 +161,14 @@ export async function copyObject(origem: string, destino: string) {
 }
 
 export async function deleteObject(chave: string) {
+  if (storageDevAtivo()) return devDelete([chave]);
   await r2().send(
     new DeleteObjectCommand({ Bucket: r2Bucket(), Key: chave }),
   );
 }
 
 export async function deleteObjects(chaves: string[]) {
+  if (storageDevAtivo()) return devDelete(chaves);
   for (let i = 0; i < chaves.length; i += 1000) {
     await r2().send(
       new DeleteObjectsCommand({
@@ -148,6 +182,7 @@ export async function deleteObjects(chaves: string[]) {
 }
 
 export async function deletePrefix(prefixo: string) {
+  if (storageDevAtivo()) return devDeletePrefix(prefixo);
   let token: string | undefined;
   do {
     const res = await r2().send(

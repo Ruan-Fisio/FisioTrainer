@@ -130,6 +130,8 @@ function criarPrisma() {
             // Métricas de uso (/metrics): uma escrita por page view, não é dado de negócio.
             model === "EventoUso" ||
             model === "UsoDiario" ||
+            // Armazenamento de arquivos de dev (base64): não é dado de negócio.
+            model === "ArquivoDev" ||
             !WRITE_OPS.has(operation)
           ) {
             return query(args);

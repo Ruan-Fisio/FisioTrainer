@@ -47,3 +47,10 @@ Após definir as envs de R2, rode uma vez por ambiente: `npx tsx scripts/r2-setu
 ## Rodar o build de produção localmente (Docker)
 
 `docker compose up -d --build` sobe o Postgres local e o app (`Dockerfile`: `next build` + `next start`) em http://localhost:3000. O container `app` sempre usa o Postgres do compose — o `DATABASE_URL` do `.env` é sobrescrito, então nunca toca o Neon. Os outros segredos (AUTH_SECRET, R2) vêm do `.env`; uploads vão para o bucket R2 real. Rebuild após mudar código: `docker compose up -d --build app`.
+
+## Armazenamento de arquivos em dev (sem R2)
+
+- Fora de produção, se o R2 não estiver configurado (`R2_ACCOUNT_ID`/`ACCESS_KEY_ID`/`SECRET_ACCESS_ID` vazios), **todos** os arquivos (imagens de exame, anexos, pré-cadastro, PDFs de contrato) vão para a tabela `ArquivoDev` em base64. `STORAGE_DEV=db` força esse modo mesmo com R2 configurado; `STORAGE_DEV=r2` força o R2. Com `NODE_ENV=production` nunca ativa.
+- A troca é transparente em `src/lib/r2.ts`: `presignPut`/`presignGet` devolvem URLs relativas para `/api/dev-storage`, assinadas com HMAC (`AUTH_SECRET`, expiração, tamanho) — lógica pura em `src/lib/storage-dev.ts` (com teste); acesso ao banco em `src/lib/storage-dev-db.ts`. A rota responde 404 quando o modo não está ativo.
+- `ArquivoDev` não é auditado (base64 incharia `/logs`). Arquivos que já estavam no R2 não aparecem nesse modo (a chave não existe na tabela) — envie de novo para testar.
+- `CONTRATOS_STORAGE_DIR` (E2E) continua tendo prioridade para os PDFs de contrato.

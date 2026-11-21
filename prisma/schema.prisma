@@ -996,3 +996,14 @@ model UsoDiario {
 
   @@unique([dia, area, tipo, chave])
 }
+
+/// Armazenamento de arquivos só para desenvolvimento (substitui o R2 quando ele não
+/// está configurado fora de produção). Bytes em base64. Ver `src/lib/storage-dev.ts`.
+model ArquivoDev {
+  chave        String   @id
+  mime         String
+  tamanho      Int
+  conteudo     String
+  criadoEm     DateTime @default(now())
+  atualizadoEm DateTime @updatedAt
+}
