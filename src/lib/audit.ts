@@ -37,6 +37,7 @@ export const MODULO_LABEL: Record<string, string> = {
   ExameExecucao: "Execução de exame",
   ExameExecucaoValor: "Valor de execução de exame",
   ExameExecucaoImagem: "Imagem de exame",
+  AnaliseImagemIa: "Análise de imagem por IA",
   Evolucao: "Evolução",
   Cobranca: "Cobrança",
   Plano: "Plano",

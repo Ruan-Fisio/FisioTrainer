@@ -36,6 +36,7 @@ model User {
   assinaturaAtualId    String?                      @unique
   assinaturaAtual      AssinaturaProfissional?      @relation("AssinaturaAtual", fields: [assinaturaAtualId], references: [id], onDelete: SetNull)
   assinaturas          AssinaturaProfissional[]     @relation("AssinaturasDoUsuario")
+  analisesImagemIa     AnaliseImagemIa[]
   createdAt            DateTime                     @default(now())
   updatedAt            DateTime                     @updatedAt
 }
@@ -862,20 +863,40 @@ model ExameExecucaoValor {
 /// Imagem anexada a um campo (exercício) de uma execução, guardada no R2.
 /// Referencia (campoId, linha) e não ExameExecucaoValor, que é recriado a cada edição.
 model ExameExecucaoImagem {
-  id           String        @id @default(cuid())
+  id           String            @id @default(cuid())
   execucaoId   String
-  execucao     ExameExecucao @relation(fields: [execucaoId], references: [id], onDelete: Cascade)
+  execucao     ExameExecucao     @relation(fields: [execucaoId], references: [id], onDelete: Cascade)
   colunaId     String
-  linha        Int           @default(0)
-  chave        String        @unique
+  linha        Int               @default(0)
+  chave        String            @unique
   nomeOriginal String
   mime         String
   tamanho      Int
   /// Desenhos sobre a imagem (linhas, medidas, ângulos…); ver `src/lib/anotacoes-imagem.ts`.
   anotacoes    Json?
-  createdAt    DateTime      @default(now())
+  analisesIa   AnaliseImagemIa[]
+  createdAt    DateTime          @default(now())
 
   @@index([execucaoId, colunaId, linha])
+}
+
+/// Uma chamada da análise postural por IA (limite diário e custo). Nunca guarda a
+/// imagem nem a resposta crua — ver specs/003-analise-postural-ia.md.
+model AnaliseImagemIa {
+  id            String               @id @default(cuid())
+  imagemId      String?
+  imagem        ExameExecucaoImagem? @relation(fields: [imagemId], references: [id], onDelete: SetNull)
+  userId        String?
+  user          User?                @relation(fields: [userId], references: [id], onDelete: SetNull)
+  modelo        String
+  /// Vista detectada; null quando a chamada falhou.
+  vista         String?
+  sucesso       Boolean
+  tokensEntrada Int?
+  tokensSaida   Int?
+  createdAt     DateTime             @default(now())
+
+  @@index([userId, createdAt])
 }
 
 enum DiaSemana {

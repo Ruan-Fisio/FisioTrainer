@@ -60,6 +60,10 @@ export default defineConfig({
       NEXT_PUBLIC_APP_URL: baseURL,
       // PDFs de contrato assinado vão para uma pasta local, nunca para o bucket real.
       CONTRATOS_STORAGE_DIR: "test-results/contratos",
+      // Arquivos em base64 no banco de teste, nunca no bucket real.
+      STORAGE_DEV: "db",
+      // Análise postural por IA com resposta fixa, sem chamar o Gemini.
+      ANALISE_IA_FAKE: "1",
     },
   },
 });

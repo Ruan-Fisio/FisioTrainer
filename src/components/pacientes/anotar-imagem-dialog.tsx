@@ -6,6 +6,7 @@ import {
   ArrowUpRight,
   Circle,
   Eraser,
+  Loader2,
   Maximize2,
   Minus,
   Move,
@@ -13,7 +14,9 @@ import {
   Redo2,
   Ruler,
   Scale,
+  Sparkles,
   Trash2,
+  X,
   Triangle,
   Type,
   Undo2,
@@ -27,10 +30,18 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FormaHit, FormaSvg } from "@/components/pacientes/anotacoes-camada";
 import { salvarAnotacoesImagem, type ImagemSerie } from "@/actions/exame-imagens";
+import { analisarPosturaImagem } from "@/actions/analise-postural";
+import {
+  VISTA_LABEL,
+  respostaParaFormas,
+  substituirFormasIa,
+  type VistaPostural,
+} from "@/lib/analise-postural";
 import {
   CORES_ANOTACAO,
   alinharReto,
@@ -103,6 +114,11 @@ const MODOS_RETA: { id: ModoReta; label: string; titulo: string }[] = [
 const LUPA_ZOOM = 2.5;
 const LUPA_TAM = 128;
 
+/** "Não mostrar de novo nesta sessão" do aviso de envio à IA (só em memória). */
+let consentimentoIaNaSessao = false;
+
+type AvisoIa = { vista: VistaPostural; ausentes: string[] };
+
 let contador = 0;
 const novoId = () => `f${Date.now().toString(36)}${(contador++).toString(36)}`;
 
@@ -137,11 +153,14 @@ export function AnotarImagemDialog({
   open,
   onOpenChange,
   onSalvo,
+  iaDisponivel = false,
 }: {
   imagem: ImagemSerie;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSalvo: (anotacoes: Anotacoes | null) => void;
+  /** Mostra "Analisar com IA" (chave do Gemini configurada no servidor). */
+  iaDisponivel?: boolean;
 }) {
   const [anot, setAnot] = useState<Anotacoes | null>(imagem.anotacoes);
   const [passado, setPassado] = useState<Anotacoes[]>([]);
@@ -160,6 +179,15 @@ export function AnotarImagemDialog({
   const [sujo, setSujo] = useState(false);
   const [confirmarSaida, setConfirmarSaida] = useState(false);
   const [salvando, iniciarSalvar] = useTransition();
+  const [analisando, setAnalisando] = useState(false);
+  const [confirmarIa, setConfirmarIa] = useState(false);
+  const [lembrarConsentimento, setLembrarConsentimento] = useState(false);
+  const [avisoIa, setAvisoIa] = useState<AvisoIa | null>(null);
+  /** Estado mais recente, lido quando a resposta da IA chega (o closure pode estar velho). */
+  const anotRef = useRef(anot);
+  useEffect(() => {
+    anotRef.current = anot;
+  }, [anot]);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const gesto = useRef<Gesto | null>(null);
@@ -587,6 +615,43 @@ export function AnotarImagemDialog({
     });
   }
 
+  // ---------- análise por IA ----------
+
+  function pedirAnaliseIa() {
+    if (consentimentoIaNaSessao) analisarComIa();
+    else setConfirmarIa(true);
+  }
+
+  async function analisarComIa() {
+    if (lembrarConsentimento) consentimentoIaNaSessao = true;
+    setConfirmarIa(false);
+    setAvisoIa(null);
+    const corUsada = cor;
+    setAnalisando(true);
+    try {
+      const r = await analisarPosturaImagem(imagem.id);
+      if ("error" in r) {
+        toast.error(r.error);
+        return;
+      }
+      const atual = anotRef.current;
+      if (!atual) return;
+      const { formas, ausentes } = respostaParaFormas(r.resultado, { ...atual, cor: corUsada });
+      setAvisoIa({ vista: r.resultado.vista, ausentes });
+      if (formas.length === 0) return;
+      // Um único passo de histórico: Desfazer remove a análise inteira.
+      empilhar(atual);
+      setAnot({ ...atual, formas: substituirFormasIa(atual.formas, formas) });
+      setSujo(true);
+      setSelecionada(null);
+      trocarFerramenta("mover");
+    } catch {
+      toast.error("Não foi possível analisar a imagem agora. Tente novamente.");
+    } finally {
+      setAnalisando(false);
+    }
+  }
+
   function tentarFechar() {
     if (sujo) setConfirmarSaida(true);
     else onOpenChange(false);
@@ -639,8 +704,9 @@ export function AnotarImagemDialog({
         onInteractOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => {
           // Esc desfaz o passo em andamento antes de pensar em fechar.
-          if (pendenteCalib || selecionada || confirmarSaida) {
+          if (pendenteCalib || selecionada || confirmarSaida || confirmarIa) {
             e.preventDefault();
+            setConfirmarIa(false);
             setPendenteCalib(null);
             setSelecionada(null);
             setConfirmarSaida(false);
@@ -887,6 +953,33 @@ export function AnotarImagemDialog({
                 Descartar
               </Button>
             </div>
+          ) : confirmarIa ? (
+            <div className="flex flex-col gap-2 rounded-lg bg-primary/5 p-2 ring-1 ring-primary/20">
+              <p className="text-sm">
+                A foto será enviada ao <strong>Google Gemini</strong> para análise. Use apenas com
+                consentimento do paciente. As marcações geradas são estimativas para você revisar.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="anot-ia-lembrar"
+                    checked={lembrarConsentimento}
+                    onCheckedChange={(v) => setLembrarConsentimento(v === true)}
+                  />
+                  <Label htmlFor="anot-ia-lembrar" className="text-xs font-normal">
+                    Não mostrar de novo nesta sessão
+                  </Label>
+                </div>
+                <div className="ml-auto flex gap-2">
+                  <Button type="button" size="sm" variant="outline" onClick={() => setConfirmarIa(false)}>
+                    Cancelar
+                  </Button>
+                  <Button type="button" size="sm" onClick={analisarComIa}>
+                    Enviar para análise
+                  </Button>
+                </div>
+              </div>
+            </div>
           ) : pendenteCalib ? (
             <div className="flex flex-wrap items-end gap-2 rounded-lg bg-muted/60 p-2">
               <div className="flex flex-col gap-1">
@@ -925,6 +1018,43 @@ export function AnotarImagemDialog({
                 onBlur={() => finalizarTexto(formaSel.id)}
                 onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
               />
+            </div>
+          ) : avisoIa ? (
+            <div
+              role="status"
+              className="flex items-start gap-2 rounded-lg bg-primary/5 p-2 text-sm ring-1 ring-primary/20"
+            >
+              <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />
+              <div className="min-w-0 flex-1">
+                {avisoIa.vista === "nao_postural" ? (
+                  <p>
+                    A IA não identificou uma foto de avaliação postural (vista frontal, posterior
+                    ou lateral).
+                  </p>
+                ) : (
+                  <>
+                    <p>
+                      <strong>{VISTA_LABEL[avisoIa.vista]} detectada</strong> — revise as
+                      marcações geradas por IA antes de salvar.
+                    </p>
+                    {avisoIa.ausentes.length > 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        Não foi possível marcar: {avisoIa.ausentes.join(", ")}.
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+              <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="size-7"
+                aria-label="Fechar aviso da IA"
+                onClick={() => setAvisoIa(null)}
+              >
+                <X />
+              </Button>
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-2">
@@ -1011,6 +1141,24 @@ export function AnotarImagemDialog({
             </div>
 
             <div className="ml-auto flex gap-1">
+              {iaDisponivel && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  aria-label="Analisar com IA"
+                  title="Detecta a vista da foto e desenha ombros, pelve, tronco e coluna"
+                  onClick={pedirAnaliseIa}
+                  disabled={!anot || analisando || confirmarIa}
+                  className="h-9"
+                >
+                  {analisando ? <Loader2 className="animate-spin" /> : <Sparkles />}
+                  <span className="sm:hidden">{analisando ? "…" : "IA"}</span>
+                  <span className="hidden sm:inline">
+                    {analisando ? "Analisando…" : "Analisar com IA"}
+                  </span>
+                </Button>
+              )}
               <Button
                 type="button"
                 size="icon"

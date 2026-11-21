@@ -43,6 +43,7 @@ import { AgendamentoAssistidoDialog } from "@/components/pacientes/agendamento-a
 import { CompartilharAcessoDialog } from "@/components/pacientes/compartilhar-acesso-dialog";
 import { PacienteImagensTab } from "@/components/pacientes/paciente-imagens-tab";
 import { listarSeriesImagensPaciente } from "@/actions/exame-imagens";
+import { iaAnaliseDisponivel } from "@/lib/ia-config";
 import { listarAnexosPaciente } from "@/actions/paciente-anexos";
 import { PacienteTabs } from "@/components/pacientes/paciente-tabs";
 import { PacienteDocumentosTab } from "@/components/pacientes/paciente-documentos-tab";
@@ -66,7 +67,7 @@ async function AvaliacoesListLoader({ pacienteId }: { pacienteId: string }) {
 
 async function ImagensLoader({ pacienteId }: { pacienteId: string }) {
   const series = await listarSeriesImagensPaciente(pacienteId);
-  return <PacienteImagensTab series={series} />;
+  return <PacienteImagensTab series={series} iaDisponivel={iaAnaliseDisponivel()} />;
 }
 
 async function DocumentosLoader({ pacienteId }: { pacienteId: string }) {

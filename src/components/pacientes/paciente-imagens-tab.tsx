@@ -13,7 +13,13 @@ import { formatarData } from "@/lib/format";
 const TIPO_LABEL = { AVALIACAO: "Avaliação", RETORNO: "Retorno" } as const;
 
 /** Imagens do paciente agrupadas por exame realizado, com comparação por sobreposição. */
-export function PacienteImagensTab({ series }: { series: SerieImagens[] }) {
+export function PacienteImagensTab({
+  series,
+  iaDisponivel = false,
+}: {
+  series: SerieImagens[];
+  iaDisponivel?: boolean;
+}) {
   // Até 2 imagens selecionadas por série (a mais antiga sai ao marcar a terceira).
   const [selecionadas, setSelecionadas] = useState<Record<string, string[]>>({});
   const [comparando, setComparando] = useState<string | null>(null);
@@ -144,6 +150,7 @@ export function PacienteImagensTab({ series }: { series: SerieImagens[] }) {
               <AnotarImagemDialog
                 key={imagemAnotando.id}
                 imagem={imagemAnotando}
+                iaDisponivel={iaDisponivel}
                 open
                 onOpenChange={(aberto) => !aberto && setAnotando(null)}
                 onSalvo={(anot) =>
