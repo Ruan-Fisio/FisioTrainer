@@ -40,6 +40,7 @@ import {
   VISTA_LABEL,
   respostaParaFormas,
   substituirFormasIa,
+  type Achado,
   type VistaPostural,
 } from "@/lib/analise-postural";
 import {
@@ -117,7 +118,7 @@ const LUPA_TAM = 128;
 /** "Não mostrar de novo nesta sessão" do aviso de envio à IA (só em memória). */
 let consentimentoIaNaSessao = false;
 
-type AvisoIa = { vista: VistaPostural; ausentes: string[] };
+type AvisoIa = { vista: VistaPostural; ausentes: string[]; achados: Achado[] };
 
 let contador = 0;
 const novoId = () => `f${Date.now().toString(36)}${(contador++).toString(36)}`;
@@ -580,7 +581,9 @@ export function AnotarImagemDialog({
       a && {
         ...a,
         formas: a.formas.map((f) =>
-          f.id === id && f.tipo === "texto" ? { ...f, texto: texto.slice(0, 80) } : f,
+          f.id === id && (f.tipo === "texto" || f.tipo === "rotulo")
+            ? { ...f, texto: texto.slice(0, 80) }
+            : f,
         ),
       },
     );
@@ -592,7 +595,9 @@ export function AnotarImagemDialog({
     setAnot((a) =>
       a && {
         ...a,
-        formas: a.formas.filter((f) => !(f.id === id && f.tipo === "texto" && !f.texto.trim())),
+        formas: a.formas.filter(
+          (f) => !(f.id === id && (f.tipo === "texto" || f.tipo === "rotulo") && !f.texto.trim()),
+        ),
       },
     );
   }
@@ -601,7 +606,9 @@ export function AnotarImagemDialog({
     if (!anot) return;
     const limpo: Anotacoes = {
       ...anot,
-      formas: anot.formas.filter((f) => f.tipo !== "texto" || f.texto.trim()),
+      formas: anot.formas.filter(
+        (f) => (f.tipo !== "texto" && f.tipo !== "rotulo") || f.texto.trim(),
+      ),
     };
     iniciarSalvar(async () => {
       const r = await salvarAnotacoesImagem(imagem.id, limpo);
@@ -626,7 +633,6 @@ export function AnotarImagemDialog({
     if (lembrarConsentimento) consentimentoIaNaSessao = true;
     setConfirmarIa(false);
     setAvisoIa(null);
-    const corUsada = cor;
     setAnalisando(true);
     try {
       const r = await analisarPosturaImagem(imagem.id);
@@ -636,8 +642,8 @@ export function AnotarImagemDialog({
       }
       const atual = anotRef.current;
       if (!atual) return;
-      const { formas, ausentes } = respostaParaFormas(r.resultado, { ...atual, cor: corUsada });
-      setAvisoIa({ vista: r.resultado.vista, ausentes });
+      const { formas, ausentes, achados } = respostaParaFormas(r.resultado, atual);
+      setAvisoIa({ vista: r.resultado.vista, ausentes, achados });
       if (formas.length === 0) return;
       // Um único passo de histórico: Desfazer remove a análise inteira.
       empilhar(atual);
@@ -1001,7 +1007,7 @@ export function AnotarImagemDialog({
                 Aplicar
               </Button>
             </div>
-          ) : formaSel?.tipo === "texto" ? (
+          ) : formaSel?.tipo === "texto" || formaSel?.tipo === "rotulo" ? (
             <div className="flex flex-col gap-1">
               <Label htmlFor="anot-texto">Texto da anotação</Label>
               <Input
@@ -1022,7 +1028,7 @@ export function AnotarImagemDialog({
           ) : avisoIa ? (
             <div
               role="status"
-              className="flex items-start gap-2 rounded-lg bg-primary/5 p-2 text-sm ring-1 ring-primary/20"
+              className="flex max-h-44 items-start gap-2 overflow-y-auto rounded-lg bg-primary/5 p-2 text-sm ring-1 ring-primary/20"
             >
               <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" />
               <div className="min-w-0 flex-1">
@@ -1037,11 +1043,34 @@ export function AnotarImagemDialog({
                       <strong>{VISTA_LABEL[avisoIa.vista]} detectada</strong> — revise as
                       marcações geradas por IA antes de salvar.
                     </p>
+                    {avisoIa.achados.length > 0 && (
+                      <ul className="mt-1 grid gap-x-4 gap-y-0.5 text-xs sm:grid-cols-2">
+                        {avisoIa.achados.map((a) => (
+                          <li key={a.nome} className="flex items-baseline gap-1.5">
+                            <span
+                              aria-hidden
+                              className={`size-2 shrink-0 rounded-full ${
+                                a.alerta ? "bg-orange-500" : "bg-blue-600"
+                              }`}
+                            />
+                            <span>
+                              <span className="font-medium">{a.nome}:</span> {a.detalhe}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
                     {avisoIa.ausentes.length > 0 && (
-                      <p className="text-xs text-muted-foreground">
-                        Não foi possível marcar: {avisoIa.ausentes.join(", ")}.
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Não encontrado: {avisoIa.ausentes.join(", ")}.
                       </p>
                     )}
+                    <p className="mt-1 flex flex-wrap gap-x-3 text-[11px] text-muted-foreground">
+                      <span><span className="font-semibold text-blue-600">Azul</span> referências</span>
+                      <span><span className="font-semibold text-green-600">Verde</span> pontos anatômicos</span>
+                      <span><span className="font-semibold text-orange-500">Laranja</span> assimetria</span>
+                      <span><span className="font-semibold text-red-500">Vermelho</span> acentuada</span>
+                    </p>
                   </>
                 )}
               </div>
@@ -1147,7 +1176,7 @@ export function AnotarImagemDialog({
                   size="sm"
                   variant="outline"
                   aria-label="Analisar com IA"
-                  title="Detecta a vista da foto e desenha ombros, pelve, tronco e coluna"
+                  title="Detecta a vista da foto e desenha o protocolo postural (eixo, linhas e pontos anatômicos)"
                   onClick={pedirAnaliseIa}
                   disabled={!anot || analisando || confirmarIa}
                   className="h-9"

@@ -3,12 +3,20 @@ import {
   formatarAngulo,
   formatarDistancia,
   inclinacaoGraus,
+  medidasRotulo,
   type Anotacoes,
   type Forma,
   type Ponto,
 } from "@/lib/anotacoes-imagem";
 
-type Medidas = { l: number; h: number; traco: number; fonte: number };
+type Medidas = {
+  l: number;
+  h: number;
+  zoom: number;
+  traco: number;
+  fonte: number;
+  fonteRotulo: number;
+};
 
 /**
  * Espessuras proporcionais à imagem; `zoom` divide traço e fonte para que, no
@@ -23,9 +31,35 @@ function medidasDe(
   return {
     l,
     h,
+    zoom,
     traco: Math.max(2, menor * 0.005) / zoom,
     fonte: Math.max(12, menor * 0.04) / zoom,
+    fonteRotulo: medidasRotulo("", undefined, l, h, zoom).fs,
   };
+}
+
+type FormaRotulo = Extract<Forma, { tipo: "rotulo" }>;
+
+/** Cores fixas de cada estilo de rótulo (o `cor` da forma colore borda/chamada de linha/alerta). */
+const ESTILO_ROTULO = {
+  regiao: { fundo: "#dbe4f7", borda: "#b6c6ea", texto: "#1e3a8a", chamada: "#1e3a8a" },
+  linha: { fundo: "#ffffff", borda: null, texto: "#1e3a8a", chamada: null },
+  marco: { fundo: "#ffffff", borda: "#111827", texto: "#111827", chamada: "#111827" },
+  alerta: { fundo: "#ffedd5", borda: null, texto: "#111827", chamada: null },
+} as const;
+
+/** Caixa do rótulo centrada em `pos` (largura estimada pelo nº de caracteres). */
+function caixaRotulo(f: FormaRotulo, m: Medidas) {
+  const { fs, fsTitulo, pad, w, h, linhas } = medidasRotulo(
+    f.texto,
+    f.titulo,
+    m.l,
+    m.h,
+    m.zoom,
+    f.estilo,
+  );
+  const C = px(f.pos, m);
+  return { x: C.x - w / 2, y: C.y - h / 2, w, h, fs, fsTitulo, pad, C, linhas };
 }
 
 const px = (p: Ponto, m: Medidas) => ({ x: p.x * m.l, y: p.y * m.h });
@@ -106,8 +140,24 @@ export function FormaSvg({
 
   switch (forma.tipo) {
     case "linha":
+      if (forma.tracejada) {
+        const [A, B] = [px(forma.a, m), px(forma.b, m)];
+        return (
+          <line
+            x1={A.x}
+            y1={A.y}
+            x2={B.x}
+            y2={B.y}
+            stroke={cor}
+            strokeWidth={m.traco}
+            strokeDasharray={`${m.traco * 3.5} ${m.traco * 2.5}`}
+            strokeLinecap="round"
+          />
+        );
+      }
+      return <Segmento a={forma.a} b={forma.b} cor={cor} m={m} />;
     case "seta":
-      return <Segmento a={forma.a} b={forma.b} cor={cor} m={m} seta={forma.tipo === "seta"} />;
+      return <Segmento a={forma.a} b={forma.b} cor={cor} m={m} seta />;
     case "medida": {
       const A = px(forma.a, m);
       const B = px(forma.b, m);
@@ -232,7 +282,80 @@ export function FormaSvg({
         </Rotulo>
       );
     }
+    case "ponto": {
+      const P = px(forma.pos, m);
+      return (
+        <circle
+          cx={P.x}
+          cy={P.y}
+          r={m.fonteRotulo * 0.42}
+          fill={cor}
+          stroke="#ffffff"
+          strokeWidth={m.fonteRotulo * 0.12}
+        />
+      );
+    }
+    case "rotulo":
+      return <RotuloSvg forma={forma} m={m} />;
   }
+}
+
+function RotuloSvg({ forma, m }: { forma: FormaRotulo; m: Medidas }) {
+  const est = ESTILO_ROTULO[forma.estilo];
+  const k = caixaRotulo(forma, m);
+  const A = px(forma.alvo, m);
+  const chamada = est.chamada ?? forma.cor;
+  const borda = est.borda ?? forma.cor;
+  const fino = Math.max(1, m.traco * 0.45);
+  const ang = Math.atan2(A.y - k.C.y, A.x - k.C.x);
+  const cab = k.fs * 0.6;
+  const ponta = (d: number) => `${A.x - cab * Math.cos(ang + d)},${A.y - cab * Math.sin(ang + d)}`;
+  const linhaTexto = k.y + k.pad * 0.4 + (forma.titulo ? k.fsTitulo * 1.2 : 0) + k.fs * 0.95;
+  return (
+    <g style={{ userSelect: "none" }}>
+      <line x1={k.C.x} y1={k.C.y} x2={A.x} y2={A.y} stroke={chamada} strokeWidth={fino * 1.4} />
+      {forma.estilo === "alerta" ? (
+        <polyline
+          points={`${ponta(-0.5)} ${A.x},${A.y} ${ponta(0.5)}`}
+          stroke={chamada}
+          strokeWidth={fino * 1.6}
+          fill="none"
+          strokeLinecap="round"
+        />
+      ) : forma.estilo === "regiao" ? (
+        <circle cx={A.x} cy={A.y} r={k.fs * 0.22} fill={chamada} />
+      ) : null}
+      <rect
+        x={k.x}
+        y={k.y}
+        width={k.w}
+        height={k.h}
+        rx={forma.estilo === "regiao" || forma.estilo === "marco" ? k.h / 2 : k.fs * 0.35}
+        fill={est.fundo}
+        stroke={borda}
+        strokeWidth={fino * 1.6}
+      />
+      {forma.titulo && (
+        <text
+          x={k.C.x}
+          y={k.y + k.pad * 0.4 + k.fsTitulo}
+          fontSize={k.fsTitulo}
+          fontWeight={800}
+          textAnchor="middle"
+          fill={est.texto}
+        >
+          {forma.titulo}
+        </text>
+      )}
+      <text fontSize={k.fs} fontWeight={700} textAnchor="middle" fill={est.texto}>
+        {k.linhas.map((l, i) => (
+          <tspan key={i} x={k.C.x} y={linhaTexto + i * k.fs * 1.2}>
+            {l}
+          </tspan>
+        ))}
+      </text>
+    </g>
+  );
 }
 
 /**
@@ -293,6 +416,21 @@ export function FormaHit({
           {...comum}
         />
       );
+    case "ponto": {
+      const T = P(forma.pos);
+      return <circle cx={T.x} cy={T.y} r={m.fonteRotulo} {...comum} fill="transparent" />;
+    }
+    case "rotulo": {
+      const k = caixaRotulo(forma, m);
+      const A = P(forma.alvo);
+      return (
+        <g style={{ cursor }} onPointerDown={onPointerDown}>
+          {rotulo && <title>{rotulo}</title>}
+          <line x1={k.C.x} y1={k.C.y} x2={A.x} y2={A.y} stroke="transparent" strokeWidth={espessura} />
+          <rect x={k.x} y={k.y} width={k.w} height={k.h} fill="transparent" />
+        </g>
+      );
+    }
     case "texto": {
       const T = P(forma.pos);
       return (

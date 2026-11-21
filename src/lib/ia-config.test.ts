@@ -4,7 +4,9 @@ import {
   MODELO_IA_PADRAO,
   iaAnaliseDisponivel,
   limiteDiarioIa,
+  MODELO_PONTOS_IA_PADRAO,
   modeloIa,
+  modeloPontosIa,
   modoFakeIa,
 } from "./ia-config";
 
@@ -24,6 +26,8 @@ describe("ia-config", () => {
   it("modelo configurável com padrão", () => {
     expect(modeloIa({})).toBe(MODELO_IA_PADRAO);
     expect(modeloIa({ GEMINI_MODEL: "gemini-x" })).toBe("gemini-x");
+    expect(modeloPontosIa({})).toBe(MODELO_PONTOS_IA_PADRAO);
+    expect(modeloPontosIa({ GEMINI_MODEL_PONTOS: "gemini-pro-x" })).toBe("gemini-pro-x");
   });
 
   it("limite diário inválido cai no padrão", () => {

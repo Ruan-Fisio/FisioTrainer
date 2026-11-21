@@ -11,12 +11,19 @@ import {
   etapasGemini,
   type SaidaPipeline,
 } from "@/lib/analise-postural-pipeline";
-import { iaAnaliseDisponivel, limiteDiarioIa, modeloIa, modoFakeIa } from "@/lib/ia-config";
+import {
+  iaAnaliseDisponivel,
+  limiteDiarioIa,
+  modeloIa,
+  modeloPontosIa,
+  modoFakeIa,
+} from "@/lib/ia-config";
 
 /** Formatos que o Gemini lê e que a aba Imagens mostra. */
 const MIMES_ACEITOS = new Set(["image/jpeg", "image/png", "image/webp"]);
 const TAMANHO_MAXIMO = 15 * 1024 * 1024;
-const TIMEOUT_MS = 45_000;
+/** Classificação + localização com modelo Pro (~5–15 s cada). */
+const TIMEOUT_MS = 60_000;
 
 /**
  * Roda a análise postural por IA numa imagem já anexada (ver
@@ -46,13 +53,19 @@ export async function analisarPosturaImagem(
   if (usadas >= limiteDiarioIa()) return { error: "Limite diário de análises por IA atingido." };
 
   const fake = modoFakeIa();
-  const modelo = fake ? "fake" : modeloIa();
+  const modelo = fake ? "fake" : `${modeloIa()} + ${modeloPontosIa()}`;
 
   let saida: SaidaPipeline;
   try {
     const bytes = await getObjectBytes(imagem.chave);
     const pipeline = criarPipelinePostural(
-      fake ? etapasFake() : etapasGemini({ apiKey: process.env.GEMINI_API_KEY!, modelo }),
+      fake
+        ? etapasFake()
+        : etapasGemini({
+            apiKey: process.env.GEMINI_API_KEY!,
+            modelo: modeloIa(),
+            modeloPontos: modeloPontosIa(),
+          }),
     );
     saida = await pipeline.invoke(
       { base64: Buffer.from(bytes).toString("base64"), mime: imagem.mime },

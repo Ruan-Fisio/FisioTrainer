@@ -31,8 +31,18 @@ const base = {
   cor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
 };
 
+/** Estilos de rótulo do protocolo postural (ver `analise-postural.ts`). */
+export const ESTILOS_ROTULO = ["regiao", "linha", "marco", "alerta"] as const;
+export type EstiloRotulo = (typeof ESTILOS_ROTULO)[number];
+
 const formaSchema = z.discriminatedUnion("tipo", [
-  z.object({ ...base, tipo: z.literal("linha"), a: pontoSchema, b: pontoSchema }),
+  z.object({
+    ...base,
+    tipo: z.literal("linha"),
+    a: pontoSchema,
+    b: pontoSchema,
+    tracejada: z.boolean().optional(),
+  }),
   z.object({ ...base, tipo: z.literal("seta"), a: pontoSchema, b: pontoSchema }),
   z.object({ ...base, tipo: z.literal("medida"), a: pontoSchema, b: pontoSchema }),
   /** Ângulo de 2 pontos: inclinação da linha a→b em relação à horizontal. */
@@ -62,6 +72,19 @@ const formaSchema = z.discriminatedUnion("tipo", [
     pos: pontoSchema,
     texto: z.string().trim().min(1).max(MAX_TEXTO),
   }),
+  /** Ponto anatômico (bolinha). */
+  z.object({ ...base, tipo: z.literal("ponto"), pos: pontoSchema }),
+  /** Caixa de texto em `pos` com linha de chamada até `alvo`. */
+  z.object({
+    ...base,
+    tipo: z.literal("rotulo"),
+    pos: pontoSchema,
+    alvo: pontoSchema,
+    texto: z.string().trim().min(1).max(MAX_TEXTO),
+    /** Linha de destaque acima do texto (ex.: "2,5°"). */
+    titulo: z.string().trim().max(20).optional(),
+    estilo: z.enum(ESTILOS_ROTULO),
+  }),
 ]);
 
 export const anotacoesSchema = z.object({
@@ -84,6 +107,47 @@ export type Forma = z.infer<typeof formaSchema>;
 export type FormaTipo = Forma["tipo"];
 export type Anotacoes = z.infer<typeof anotacoesSchema>;
 export type Calibracao = NonNullable<Anotacoes["calibracao"]>;
+
+/** Quebra o texto em linhas de até `max` caracteres, por palavra. */
+export function quebrarLinhas(texto: string, max: number): string[] {
+  const linhas: string[] = [];
+  let atual = "";
+  for (const palavra of texto.split(/\s+/).filter(Boolean)) {
+    if (atual && (atual + " " + palavra).length > max) {
+      linhas.push(atual);
+      atual = palavra;
+    } else {
+      atual = atual ? `${atual} ${palavra}` : palavra;
+    }
+  }
+  if (atual) linhas.push(atual);
+  return linhas.length ? linhas : [texto];
+}
+
+/** Alertas quebram em linhas curtas; os demais rótulos ficam numa linha só. */
+const MAX_CARACTERES_ALERTA = 16;
+
+/**
+ * Geometria do rótulo (caixa) em unidades da imagem, sem zoom. Compartilhada pelo
+ * desenho (`anotacoes-camada.tsx`) e pelo layout automático (`analise-postural.ts`).
+ */
+export function medidasRotulo(
+  texto: string,
+  titulo: string | undefined,
+  largura: number,
+  altura: number,
+  zoom = 1,
+  estilo?: EstiloRotulo,
+) {
+  const fs = Math.max(10, Math.min(largura, altura) * 0.023) / zoom;
+  const fsTitulo = fs * 1.35;
+  const pad = fs * 0.55;
+  const linhas = estilo === "alerta" ? quebrarLinhas(texto, MAX_CARACTERES_ALERTA) : [texto];
+  const maior = Math.max(...linhas.map((l) => l.length));
+  const w = Math.max(maior * fs * 0.56, (titulo?.length ?? 0) * fsTitulo * 0.6) + pad * 2;
+  const h = linhas.length * fs * 1.2 + fs * 0.1 + (titulo ? fsTitulo * 1.2 : 0) + pad * 0.8;
+  return { fs, fsTitulo, pad, w, h, linhas };
+}
 
 export function anotacoesVazias(largura: number, altura: number): Anotacoes {
   return { versao: 1, largura, altura, calibracao: null, formas: [] };
@@ -193,7 +257,10 @@ export function pontosDaForma(f: Forma): Ponto[] {
     case "circulo":
       return [f.centro, f.borda];
     case "texto":
+    case "ponto":
       return [f.pos];
+    case "rotulo":
+      return [f.pos, f.alvo];
     case "livre":
       return []; // só se move inteira
   }
@@ -223,7 +290,10 @@ export function moverPonto(f: Forma, indice: number, p: Ponto): Forma {
           ? { ...f, borda: q }
           : f;
     case "texto":
+    case "ponto":
       return indice === 0 ? { ...f, pos: q } : f;
+    case "rotulo":
+      return indice === 0 ? { ...f, pos: q } : indice === 1 ? { ...f, alvo: q } : f;
     case "livre":
       return f;
   }
@@ -255,7 +325,10 @@ export function transladar(f: Forma, dx: number, dy: number): Forma {
     case "circulo":
       return { ...f, centro: mv(f.centro), borda: mv(f.borda) };
     case "texto":
+    case "ponto":
       return { ...f, pos: mv(f.pos) };
+    case "rotulo":
+      return { ...f, pos: mv(f.pos), alvo: mv(f.alvo) };
     case "livre":
       return { ...f, pontos: f.pontos.map(mv) };
   }

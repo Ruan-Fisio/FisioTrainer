@@ -11,14 +11,15 @@ import type { z } from "zod";
 import {
   PROMPT_CLASSIFICAR,
   classificacaoSchema,
-  ehFrontal,
   ehLateral,
-  pontosFrontaisSchema,
+  pontosAnteriorSchema,
   pontosLateraisSchema,
+  pontosPosteriorSchema,
   promptLocalizar,
   type Classificacao,
-  type PontosFrontais,
+  type PontosAnterior,
   type PontosLaterais,
+  type PontosPosterior,
   type ResultadoAnalise,
   type VistaPostural,
 } from "@/lib/analise-postural";
@@ -26,9 +27,11 @@ import {
 /**
  * Pipeline LangChain da análise postural (ver `specs/003-analise-postural-ia.md`):
  *
- *   foto ─► classificar ─► vista ─┬─ anterior/posterior ─► localizar pontos frontais
- *                                 ├─ laterais ───────────► localizar pontos laterais
- *                                 └─ nao_postural ───────► fim (sem 2ª chamada)
+ *   foto ─► classificar ─► vista ─┬─ anterior ─► localizar pontos do protocolo anterior
+ *          (modelo leve)          ├─ posterior ─► localizar pontos do protocolo posterior
+ *                                 ├─ laterais ──► localizar pontos laterais
+ *                                 └─ nao_postural ─► fim (sem 2ª chamada)
+ *                                     (localização: modelo mais preciso, ex. Gemini Pro)
  *
  * As etapas são `Runnable`s injetáveis: Gemini em produção, `etapasFake()` em
  * teste/E2E — o roteamento é sempre este mesmo código.
@@ -41,7 +44,8 @@ export type SaidaEtapa<T> = { dados: T; uso: Uso };
 
 export type EtapasPostural = {
   classificar: Runnable<EntradaImagem, SaidaEtapa<Classificacao>>;
-  localizarFrontal: Runnable<EntradaLocalizar, SaidaEtapa<PontosFrontais>>;
+  localizarAnterior: Runnable<EntradaLocalizar, SaidaEtapa<PontosAnterior>>;
+  localizarPosterior: Runnable<EntradaLocalizar, SaidaEtapa<PontosPosterior>>;
   localizarLateral: Runnable<EntradaLocalizar, SaidaEtapa<PontosLaterais>>;
 };
 
@@ -61,20 +65,33 @@ export function criarPipelinePostural(
     }),
   ).withConfig({ runName: "classificar_vista" });
 
-  const frontal = RunnableLambda.from(
+  const anterior = RunnableLambda.from(
     async (x: Classificado, config?: RunnableConfig): Promise<SaidaPipeline> => {
-      const { vista, confianca } = x.classificacao.dados;
-      if (!ehFrontal(vista)) throw new Error("Vista não frontal no ramo frontal.");
-      const loc = await etapas.localizarFrontal.invoke(
-        { base64: x.base64, mime: x.mime, vista },
+      const { confianca } = x.classificacao.dados;
+      const loc = await etapas.localizarAnterior.invoke(
+        { base64: x.base64, mime: x.mime, vista: "anterior" },
         config,
       );
       return {
-        resultado: { vista, confianca, pontos: loc.dados },
+        resultado: { vista: "anterior", confianca, pontos: loc.dados },
         uso: somar(x.classificacao.uso, loc.uso),
       };
     },
-  ).withConfig({ runName: "localizar_frontal" });
+  ).withConfig({ runName: "localizar_anterior" });
+
+  const posterior = RunnableLambda.from(
+    async (x: Classificado, config?: RunnableConfig): Promise<SaidaPipeline> => {
+      const { confianca } = x.classificacao.dados;
+      const loc = await etapas.localizarPosterior.invoke(
+        { base64: x.base64, mime: x.mime, vista: "posterior" },
+        config,
+      );
+      return {
+        resultado: { vista: "posterior", confianca, pontos: loc.dados },
+        uso: somar(x.classificacao.uso, loc.uso),
+      };
+    },
+  ).withConfig({ runName: "localizar_posterior" });
 
   const lateral = RunnableLambda.from(
     async (x: Classificado, config?: RunnableConfig): Promise<SaidaPipeline> => {
@@ -99,7 +116,8 @@ export function criarPipelinePostural(
   );
 
   const rotear = RunnableBranch.from<Classificado, SaidaPipeline>([
-    [(x) => ehFrontal(x.classificacao.dados.vista), frontal],
+    [(x) => x.classificacao.dados.vista === "anterior", anterior],
+    [(x) => x.classificacao.dados.vista === "posterior", posterior],
     [(x) => ehLateral(x.classificacao.dados.vista), lateral],
     naoPostural,
   ]);
@@ -111,15 +129,20 @@ export function criarPipelinePostural(
 
 // ---------- etapas reais (Gemini) ----------
 
-export function etapasGemini(opcoes: { apiKey: string; modelo: string }): EtapasPostural {
-  const llm = new ChatGoogleGenerativeAI({
-    apiKey: opcoes.apiKey,
-    model: opcoes.modelo,
-    temperature: 0,
-    maxRetries: 1,
-  });
+export function etapasGemini(opcoes: {
+  apiKey: string;
+  /** Classificação da vista (modelo leve). */
+  modelo: string;
+  /** Localização dos pontos (modelo mais preciso). */
+  modeloPontos: string;
+}): EtapasPostural {
+  const criar = (model: string) =>
+    new ChatGoogleGenerativeAI({ apiKey: opcoes.apiKey, model, temperature: 0, maxRetries: 1 });
+  const leve = criar(opcoes.modelo);
+  const preciso = criar(opcoes.modeloPontos);
 
   function etapa<S extends z.ZodType, E extends EntradaImagem>(
+    llm: ChatGoogleGenerativeAI,
     schema: S,
     prompt: (x: E) => string,
   ): Runnable<E, SaidaEtapa<z.infer<S>>> {
@@ -141,9 +164,16 @@ export function etapasGemini(opcoes: { apiKey: string; modelo: string }): Etapas
   }
 
   return {
-    classificar: etapa(classificacaoSchema, () => PROMPT_CLASSIFICAR),
-    localizarFrontal: etapa(pontosFrontaisSchema, (x: EntradaLocalizar) => promptLocalizar(x.vista)),
-    localizarLateral: etapa(pontosLateraisSchema, (x: EntradaLocalizar) => promptLocalizar(x.vista)),
+    classificar: etapa(leve, classificacaoSchema, () => PROMPT_CLASSIFICAR),
+    localizarAnterior: etapa(preciso, pontosAnteriorSchema, (x: EntradaLocalizar) =>
+      promptLocalizar(x.vista),
+    ),
+    localizarPosterior: etapa(preciso, pontosPosteriorSchema, (x: EntradaLocalizar) =>
+      promptLocalizar(x.vista),
+    ),
+    localizarLateral: etapa(preciso, pontosLateraisSchema, (x: EntradaLocalizar) =>
+      promptLocalizar(x.vista),
+    ),
   };
 }
 
@@ -155,24 +185,38 @@ const SEM_USO: Uso = { entrada: 0, saida: 0 };
 export function etapasFake(vista: VistaPostural = "anterior"): EtapasPostural {
   return {
     classificar: RunnableLambda.from(() => ({ dados: { vista, confianca: 1 }, uso: SEM_USO })),
-    localizarFrontal: RunnableLambda.from(() => ({
+    // Pontos do esquema "Protocolo FisioTrainer" (ombro esquerdo um pouco mais baixo).
+    localizarAnterior: RunnableLambda.from(() => ({
       dados: {
-        cabeca_direita: { x: 460, y: 140 },
-        cabeca_esquerda: { x: 540, y: 135 },
-        ombro_direito: { x: 320, y: 300 },
-        ombro_esquerdo: { x: 680, y: 285 },
-        pelve_direita: { x: 410, y: 560 },
-        pelve_esquerda: { x: 590, y: 555 },
-        coluna:
-          vista === "posterior"
-            ? [
-                { x: 500, y: 260 },
-                { x: 506, y: 340 },
-                { x: 514, y: 420 },
-                { x: 508, y: 500 },
-                { x: 500, y: 570 },
-              ]
-            : undefined,
+        vertice: { x: 511, y: 19 },
+        acromio_direito: { x: 216, y: 193 },
+        acromio_esquerdo: { x: 793, y: 213 },
+        manubrio: { x: 511, y: 246 },
+        eias_direita: { x: 309, y: 437 },
+        eias_esquerda: { x: 689, y: 437 },
+        patela_direita: { x: 358, y: 718 },
+        patela_esquerda: { x: 644, y: 718 },
+        tornozelo_direito: { x: 358, y: 919 },
+        tornozelo_esquerdo: { x: 638, y: 919 },
+        pe_direito: { x: 342, y: 955 },
+        pe_esquerdo: { x: 656, y: 955 },
+      },
+      uso: SEM_USO,
+    })),
+    localizarPosterior: RunnableLambda.from(() => ({
+      dados: {
+        vertice: { x: 489, y: 21 },
+        c7: { x: 489, y: 172 },
+        acromio_direito: { x: 782, y: 192 },
+        acromio_esquerdo: { x: 184, y: 210 },
+        escapula_direita: { x: 649, y: 299 },
+        escapula_esquerda: { x: 313, y: 299 },
+        eips_direita: { x: 660, y: 442 },
+        eips_esquerda: { x: 311, y: 442 },
+        joelho_direito: { x: 618, y: 713 },
+        joelho_esquerdo: { x: 353, y: 713 },
+        calcaneo_direito: { x: 627, y: 945 },
+        calcaneo_esquerdo: { x: 336, y: 945 },
       },
       uso: SEM_USO,
     })),

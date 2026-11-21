@@ -22,20 +22,26 @@ test.describe("análise postural por IA nas anotações de imagem", () => {
     await dialogo.getByRole("button", { name: "Enviar para análise" }).click();
 
     await expect(dialogo.getByText("Vista anterior detectada")).toBeVisible();
-    // Textos das marcações geradas (ids ia-*) aparecem sobre a imagem.
-    await expect(dialogo.locator("svg text", { hasText: "Ombros: D mais baixo" }).first()).toBeVisible();
+    // Esquema do protocolo sobre a imagem: rótulos das linhas e alerta de inclinação.
+    await expect(dialogo.locator("svg text", { hasText: "Linha acromial" }).first()).toBeVisible();
+    await expect(dialogo.locator("svg text", { hasText: "Linha pélvica (EIAS)" }).first()).toBeVisible();
+    await expect(dialogo.locator("svg text", { hasText: "2,6°" }).first()).toBeVisible();
+    // O aviso lista as linhas encontradas.
+    await expect(dialogo.getByText("2,6°, inclinação para esquerda")).toBeVisible();
     expect(await idsDasFormasSalvas(imagemId)).toEqual([]); // nada gravado ainda
 
     // A análise inteira é um único passo de Desfazer.
     await dialogo.getByRole("button", { name: "Desfazer" }).click();
-    await expect(dialogo.locator("svg text", { hasText: "Ombros:" })).toHaveCount(0);
+    await expect(dialogo.locator("svg text", { hasText: "Linha acromial" })).toHaveCount(0);
     await dialogo.getByRole("button", { name: "Refazer" }).click();
-    await expect(dialogo.locator("svg text", { hasText: "Ombros:" }).first()).toBeVisible();
+    await expect(dialogo.locator("svg text", { hasText: "Linha acromial" }).first()).toBeVisible();
 
     await dialogo.getByRole("button", { name: "Salvar" }).click();
     await expect(page.getByText("Anotações salvas.")).toBeVisible();
     const ids = await idsDasFormasSalvas(imagemId);
-    expect(ids).toEqual(expect.arrayContaining(["ia-ombros", "ia-pelve", "ia-tronco"]));
+    expect(ids).toEqual(
+      expect.arrayContaining(["ia-eixo", "ia-acromios", "ia-acromios-alerta", "ia-pelve", "ia-pt-manubrio"]),
+    );
     expect(ids.every((id) => id.startsWith("ia-"))).toBe(true);
   });
 });

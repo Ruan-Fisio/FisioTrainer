@@ -5,7 +5,13 @@
 
 type Env = Record<string, string | undefined>;
 
+/** Classificação da vista (rápido e barato). */
 export const MODELO_IA_PADRAO = "gemini-3.8-flash";
+/**
+ * Localização dos pontos: no teste com o esquema do protocolo (specs/004) o 3.1 Pro
+ * achou os 12 pontos com ~1% de erro; os Flash devolviam só o vértice.
+ */
+export const MODELO_PONTOS_IA_PADRAO = "gemini-3.1-pro-preview";
 export const LIMITE_DIARIO_IA_PADRAO = 30;
 
 /** Resposta fixa sem rede (E2E e dev sem chave). Nunca em produção. */
@@ -20,6 +26,10 @@ export function iaAnaliseDisponivel(env: Env = process.env): boolean {
 
 export function modeloIa(env: Env = process.env): string {
   return env.GEMINI_MODEL?.trim() || MODELO_IA_PADRAO;
+}
+
+export function modeloPontosIa(env: Env = process.env): string {
+  return env.GEMINI_MODEL_PONTOS?.trim() || MODELO_PONTOS_IA_PADRAO;
 }
 
 /** Análises por usuário por dia (Brasília); valor inválido cai no padrão. */
