@@ -26,15 +26,9 @@ services:
         NEXT_PUBLIC_APP_URL: http://localhost:3000
     container_name: fisiotrainer-app
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    # Segredos (AUTH_SECRET, R2…) vêm do .env; o banco é SEMPRE o container local,
-    # mesmo que o .env aponte para o Neon de produção.
+    # Segredos e banco (DATABASE_URL, DIRECT_URL, AUTH_SECRET, R2…) vêm do .env.
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://fisiotrainer:fisiotrainer@postgres:5432/fisiotrainer
-      DIRECT_URL: postgresql://fisiotrainer:fisiotrainer@postgres:5432/fisiotrainer
       NEXT_PUBLIC_APP_URL: http://localhost:3000
       AUTH_TRUST_HOST: "true"
       APP_TIMEZONE: America/Sao_Paulo
