@@ -173,10 +173,28 @@ function InfoCard({ titulo, linhas }: { titulo: string; linhas: LinhaInfo[] }) {
   );
 }
 
-function SecaoTabela({ secao }: { secao: SecaoComparativo }) {
+export type ModoRelatorio = "comparativo" | "individual";
+
+function SecaoTabela({
+  secao,
+  modo,
+}: {
+  secao: SecaoComparativo;
+  modo: ModoRelatorio;
+}) {
+  const individual = modo === "individual";
   const temIdeal = secao.linhas.some((linha) => linha.valorIdeal !== null);
-  const colCampoStyle = temIdeal ? styles.colCampo : { width: "40%" };
-  const colValorStyle = temIdeal ? styles.colValor : { width: "20%" };
+  // Individual: Campo + Valor (+ Ideal e Dist.); comparativo: + Retorno/Progr.
+  const colCampoStyle = individual
+    ? { width: temIdeal ? "46%" : "55%" }
+    : temIdeal
+      ? styles.colCampo
+      : { width: "40%" };
+  const colValorStyle = individual
+    ? { width: temIdeal ? "18%" : "45%" }
+    : temIdeal
+      ? styles.colValor
+      : { width: "20%" };
 
   return (
     <View style={styles.card} wrap={false}>
@@ -186,12 +204,16 @@ function SecaoTabela({ secao }: { secao: SecaoComparativo }) {
         {temIdeal && (
           <Text style={[styles.tabelaHeaderCel, colValorStyle]}>Ideal</Text>
         )}
-        <Text style={[styles.tabelaHeaderCel, colValorStyle]}>Avaliação</Text>
+        <Text style={[styles.tabelaHeaderCel, colValorStyle]}>
+          {individual ? "Valor" : "Avaliação"}
+        </Text>
         {temIdeal && (
           <Text style={[styles.tabelaHeaderCel, colValorStyle]}>Dist.</Text>
         )}
-        <Text style={[styles.tabelaHeaderCel, colValorStyle]}>Retorno</Text>
-        {temIdeal && (
+        {!individual && (
+          <Text style={[styles.tabelaHeaderCel, colValorStyle]}>Retorno</Text>
+        )}
+        {!individual && temIdeal && (
           <>
             <Text style={[styles.tabelaHeaderCel, colValorStyle]}>Dist.</Text>
             <Text style={[styles.tabelaHeaderCel, colValorStyle]}>Progr.</Text>
@@ -261,8 +283,10 @@ function SecaoTabela({ secao }: { secao: SecaoComparativo }) {
                 </Text>
               </View>
             )}
-            <Text style={colValorStyle}>{linha.retornoValor ?? "—"}</Text>
-            {temIdeal && (
+            {!individual && (
+              <Text style={colValorStyle}>{linha.retornoValor ?? "—"}</Text>
+            )}
+            {!individual && temIdeal && (
               <>
                 <View style={colValorStyle}>
                   <Text
@@ -459,6 +483,8 @@ export type RelatorioPdfProps = {
   geradoEm: string;
   profissional?: ProfissionalInfo;
   historicoClinico?: string | null;
+  /** "individual": uma execução só, sem colunas de retorno/progresso. */
+  modo?: ModoRelatorio;
 };
 
 function Carimbo({ profissional }: { profissional: ProfissionalInfo }) {
@@ -490,6 +516,7 @@ export function RelatorioPdfDocument({
   geradoEm,
   profissional,
   historicoClinico,
+  modo = "comparativo",
 }: RelatorioPdfProps) {
   const logoBuffer = fs.readFileSync(
     path.join(process.cwd(), "public", "logo.png"),
@@ -521,14 +548,15 @@ export function RelatorioPdfDocument({
 
         {secoes.length === 0 && (
           <Text style={{ marginTop: 14, color: CORES.mutedTexto }}>
-            Nenhum valor preenchido em comum entre a avaliação e o retorno
-            selecionado.
+            {modo === "individual"
+              ? "Nenhum valor preenchido neste exame."
+              : "Nenhum valor preenchido em comum entre a avaliação e o retorno selecionado."}
           </Text>
         )}
 
         <View style={{ marginTop: 4 }}>
           {secoes.map((secao) => (
-            <SecaoTabela key={secao.id} secao={secao} />
+            <SecaoTabela key={secao.id} secao={secao} modo={modo} />
           ))}
         </View>
 
@@ -568,7 +596,9 @@ export function RelatorioPdfDocument({
           <View style={{ marginTop: 16 }}>
             <View wrap={false}>
               <Text style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
-                Gráficos Consolidados — Avaliação x Retorno
+                {modo === "individual"
+                  ? "Gráficos Consolidados"
+                  : "Gráficos Consolidados — Avaliação x Retorno"}
               </Text>
               <GraficoBarras grafico={graficos[0]} />
             </View>

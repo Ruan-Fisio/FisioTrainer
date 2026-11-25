@@ -15,6 +15,7 @@ Next.js App Router server page (`/pacientes/[id]/exames/[execucaoId]`) presentin
 - `[page.tsx:ExecucaoDetailPage]` Displays the follow-up creation link (`/pacientes/${id}/exames/${execucaoId}/retorno`) only when `execucao.tipo === "AVALIACAO"`.
 - `[page.tsx:ExecucaoDetailPage]` Displays `ComparacaoRapidaDialog`, the comparison link (`/pacientes/${id}/exames/${execucaoId}/comparar`), and the follow-ups card list only when `execucao.tipo === "AVALIACAO" && execucao.retornos.length > 0`.
 - `[page.tsx:ExecucaoDetailPage]` Displays the link back to the original evaluation (`/pacientes/${id}/exames/${execucao.avaliacao.id}`) only when `execucao.tipo === "RETORNO" && execucao.avaliacao`.
+- `[page.tsx:ExecucaoDetailPage]` Always displays `ImprimirExecucaoButton` (individual PDF via `/api/execucoes/${execucaoId}/relatorio-individual`), for both `AVALIACAO` and `RETORNO`.
 
 ## Side Effects
 - `[page.tsx:ExecucaoDetailPage]` Concurrently loads execution details and images on the server via `Promise.all([getExecucao(execucaoId), listarImagensExecucao(execucaoId)])` (`@/actions/exame-execucoes`, `@/actions/exame-imagens`).

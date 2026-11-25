@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { exameExecucaoSchema } from "@/lib/validations/exame-execucao";
-import { montarComparativo } from "@/lib/relatorio-comparativo";
+import { montarComparativo, montarRelatorioIndividual } from "@/lib/relatorio-comparativo";
 import {
   acrescentarValoresCalculados,
   montarLinhasComparacaoRapida,
@@ -190,6 +190,72 @@ export async function getComparativo(avaliacaoId: string, retornoId: string) {
     avaliacaoData: avaliacao.data,
     retornoData: retorno.data,
     secoes,
+  };
+}
+
+/** Relatório de uma única execução (impressão individual, Avaliação ou Retorno). */
+export async function getRelatorioIndividual(execucaoId: string) {
+  await exigirSessao();
+  const [execucao, movimentos] = await Promise.all([
+    prisma.exameExecucao.findUnique({
+      where: { id: execucaoId },
+      include: {
+        paciente: {
+          select: {
+            id: true,
+            nome: true,
+            sexo: true,
+            idade: true,
+            dataNascimento: true,
+            cpf: true,
+            contato: true,
+            endereco: true,
+            objetivo: true,
+            doencasPreexistentes: true,
+            cirurgiasAnteriores: true,
+            medicamentos: true,
+            historicoClinico: true,
+          },
+        },
+        exame: {
+          include: {
+            secoes: {
+              orderBy: { ordem: "asc" },
+              include: {
+                campos: {
+                  orderBy: { ordem: "asc" },
+                  include: { colunas: { orderBy: { ordem: "asc" } } },
+                },
+              },
+            },
+          },
+        },
+        valores: true,
+      },
+    }),
+    prisma.movimento.findMany({ select: { nome: true, grauIdeal: true } }),
+  ]);
+
+  if (!execucao) return null;
+
+  // CALCULADO nunca é gravado: recalcula para entrar no relatório.
+  const [comCalculados] = acrescentarValoresCalculados(
+    execucao.exame,
+    [{ valores: execucao.valores }],
+    { sexo: execucao.paciente.sexo, idade: execucao.paciente.idade },
+    variaveisComTabelas(parseVariaveis(execucao.exame.variaveis), execucao.exame.tabelas),
+  );
+
+  return {
+    paciente: execucao.paciente,
+    exame: {
+      id: execucao.exame.id,
+      nome: execucao.exame.nome,
+      tipo: execucao.exame.tipo,
+    },
+    tipo: execucao.tipo,
+    data: execucao.data,
+    secoes: montarRelatorioIndividual(execucao.exame, comCalculados.valores, movimentos),
   };
 }
 

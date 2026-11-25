@@ -115,6 +115,18 @@ export function montarSessao(
   ];
 }
 
+export function montarSessaoIndividual(
+  exameNome: string,
+  tipo: "AVALIACAO" | "RETORNO",
+  data: string,
+): LinhaInfo[] {
+  return [
+    { label: "Exame", valor: exameNome },
+    { label: "Tipo", valor: tipo === "AVALIACAO" ? "Avaliação" : "Retorno" },
+    { label: "Data", valor: data },
+  ];
+}
+
 export type ItemGrafico = {
   chave: string;
   rotulo: string;
@@ -449,4 +461,18 @@ export function montarComparativo(
   }
 
   return secoesResultado;
+}
+
+/**
+ * Relatório de uma única execução (impressão individual): mesmo formato do
+ * comparativo, com os valores da execução no lugar da "avaliação" e nenhum
+ * retorno — só entram campos preenchidos, e os campos de retorno/progresso
+ * ficam nulos.
+ */
+export function montarRelatorioIndividual(
+  exame: ExameParaComparativo,
+  valores: ValorExecucao[],
+  movimentos: MovimentoIdeal[],
+): SecaoComparativo[] {
+  return montarComparativo(exame, valores, [], movimentos);
 }

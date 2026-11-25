@@ -168,3 +168,9 @@ Specs: `specs/003-analise-postural-ia.md` (pipeline, regras) e `specs/004-protoc
 - **Custo**: cada chamada (sucesso ou falha) grava `AnaliseImagemIa` (usuário, modelo, vista, tokens; nunca a imagem). Limite por usuário/dia de Brasília: `IA_ANALISE_LIMITE_DIARIO` (padrão 30). Timeout de 75 s.
 - Variáveis: `GEMINI_API_KEY` (sem ela o botão não aparece), `GEMINI_MODEL` (classificação, padrão `gemini-3.8-flash`; o `gemini-2.5-flash` já não aceita usuários novos), `GEMINI_MODEL_PONTOS` (localização, padrão `gemini-3.1-pro-preview`), `IA_ANALISE_LIMITE_DIARIO`, `ANALISE_IA_FAKE=1` (resposta fixa sem rede, nunca em produção; ligado no E2E).
 - Editor pensado para toque: tela cheia no mobile, lupa sob o dedo (toque/caneta), pinça/roda/botões de zoom com pan (`src/lib/visor-zoom.ts`, testado), alças e áreas de toque com tamanho fixo na tela, alças aparecem logo após desenhar (sem trocar de ferramenta), desfazer/refazer (Ctrl+Z/Ctrl+Shift+Z), Delete exclui a selecionada, cor muda a selecionada, texto editado inline, alinhamento Livre/Ímã/Reta, aviso ao descartar alterações.
+
+## Impressão individual do exame (spec 005)
+
+- Botão **Imprimir** (ícone de impressora) no detalhe de **qualquer** execução (`/pacientes/[id]/exames/[execucaoId]`, Avaliação com ou sem retornos, ou Retorno) abre em nova aba o PDF de `GET /api/execucoes/[execucaoId]/relatorio-individual` (só sessão da clínica; não existe no portal).
+- Reaproveita o relatório comparativo: `montarRelatorioIndividual` (`relatorio-comparativo.ts`) chama `montarComparativo` com os valores da execução como "avaliação" e nenhum retorno; `RelatorioPdfDocument` com `modo: "individual"` esconde as colunas Retorno/Dist./Progr. (fica Campo, Ideal, Valor, Dist.). CALCULADO recalculado via `acrescentarValoresCalculados` em `getRelatorioIndividual`, como no comparativo. Mudou o PDF comparativo → conferir o modo individual também.
+- Imagens anexadas não entram no PDF.
