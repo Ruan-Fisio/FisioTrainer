@@ -14,6 +14,9 @@ import type {
   LinhaInfo,
   SecaoComparativo,
 } from "@/lib/relatorio-comparativo";
+import { encaixarNaCaixa } from "@/lib/relatorio-imagens";
+import type { AnexosRelatorio, ImagemRelatorio } from "@/lib/pdf/imagens-relatorio";
+import { AnotacoesPdf } from "@/lib/pdf/anotacoes-pdf";
 
 const CORES = {
   primary: "#1d3b86",
@@ -485,9 +488,103 @@ export type RelatorioPdfProps = {
   historicoClinico?: string | null;
   /** "individual": uma execução só, sem colunas de retorno/progresso. */
   modo?: ModoRelatorio;
+  /** Imagens (com anotações) e demais anexos, no fim do relatório. */
+  anexos?: AnexosRelatorio;
 };
 
-function Carimbo({ profissional }: { profissional: ProfissionalInfo }) {
+// Duas imagens por linha (fotos posturais são retrato); largura útil da A4 = 531pt.
+const IMAGEM_MAX_LARGURA = 255;
+const IMAGEM_MAX_ALTURA = 330;
+
+function ImagemAnexo({ imagem }: { imagem: ImagemRelatorio }) {
+  const caixa = encaixarNaCaixa(
+    imagem.largura,
+    imagem.altura,
+    IMAGEM_MAX_LARGURA,
+    IMAGEM_MAX_ALTURA,
+  );
+  return (
+    <View style={{ width: "50%", padding: 4, alignItems: "center" }} wrap={false}>
+      <View style={{ width: caixa.largura, height: caixa.altura, position: "relative" }}>
+        {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image, not an HTML img */}
+        <Image
+          src={{ data: imagem.data, format: "jpg" }}
+          style={{ width: caixa.largura, height: caixa.altura }}
+        />
+        {imagem.anotacoes && imagem.anotacoes.formas.length > 0 && (
+          <AnotacoesPdf
+            anotacoes={imagem.anotacoes}
+            largura={caixa.largura}
+            altura={caixa.altura}
+          />
+        )}
+      </View>
+      <Text
+        style={{
+          marginTop: 4,
+          fontSize: 8,
+          fontWeight: 700,
+          color: CORES.primary,
+          textAlign: "center",
+        }}
+      >
+        {imagem.legenda}
+      </Text>
+      <Text style={{ fontSize: 7, color: CORES.mutedTexto, textAlign: "center" }}>
+        {imagem.nomeOriginal}
+      </Text>
+    </View>
+  );
+}
+
+function SecaoAnexos({ anexos }: { anexos: AnexosRelatorio }) {
+  if (anexos.imagens.length === 0 && anexos.outros.length === 0) return null;
+  return (
+    <View style={{ marginTop: 16 }}>
+      {anexos.imagens.length > 0 && (
+        <>
+          <Text style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>
+            Imagens
+          </Text>
+          <View style={{ flexDirection: "row", flexWrap: "wrap" }}>
+            {anexos.imagens.map((imagem, i) => (
+              <ImagemAnexo key={i} imagem={imagem} />
+            ))}
+          </View>
+        </>
+      )}
+      {anexos.outros.length > 0 && (
+        <View style={styles.card} wrap={false}>
+          <Text style={styles.cardTitulo}>Outros anexos</Text>
+          {anexos.outros.map((anexo, i) => (
+            <View
+              key={i}
+              style={[
+                styles.linha,
+                i === anexos.outros.length - 1 ? { borderBottomWidth: 0 } : {},
+              ]}
+            >
+              <Text style={styles.linhaLabel}>{anexo.legenda}</Text>
+              <Text style={styles.linhaValor}>
+                {anexo.nomeOriginal}
+                {anexo.falhou ? " (não foi possível incluir a imagem)" : ""}
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+function Carimbo({
+  profissional,
+  noFluxo = false,
+}: {
+  profissional: ProfissionalInfo;
+  /** No fim do conteúdo (não fixo no rodapé), para não sobrepor imagens. */
+  noFluxo?: boolean;
+}) {
   if (!profissional) return null;
   const registro = [
     profissional.cref ? `CREF ${profissional.cref}` : null,
@@ -497,7 +594,10 @@ function Carimbo({ profissional }: { profissional: ProfissionalInfo }) {
     .join(" — ");
 
   return (
-    <View style={styles.carimbo} wrap={false}>
+    <View
+      style={noFluxo ? { marginTop: 40, alignItems: "center" } : styles.carimbo}
+      wrap={false}
+    >
       <Text style={styles.carimboNome}>{profissional.nome}</Text>
       {registro && <Text style={styles.carimboRegistro}>{registro}</Text>}
     </View>
@@ -517,14 +617,23 @@ export function RelatorioPdfDocument({
   profissional,
   historicoClinico,
   modo = "comparativo",
+  anexos,
 }: RelatorioPdfProps) {
+  const temAnexos =
+    !!anexos && (anexos.imagens.length > 0 || anexos.outros.length > 0);
+
   const logoBuffer = fs.readFileSync(
     path.join(process.cwd(), "public", "logo.png"),
   );
 
   return (
     <Document>
-      <Page size="A4" style={styles.page} wrap>
+      <Page
+        size="A4"
+        // Com anexos o conteúdo vai até o fim da página: reserva o rodapé fixo.
+        style={temAnexos ? [styles.page, { paddingBottom: 48 }] : styles.page}
+        wrap
+      >
         {/* eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image, not an HTML img */}
         <Image src={{ data: logoBuffer, format: "png" }} style={styles.logo} />
         <View style={styles.tituloBox}>
@@ -608,7 +717,9 @@ export function RelatorioPdfDocument({
           </View>
         )}
 
-        <Carimbo profissional={profissional ?? null} />
+        {anexos && <SecaoAnexos anexos={anexos} />}
+
+        <Carimbo profissional={profissional ?? null} noFluxo={temAnexos} />
 
         <Text style={styles.footer} fixed>
           {`Gerado automaticamente em ${geradoEm} — FisioTrainer Centro de Reabilitação e Performance`}

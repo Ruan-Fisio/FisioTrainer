@@ -10,6 +10,7 @@ import {
   graficosDaSecao,
 } from "@/lib/relatorio-comparativo";
 import { RelatorioPdfDocument } from "@/lib/pdf/relatorio-documento";
+import { carregarAnexosRelatorio } from "@/lib/pdf/imagens-relatorio";
 import { formatarDataHora as formatarData } from "@/lib/format";
 
 /** PDF de uma única execução de exame (impressão individual). */
@@ -29,10 +30,13 @@ export async function GET(
     return NextResponse.json({ error: "Exame não encontrado." }, { status: 404 });
   }
 
-  const profissional = await prisma.user.findUnique({
-    where: { id: session.user!.id! },
-    select: { name: true, cref: true, crefito: true },
-  });
+  const [profissional, anexos] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: session.user!.id! },
+      select: { name: true, cref: true, crefito: true },
+    }),
+    carregarAnexosRelatorio(relatorio.exameEstrutura, relatorio.anexos),
+  ]);
 
   const titulo =
     relatorio.exame.tipo === "EDUCACAO_FISICA"
@@ -42,6 +46,7 @@ export async function GET(
   const buffer = await renderToBuffer(
     RelatorioPdfDocument({
       modo: "individual",
+      anexos,
       titulo,
       pacienteNome: relatorio.paciente.nome,
       profissional: profissional

@@ -231,6 +231,17 @@ export async function getRelatorioIndividual(execucaoId: string) {
           },
         },
         valores: true,
+        imagens: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            colunaId: true,
+            linha: true,
+            chave: true,
+            nomeOriginal: true,
+            mime: true,
+            anotacoes: true,
+          },
+        },
       },
     }),
     prisma.movimento.findMany({ select: { nome: true, grauIdeal: true } }),
@@ -255,6 +266,9 @@ export async function getRelatorioIndividual(execucaoId: string) {
     },
     tipo: execucao.tipo,
     data: execucao.data,
+    // Exame completo para legendar os anexos na ordem do exame.
+    exameEstrutura: execucao.exame,
+    anexos: execucao.imagens,
     secoes: montarRelatorioIndividual(execucao.exame, comCalculados.valores, movimentos),
   };
 }

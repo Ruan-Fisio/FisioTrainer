@@ -11,13 +11,13 @@ Hoje só dá para imprimir um exame pelo relatório comparativo (`/comparar` →
 - **CA3** As tabelas do PDF têm só uma coluna de valor (**Valor**), mais **Ideal** e **Dist.** quando a seção tem valor ideal — sem colunas de retorno/progresso. Só entram campos preenchidos; CALCULADO é recalculado; Goniometria lista cada movimento com o grau ideal.
 - **CA4** Os gráficos consolidados mostram uma barra por item (só a execução impressa), com título "Gráficos Consolidados".
 - **CA5** O relatório comparativo (`/comparar` e seu PDF) continua igual.
+- **CA6** (adendo) No fim do PDF individual entram as **imagens** da execução, com as **anotações** desenhadas por cima, na ordem do exame e legendadas por seção/campo/coluna; anexos que não são imagem (ou imagem ilegível) aparecem só pelo nome em "Outros anexos".
 
 ### Regras de negócio
 - **RN1** A rota do PDF exige sessão da clínica (não é exposta no portal).
 - **RN2** Retorno usa o exame (versão) da própria execução — o mesmo que o detalhe mostra.
 
 ### Fora de escopo
-- Imagens anexadas ao exame no PDF.
 - Impressão individual no portal público.
 
 ## Plano
@@ -51,3 +51,6 @@ Nenhuma.
 - [x] T4 Botão no detalhe — `imprimir-execucao-button.tsx`, `page.tsx` (CA1)
 - [x] T5 Verificar: `npm test`, `npx tsc --noEmit`, `npx next build`
 - [x] T6 Atualizar `docs/exames.md` com as regras duráveis
+- [x] T7 (CA6) Ordenar/legendar anexos — `src/lib/relatorio-imagens.ts` + teste
+- [x] T8 (CA6) Anotações no PDF reaproveitando `FormaSvg` — `src/lib/svg-arvore.ts` + teste, `src/lib/pdf/anotacoes-pdf.tsx`
+- [x] T9 (CA6) Carregar imagens (storage + sharp) e seção "Imagens"/"Outros anexos" — `src/lib/pdf/imagens-relatorio.ts`, `relatorio-documento.tsx`, action e rota
